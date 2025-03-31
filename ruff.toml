@@ -1,0 +1,16 @@
+# ruff.toml
+line-length = 88
+target-version = "py312"
+
+[lint]
+# Update to use current rule codes
+select = ["E", "W", "F", "I", "UP", "D", "S", "B", "A", "C4", "T20", "SIM", "PTH", "N", "ASYNC1", "FLY", "PERF", "RUF"]
+ignore = [
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", # Ignore missing docstring errors
+    "S101", # Ignore assert statements
+    "D213", # disable second-line summary rule so that our summary (D212) works as desired
+    "D203", # Explicitly ignore one-blank-line-before-class in favor of D211
+]
+
+[format]
+# No specific format settings needed if defaults are fine

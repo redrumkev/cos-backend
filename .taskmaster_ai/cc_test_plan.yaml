@@ -1,0 +1,18 @@
+task_id: cc_test_plan
+version: 1.0
+created: 2025-04-02
+summary: Ensure the Control Center (CC) module is fully tested and TDD-compliant
+objectives:
+  - Reach 95%+ test coverage on all CC components
+  - Establish clear testing patterns for future modules
+  - Confirm test suite runs cleanly under pre-commit and CI/CD
+steps:
+  - "[x] Scaffold test_cc.py with basic health check test (GET /health)"
+  - "[x] Fix ruff/mypy import and linting errors"
+  - "[ ] Add unit tests for router/controller/controller logic paths"
+  - "[ ] Add edge-case tests and invalid input handling"
+  - "[ ] Test logger calls using patch/mocking"
+  - "[ ] Integrate test into CI/CD pipeline (if not already)"
+linked_mdc:
+  - cc_module
+  - test_pattern

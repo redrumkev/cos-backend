@@ -1,0 +1,21 @@
+name: Backend Module Structure
+rule_type: always
+scope: backend_modules
+summary: Standard pattern for FastAPI modules in COS.
+pattern:
+  description: >
+    Each backend module in COS should follow the vertical slice pattern. This includes:
+    - `router.py`: Exposes FastAPI routes
+    - `controller.py`: Handles routing logic and data validation
+    - `models.py`: Contains Pydantic models
+    - `*_manifest.yaml`: Describes module purpose, config, and alignment
+    - `*_map.yaml`: Lists components and common paths
+  checklist:
+    - Ensure `router.py` uses `APIRouter`
+    - All modules must register their router with `cos_main.py`
+    - Ensure `controller.py` functions mirror route names with suffix `_controller`
+    - Pydantic models use type safety and validation
+    - Module folder name must match `module.name` in manifest
+    - Must contain 1 passing test in `/tests/backend/MODULE_NAME/`
+    - Logger used via `common/logger.py`
+    - Add MDC rule for any unique structure

@@ -1,0 +1,76 @@
+# COS Memory Architecture Blueprint
+# Layered Memory Strategy: Begin with L1 (mem0), Expand to L2–L4
+# ---------------------------------------------------------------
+
+memory_layers:
+  L1:
+    name: mem0
+    type: ephemeral
+    engine: FastAPI + Flat JSON
+    path: /memory/{id}
+    mounted_at: E:/mem0_data
+    purpose:
+      - Realtime agent memory (PEM, Cursor, AIC)
+      - Prompt logs, transient state, temporary cognition
+    client:
+      location: common/mem0_client.py
+      usage: from common.mem0_client import Mem0Client
+    schema:
+      fields:
+        - id: memory key
+        - source: pem | cursor | aic
+        - tags:
+            optional: true
+            description: categorization
+        - data: prompt/input/output/context
+        - timestamp: UTC string
+    notes:
+      - Currently LIVE and operational
+      - Phase 1 focus: enable PEM + Cursor to store/retrieve
+      - All deeper memory layers will emerge from this base
+
+  L2:
+    name: graphiti
+    type: semantic
+    engine: Neo4j (w/ Zep or custom agent bridge)
+    status: NOT IMPLEMENTED
+    purpose:
+      - Store evolving concepts, relationships, insight nodes
+      - Graph-aware agent reasoning
+    placeholder:
+      - Identify tagged mem0 entries for graphification
+      - Define schema later (prompt lineage, node linking)
+
+  L3:
+    name: Zettelkasten
+    type: authored
+    engine: Markdown + YAML + ZK Engine
+    status: PLANNED
+    purpose:
+      - Curated human-readable insights
+      - Published memory nodes
+      - Serves books, essays, social, PEM seed prompts
+
+  L4:
+    name: Ground Truth DB
+    type: persistent
+    engine: PostgreSQL
+    status: ACTIVE
+    purpose:
+      - All hard data, users, schema, state
+      - Not agent memory, but system truth
+
+# Notes:
+# - We are starting with L1: mem0 only
+# - CC module (Control Center) is the keystone and must be completed first
+# - Cursor and PEM will use L1
+# - L2+L3+L4 evolve in future phases after CC and PEM are production-ready
+
+# Tomorrow's First Tasks:
+# - Build logger.py (PEM → mem0)
+# - Begin PEM prompt logging + tagging
+# - Snapshot initial memory entries
+# - Continue modular work on CC (gold standard module)
+# This file is the evolving map of COS memory consciousness.
+
+# As memory expands, so does COS.

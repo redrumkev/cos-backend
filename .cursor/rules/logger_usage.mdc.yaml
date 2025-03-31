@@ -1,0 +1,18 @@
+name: Logger Usage Convention
+rule_type: always
+scope: logging
+summary: Enforces consistent logging across all modules
+pattern:
+  description: >
+    Use `common/logger.py::log_event()` to track:
+    - Entry into key route/controller operations
+    - Memory actions (mem0 get/set)
+    - System startup/shutdown
+    - Agent-specific logs (PEM, AIC, VN)
+  usage: >
+    Eample: `log_event(source="pem", data={...}, tags=["prompt"], memo="...")`
+    - Tags must always be lowercase kebab-case
+    - Source should be the module name
+  required_in:
+    - All FastAPI routers
+    - Major background services

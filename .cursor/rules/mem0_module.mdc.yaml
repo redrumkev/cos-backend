@@ -1,0 +1,42 @@
+---
+metadata:
+  name: mem0_module
+  applies_to:
+    - common/mem0_client.py
+    - common/logger.py
+  rule_type: agent_requested
+  summary: Lightweight Layer 1 memory system for COS - fast, resilient, and non-blocking.
+
+definition:
+  name: mem0
+  scope: mem0
+  summary: |
+    Ephemeral Layer 1 memory system providing rapid, isolated storage
+    for prompt/result/task logging with minimal system impact.
+
+  pattern:
+    description: |
+      Core memory system foundations:
+      - Fast JSON persistence via local filesystem or API
+      - Essential logging for PEM, Cursor, and Logger components
+      - Balanced logging approach (not verbose, not sparse)
+      - Fault-tolerant - continues operation if subsystems fail
+      - Minimal LLM context usage via agent_requested pattern
+      - Containerized deployment ready (docker-compose.mem0.yml)
+
+    best_practices:
+      - Log strategically - capture key interactions only
+      - Implement robust error handling and timeouts
+      - Keep memory schema clean and intuitive
+      - Maintain strict memory layer boundaries (L1 ≠ L2 ≠ L3)
+
+  examples:
+    - health_check: "GET http://localhost:7790/health → {\"status\": \"ok\"}"
+    - memory_log: "POST /log with {\"prompt\": ..., \"result\": ...}"
+    - low_token_budget: "Use minimal payloads, essential fields only"
+    - integration: "log_event(source=\"pem\", data={...}, tags=[\"pem\", \"memory\"])"
+
+  notes:
+    - Keep backend/Postgres dependencies isolated
+    - Ensure resilience during backend outages
+    - Restrict API access to internal modules only

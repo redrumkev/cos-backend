@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cos_backend"
+version = "0.1.0"
+description = "Creative Operating System Backend"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi",
+    "pydantic[email]",
+    "sqlalchemy[asyncio]",
+    "alembic",
+    "httpx",
+    "redis[hiredis]",
+    "python-dotenv",
+    "psycopg[binary]",
+    "rich",
+
+    # Rust-powered high-performance dependencies
+    "orjson>=3.10.16",           # Fast JSON processing with Python 3.13 support
+    "neo4j-rust-ext>=5.27.0.0",  # Up to 10x faster Neo4j driver
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-xdist",  # For parallel testing
+    "pytest-mock",
+    "hypothesis",
+    "bandit",
+    "ruff",
+    "mypy",
+    "uv",  # Include uv itself as a dev dependency if desired
+]
+rust-extensions = [
+    "msgspec>=0.19.0",  # Only use if you encounter no installation issues
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true # Start with this, can become stricter later
+disallow_untyped_defs = true
+check_untyped_defs = true
+strict = true # Enable strict mode
+
+# Add Pydantic plugin if needed (check latest mypy/pydantic docs for integration)
+# plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+# Add the asyncio marker
+markers = ["asyncio: mark a test as an asyncio test"]
+minversion = "6.0"
+# Optimized options: parallel testing, concise output, coverage report, disable unnecessary plugins
+addopts = "-ra -q --cov=src --cov-report=term-missing -n auto -p no:pastebin -p no:nose -p no:doctest"
+testpaths = ["tests"]
+pythonpath = ["."] # Or potentially ["src", "."] if needed, but editable should handle src
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["src"] # Specify source directory for coverage measurement
+omit = [
+    "tests/*",
+    "*/alembic/*", # Omit alembic migration files
+    "src/backend/common/config.py",
+    "src/backend/*/main.py",
+]
+branch = true
+
+[tool.coverage.report]
+# Updated to match our achieved coverage level of 97.4%
+fail_under = 97.0
+show_missing = true
+
+[tool.bandit]
+# Exclude tests from bandit scans
+exclude_dirs = ["tests"]
+# Skips - Use with extreme caution! Aim for zero skips.
+# skips = ["B101"] # Example: Skip assert_used test ID if absolutely necessary
+
+# Configuration for orjson (runtime configuration)
+[tool.orjson]
+# orjson is configured at runtime, no specific settings needed here
+
+# Configuration for neo4j-rust-ext (just installs alongside neo4j)
+[tool.neo4j-rust-ext]
+# neo4j-rust-ext is a drop-in replacement, no specific settings needed here
+
+[tool.pytest-cov]
+cov = ["src"]
+cov-report = ["term", "html", "xml"]
+no-cov-on-fail = false

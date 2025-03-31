@@ -1,0 +1,84 @@
+---
+description: |
+  Control Center (CC) Module Map.
+
+  This file serves as an AI-readable manifest of the CC module structure,
+  defining files, their purpose, and relationships.
+
+# MDC: cc_module
+structure:
+  - file: cc_main.py
+    role: FastAPI app initialization and router mounting
+    dependencies:
+      - router.py
+      - common/logger.py
+
+  - file: router.py
+    role: API routes and endpoint definitions
+    dependencies:
+      - schemas.py
+      - services.py
+      - deps.py
+      - common/logger.py
+
+  - file: models.py
+    role: SQLAlchemy database models
+    dependencies: []
+
+  - file: schemas.py
+    role: Pydantic models for request/response validation
+    dependencies: []
+
+  - file: services.py
+    role: Business logic implementation
+    dependencies:
+      - crud.py
+      - common/logger.py
+
+  - file: crud.py
+    role: Database operations
+    dependencies:
+      - common/logger.py
+
+  - file: deps.py
+    role: Dependency injection functions
+    dependencies:
+      - common/logger.py
+
+  - file: cc_manifest.yaml
+    role: Module purpose and identity definition
+    dependencies: []
+
+  - file: cc_map.yaml
+    role: Module file structure and relationship map
+    dependencies: []
+
+api_endpoints:
+  - path: /cc/health
+    methods:
+      - GET
+    purpose: Basic health check for CC module
+
+  - path: /cc/config
+    methods:
+      - GET
+    purpose: Get CC module configuration
+
+  - path: /cc/system/health
+    methods:
+      - GET
+    purpose: Comprehensive system health report
+
+  - path: /cc/ping
+    methods:
+      - POST
+    purpose: Ping specific module to check health
+
+database:
+  schema: cc
+  tables: []  # To be implemented
+
+integrations:
+  - module: mem0
+    purpose: Memory storage and retrieval
+    method: HTTP API

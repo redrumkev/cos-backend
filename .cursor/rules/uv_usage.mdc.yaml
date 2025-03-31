@@ -1,0 +1,14 @@
+name: Python Env Setup with uv
+rule_type: always
+scope: python_env
+summary: Standard for creating and managing Python environments
+pattern:
+  commands:
+    - uv venv .venv
+    - .venv\Scripts\Activate.ps1 (Windows) or source .venv/bin/activate (Linux/macOS)
+    - uv pip install -r requirements.txt
+  notes:
+    - Never install Python packages globally
+    - Always isolate with `.venv`
+    - Requirements files go inside the module they serve (or in root if shared)
+    - Activate the environment before running tests or app

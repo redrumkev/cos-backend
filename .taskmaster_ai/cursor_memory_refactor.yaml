@@ -1,0 +1,17 @@
+task_id: cursor_memory_refactor
+version: 1.0
+created: 2025-04-02
+summary: Refactor cursor_memory.py to align with COS logging/memory design
+objectives:
+  - Integrate common/logger logging
+  - Ensure logs are stored via mem0 connection (deferred if inactive)
+  - Provide clean endpoint/function for logging prompt–action–result flows
+steps:
+  - "[x] Review current cursor_memory.py and ledger_view.py logic"
+  - "[ ] Create utility to log memory events (prompt/action/result pattern)"
+  - "[ ] Refactor cursor logger structure to match mama bear logging"
+  - "[ ] Write sample usage from test + main module (like cc or pem)"
+  - "[ ] Add MDC rule for cursor memory chain if needed"
+linked_mdc:
+  - cursor_memory
+  - mem0_module

@@ -1,0 +1,18 @@
+name: Cursor Dev Protocol
+rule_type: always
+scope: cursor
+summary: Ensure Cursor or CLINE agents operate with planning-first approach.
+pattern:
+  description: >
+    Agents must:
+    1. Think fully before acting (plan before generate)
+    2. Explain next steps
+    3. Review for logic gaps
+    4. Only then generate code
+  prompt_behavior:
+    - “Before you act, fully explain your next 2–3 steps.”
+    - “Pause to review before proceeding. Adjust if needed.”
+    - “Use MDCs for module patterns. Tag as needed.”
+  safety:
+    - If unsure: ask or stop. Never guess code structure.
+    - If modifying an existing file, always explain changes first.

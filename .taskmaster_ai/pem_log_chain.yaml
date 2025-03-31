@@ -1,0 +1,18 @@
+task_id: pem_log_chain
+version: 1.0
+created: 2025-04-02
+summary: Build a complete memory logging loop for PEM that records prompt + result + feedback
+objectives:
+  - Implement structured prompt + result logging into mem0
+  - Standardize PEM run logging with tags (e.g., "prompt", "identity", "alignment")
+  - Enable memory summarization + review patterns for PEM
+steps:
+  - "[x] Review basic logging scaffold in template_basic_loggin.py"
+  - "[ ] Define pem_logger interface (wrapped around log_event)"
+  - "[ ] Apply PEM tags and schema for memory consistency"
+  - "[ ] Test a full loop (prompt > output > log > review summary)"
+  - "[ ] Scaffold MDC rule for pem_log_chain"
+linked_mdc:
+  - pem_log_chain
+  - mem0_module
+  - test_pattern

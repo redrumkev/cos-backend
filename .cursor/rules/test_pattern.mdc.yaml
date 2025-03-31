@@ -1,0 +1,50 @@
+# ---
+# name: test_pattern
+# applies_to: ["tests/**/*.py"]
+# trigger: agent_requested
+# summary: COS test structure pattern (TDD)
+# ---
+
+name: COS Test Structure and Coverage
+rule_type: agent_requested
+applies_to:
+  - "tests/**/*.py"
+summary: Comprehensive testing pattern for COS backend with pytest and TDD
+description: >
+  All tests must follow the COS standard testing framework to ensure
+  consistency, maintainability, and comprehensive coverage:
+
+  Core Requirements:
+  - Use pytest as the primary testing framework
+  - Maintain minimum 95% code coverage
+  - Place all tests in /tests/ directory
+  - Test FastAPI endpoints in isolation
+  - Use async testing with httpx.AsyncClient
+  - Include positive and negative test cases for each route
+  - Use descriptive test names (e.g., test_health_check_success)
+
+pattern:
+  test_structure:
+    framework: pytest
+    async_required: true
+    base_setup: |
+      from cos_main import app
+      import pytest
+      from httpx import AsyncClient
+
+    conventions:
+      - Use @pytest.mark.asyncio decorator for all async tests
+      - Initialize AsyncClient with app and test base_url
+      - Assert both status_code and response payload
+      - Follow naming convention: test_<endpoint>_<scenario>
+
+  examples:
+    - test_file: "tests/backend/test_cc.py"
+      description: "Health check endpoint test example"
+      code: |
+        @pytest.mark.asyncio
+        async def test_health_check_success():
+            async with AsyncClient(app=app, base_url='http://test') as ac:
+                response = await ac.get('/api/v1/cc/health')
+            assert response.status_code == 200
+            assert response.json() == {"status": "ok"}

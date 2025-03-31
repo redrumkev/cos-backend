@@ -1,0 +1,34 @@
+# ---
+# name: cc_module
+# applies_to: ["src/backend/cc/*.py"]
+# trigger: agent_requested
+# summary: Pattern for Control Center (CC) module in COS
+# ---
+
+name: cc_module
+rule_type: always
+applies_to:
+  - backend/cc/*.py
+summary: Gold-standard COS module. Sets precedent for all others.
+description: |
+  The Control Center (cc) module defines the COS backbone.
+  It sets the standard for structure, logging, testing, and routing.
+  All future modules must follow this pattern.
+pattern:
+  requirements:
+    - Follow COS dev standards with >95% test coverage
+    - Mount under /api/v1/cc/ in cos_main.py
+    - Include passing /health endpoint at /api/v1/cc/health
+    - Use log_event() on all route/controller entry points
+    - Maintain human-readable and agent-friendly code
+    - Co-locate cc_manifest.yaml and cc_map.yaml
+examples:
+  - startup:
+      file: cos_main.py
+      content: "app.include_router(cc_router, prefix='/api/v1/cc')"
+  - logging:
+      file: router.py
+      content: "log_event(source='cc', data={...})"
+  - testing:
+      file: tests/backend/test_cc.py
+      content: "health endpoint test coverage"

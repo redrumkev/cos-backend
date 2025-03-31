@@ -1,0 +1,65 @@
+# COS Module Development Rules v1.0
+
+## DOCUMENT CONTEXT
+- PURPOSE: Guide AI-assisted module creation after CC gold standard
+- SCOPE: All modules beyond CC (e.g., PEM, VN, Slack Hive)
+- PROJECT: Creative Operating System - Kevin's multi-century authorship framework
+- MANDATE: 100% Quality | 100% Efficiency (no exceptions)
+
+## MODULE GENERATION WORKFLOW
+- START: Use generate_module.py script with CC as template
+- CUSTOMIZE: Adapt to module-specific purpose while preserving structure
+- TEST: Ensure all tests pass with module-specific adaptations
+- CONNECT: Define integration points with other modules via API/Redis
+- VALIDATE: Verify alignment with COS principles and standards
+
+## MODULE-SPECIFIC ADAPTATIONS
+- YAML MAP: Update *_map.yaml with module-specific components
+- SCHEMAS: Define Pydantic models relevant to module purpose
+- DATABASE: Define table schema and relationship models
+- SERVICES: Implement core business logic unique to module
+- ROUTES: Define API endpoints specific to module functionality
+
+## INTEGRATION GUIDELINES
+- EXPOSE: Define clear API contract for other modules
+- CONSUME: Access other modules via HTTP client, not imports
+- PUBLISH: Use Redis pub/sub for events other modules may care about
+- SUBSCRIBE: Listen for relevant events from other modules
+
+## SOUL ALIGNMENT CHECK
+- RESONANCE: Does this module serve Kevin's highest creative expression?
+- CLARITY: Does it reduce friction rather than shift it?
+- LEGACY: Will it make sense 100 books from now?
+- AMPLIFICATION: Does it enhance Kevin's voice, not just capture it?
+- ENTROPY: Does it reduce backlog rather than create new debt?
+
+## TESTING STRATEGY
+- UNIT: Test atomic functions and classes in isolation
+- INTEGRATION: Test module components working together
+- API: Test endpoints via FastAPI TestClient
+- EDGE: Test boundary conditions and error handling
+- PERFORMANCE: Test under expected load conditions
+
+## DOCUMENTATION REQUIREMENTS
+- PURPOSE: Clear statement of module's role in COS
+- API: OpenAPI/Swagger documentation for all endpoints
+- INTEGRATION: How other modules should interact with this one
+- FUTURE: Planned expansions and evolution paths
+
+## DEPLOYMENT CONSIDERATIONS
+- ENVIRONMENT: Required environment variables
+- DEPENDENCIES: Explicit Python package requirements
+- CONTAINERS: Docker configuration if needed
+- MIGRATION: Database migration script for schema creation
+
+## MODULE-SPECIFIC PATTERNS
+- PEM: Prompt template versioning and evolution patterns
+- VN: Audio processing and transcription pipelines
+- Slack: Real-time event handling and asynchronous responses
+- AIC: Agent interaction and orchestration patterns
+
+## REMEMBER: MODULES ARE ORGANS OF A LIVING SYSTEM
+- INDEPENDENCE: Each module should function autonomously
+- INTERCONNECTION: But also communicate harmoniously with others
+- EVOLUTION: Design for growth and adaptation over time
+- RESONANCE: Align with the soul and purpose of COS

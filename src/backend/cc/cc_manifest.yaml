@@ -1,0 +1,59 @@
+---
+# Control Center (CC) Module Manifest
+# Purpose: Defines the core identity and alignment of the CC (Control Center) module
+
+module:
+  name: "cc"
+  title: "Control Center"
+  purpose: |
+    Acts as the central hub of COS. All agent modules (PEM, AIC, VN, etc.) are
+    initiated or coordinated from here. Contains health checks, top-level routing,
+    and orchestrated commands. Provides system-wide monitoring and coordination
+    capabilities to ensure the entire Creative Operating System functions harmoniously.
+
+  metadata:
+    status: "active"
+    owned_by: "kevin"
+    dependencies: []
+    entrypoint: "cc_main.py"
+
+  alignment:
+    mantra: "Central intelligence that orchestrates the heartbeat of the system."
+    principles:
+      - "clarity_over_complexity"
+      - "stability_over_features"
+      - "service_over_utility"
+      - "interconnectedness_over_isolation"
+    resonance_questions:
+      - "Does this provide clear insight into system health and function?"
+      - "Will this remain a stable foundation across 100 books?"
+      - "Does this simplify system orchestration rather than complicate it?"
+
+  capabilities:
+    - name: "Health Monitoring"
+      description: "System-wide and module-specific health checks"
+    - name: "Configuration Management"
+      description: "Centralized configuration access and control"
+    - name: "Module Coordination"
+      description: "Inter-module communication and event orchestration"
+    - name: "System Status Reporting"
+      description: "Comprehensive reports on system operation"
+
+  integrations:
+    - name: "mem0"
+      purpose: "Memory storage and retrieval"
+      interface: "HTTP API"
+    - name: "other_modules"
+      purpose: "Health checking and coordination"
+      interface: "HTTP API / Redis pub/sub"
+
+  roadmap:
+    - name: "System-wide Event Bus"
+      description: "Redis-based pub/sub system for event propagation"
+      priority: "high"
+    - name: "Command Queue"
+      description: "Task queue for asynchronous operations"
+      priority: "medium"
+    - name: "Admin Dashboard Integration"
+      description: "API endpoints for administrative dashboards"
+      priority: "medium"

@@ -1,0 +1,79 @@
+# ---
+# name: app_entrypoint
+# applies_to: ["src/cos_main.py"]
+# trigger: agent_requested
+# summary: Entry point for COS backend server
+# ---
+
+name: COS Main Entrypoint
+rule_type: always
+scope: app_entrypoint
+applies_to:
+  - cos_main.py
+summary: FastAPI Backend Entry Point Configuration
+
+description: |
+  Primary entry point configuration for the COS Backend service.
+  This file establishes core application structure and routing patterns.
+
+  Key responsibilities:
+  - FastAPI application initialization
+  - Router configuration and mounting
+  - Startup logging and monitoring
+  - Global configuration settings
+
+pattern:
+  requirements:
+    - Create FastAPI instance with appropriate metadata
+    - Mount all module routers using standardized prefix pattern
+    - Implement startup logging using common logger
+    - Configure CORS and middleware as needed
+
+  structure:
+    app_initialization:
+      type: required
+      description: "Initialize the FastAPI application with metadata"
+      example: |
+        app = FastAPI(
+            title='COS Backend',
+            description='Cloud Optimization Service API',
+            version='1.0.0'
+        )
+
+    router_mounting:
+      type: required
+      description: "Mount module routers with standardized prefix"
+      example: |
+        app.include_router(
+            router=module_router,
+            prefix='/api/v1/{module_name}'
+        )
+
+    startup_logging:
+      type: required
+      description: "Log application startup events"
+      example: |
+        log_event(
+            source='cos_main',
+            data={'event': 'startup', 'status': 'initialized'}
+        )
+
+examples:
+  - context: "Application Initialization"
+    code: |
+      app = FastAPI(title='COS Backend')
+
+  - context: "Router Integration"
+    code: |
+      app.include_router(cc_router, prefix='/api/v1/cc')
+      app.include_router(pipeline_router, prefix='/api/v1/pipeline')
+
+  - context: "Startup Logging"
+    code: |
+      log_event(source='cos_main', data={'event': 'startup'})
+
+validation:
+  required_elements:
+    - FastAPI instance creation
+    - At least one router mounted
+    - Startup logging implementation

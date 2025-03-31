@@ -1,0 +1,26 @@
+services:
+  mem0:
+    container_name: cos_mem0
+    image: tiangolo/uvicorn-gunicorn-fastapi:python3.11
+    restart: unless-stopped
+    ports:
+      - "7790:80"
+    volumes:
+      - E:/mem0_data:/app/memory
+      - ./mem0:/app  # relative to /src/infrastructure/
+    environment:
+      - MODULE_NAME=main
+      - VARIABLE_NAME=app
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cos_network
+
+networks:
+  cos_network:
+    external: true
+    name: cos_network
