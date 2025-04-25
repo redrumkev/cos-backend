@@ -25,7 +25,7 @@ from .schemas import (
 router = APIRouter()
 
 
-@router.get(  # type: ignore[misc]
+@router.get(
     "/health",
     response_model=HealthStatus,
     summary="Basic Health Check",
@@ -36,14 +36,14 @@ async def health_check() -> HealthStatus:
     """Return the health status of the service."""
     log_event(
         source="cc",
-        data={},  # Empty dict for required data parameter
+        data={},
         tags=["health", "cc_router"],
         memo="Health check endpoint accessed.",
     )
     return HealthStatus(status="healthy")
 
 
-@router.get(  # type: ignore[misc]
+@router.get(
     "/config",
     response_model=CCConfig,
     summary="Get CC Configuration",
@@ -56,15 +56,14 @@ async def get_config(
     """Return the current configuration of the CC module."""
     log_event(
         source="cc",
-        data={},  # Empty dict for required data parameter
+        data={},
         tags=["configuration", "cc_router"],
         memo="Configuration endpoint accessed.",
     )
-    # Return a hardcoded response until database integration is complete
     return CCConfig(version=config["version"], modules_loaded=["cc", "mem0"])
 
 
-@router.get(  # type: ignore[misc]
+@router.get(
     "/system/health",
     response_model=SystemHealthReport,
     summary="System Health Report",
@@ -72,17 +71,15 @@ async def get_config(
     tags=["Health"],
 )
 async def system_health_report(
-    db: AsyncSession = Depends(get_db_session),  # Use proper dependency  # noqa: B008
+    db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> SystemHealthReport:
     """Get a comprehensive health report for all system modules."""
     log_event(
         source="cc",
-        data={},  # Empty dict for required data parameter
+        data={},
         tags=["health", "system", "cc_router"],
         memo="System health report endpoint accessed.",
     )
-
-    # Using proper ModuleHealthStatus instances
     return SystemHealthReport(
         overall_status="healthy",
         modules=[
@@ -97,7 +94,7 @@ async def system_health_report(
     )
 
 
-@router.post(  # type: ignore[misc]
+@router.post(
     "/ping",
     response_model=ModulePingResponse,
     summary="Ping Module",
@@ -106,7 +103,7 @@ async def system_health_report(
 )
 async def ping(
     request: ModulePingRequest,
-    db: AsyncSession = Depends(get_db_session),  # Use proper dependency  # noqa: B008
+    db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ModulePingResponse:
     """Ping a specific module to verify its health status."""
     log_event(
@@ -115,16 +112,16 @@ async def ping(
         tags=["ping", "cc_router"],
         memo=f"Ping request for module {request.module}.",
     )
-
-    # Mock implementation until database is set up
     if request.module not in ["cc", "mem0"]:
         return ModulePingResponse(module=request.module, status="unknown", latency_ms=0)
-
     return ModulePingResponse(module=request.module, status="healthy", latency_ms=5)
 
 
-@router.get("/status", response_model=dict[str, str])  # type: ignore[misc]
-def get_status() -> dict[str, str]:
+@router.get(
+    "/status",
+    response_model=dict[str, str],
+)
+async def get_status() -> dict[str, str]:
     """Return a simple status indicating the CC module is operational."""
     log_event(
         source="cc",

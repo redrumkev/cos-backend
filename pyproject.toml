@@ -51,6 +51,7 @@ ignore_missing_imports = true # Start with this, can become stricter later
 disallow_untyped_defs = true
 check_untyped_defs = true
 strict = true # Enable strict mode
+allow_untyped_decorators = true
 
 # Add Pydantic plugin if needed (check latest mypy/pydantic docs for integration)
 # plugins = ["pydantic.mypy"]
