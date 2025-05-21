@@ -16,7 +16,7 @@ description: >
 
   Core Requirements:
   - Use pytest as the primary testing framework
-  - Maintain minimum 95% code coverage
+  - Maintain minimum 97% code coverage
   - Place all tests in /tests/ directory
   - Test FastAPI endpoints in isolation
   - Use async testing with httpx.AsyncClient

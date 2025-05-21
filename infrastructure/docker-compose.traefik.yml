@@ -1,0 +1,42 @@
+services:
+  traefik:
+    restart: always
+    image: traefik:v3.4
+    container_name: cos_traefik
+    command:
+      - "--log.level=DEBUG"                             # DEBUG for development; use INFO or WARN in production for less noise
+      - "--accesslog=true"                              # Enable access logs (requests handled by Traefik)
+      - "--api.insecure=true"                           # Insecure dashboard for dev only; REMOVE for production!
+      - "--api.dashboard=true"                          # Enable Traefik dashboard
+      - "--providers.docker=true"                       # Enable Docker provider for service discovery
+      - "--providers.docker.exposedByDefault=false"     # Only route containers with traefik.enable=true
+      - "--entrypoints.web.address=:80"                 # HTTP entrypoint
+      # - "--entrypoints.websecure.address=:443"        # Uncomment and configure for HTTPS in production
+    ports:
+      - "80:80"
+      # - "443:443"                                     # Uncomment for HTTPS in production
+      - "8080:8080"                                     # Dashboard (insecure if api.insecure=true)
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"  # Needed for Docker provider; consider using a proxy in production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - cos_network                                     # Service joins the shared network
+
+networks:
+  cos_network:
+    external: true
+    name: cos_network                                    # Must match the name defined in your main docker-compose.yml
+
+# =========================
+# For production, change:
+# - Remove or secure the dashboard: remove --api.insecure=true and use authentication/IP whitelisting.
+# - Set --log.level=INFO or WARN to reduce log verbosity.
+# - Enable HTTPS: uncomment --entrypoints.websecure.address=:443 and the corresponding port.
+# - Consider using a Docker socket proxy for enhanced security.
+# - Add healthchecks to monitor Traefik's health.
+# - Review and secure all environment variables and secrets.
+# =========================

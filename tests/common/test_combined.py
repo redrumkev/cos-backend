@@ -172,23 +172,23 @@ class TestLedgerView:
         ]
 
         # Test no filter
-        result1 = filter_memories(memories)  # type: ignore[arg-type]
+        result1 = filter_memories(memories)  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor[arg-type]
         assert len(result1) == 3  # The non-dict item is filtered out
 
         # Test source filter
-        result2 = filter_memories(memories, source="pem")  # type: ignore[arg-type]
+        result2 = filter_memories(memories, source="pem")  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor[arg-type]
         assert len(result2) == 2
         assert result2[0][0] == "key1"
         assert result2[1][0] == "key3"
 
         # Test tag filter
-        result3 = filter_memories(memories, tag="tag1")  # type: ignore[arg-type]
+        result3 = filter_memories(memories, tag="tag1")  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor[arg-type]
         assert len(result3) == 2
         assert result3[0][0] == "key1"
         assert result3[1][0] == "key2"
 
         # Test both filters
-        result4 = filter_memories(memories, source="pem", tag="tag1")  # type: ignore[arg-type]
+        result4 = filter_memories(memories, source="pem", tag="tag1")  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor[arg-type]
         assert len(result4) == 1
         assert result4[0][0] == "key1"
 
@@ -277,7 +277,7 @@ class TestLedgerView:
             assert mock_print.call_count > 0
 
         # Test empty list
-        empty_memories: list[tuple[str, dict[str, Any]]] = []  # type: ignore # noqa: F821
+        empty_memories: list[tuple[str, dict[str, Any]]] = []  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor # noqa: F821
         with patch("rich.console.Console.print") as mock_print:
             render_rich_table(empty_memories)
             assert mock_print.called  # Should still print an empty table

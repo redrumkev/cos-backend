@@ -16,7 +16,7 @@ from src.backend.cc.crud import (
 )
 
 
-@pytest.mark.asyncio  # type: ignore
+@pytest.mark.asyncio
 async def test_get_system_health() -> Any:
     """Test the get_system_health CRUD function."""
     # Mock the database session
@@ -37,7 +37,7 @@ async def test_get_system_health() -> Any:
     assert "cc" in modules
 
 
-@pytest.mark.asyncio  # type: ignore
+@pytest.mark.asyncio
 async def test_update_module_status() -> Any:
     """Test the update_module_status CRUD function."""
     # Mock the database session
@@ -59,7 +59,7 @@ async def test_update_module_status() -> Any:
     assert result["status"] == new_status
 
 
-@pytest.mark.asyncio  # type: ignore
+@pytest.mark.asyncio
 async def test_get_active_modules() -> Any:
     """Test the get_active_modules CRUD function."""
     # Mock the database session

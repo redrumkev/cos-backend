@@ -1,7 +1,7 @@
 # ruff: noqa: E402
 import functools
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Any, TypeVar, cast
 
@@ -28,7 +28,7 @@ def fixture_wrapper(
         if scope:
             fixture_kwargs_with_scope["scope"] = scope
 
-        return pytest.fixture(**fixture_kwargs_with_scope)(wrapper)  # type: ignore
+        return pytest.fixture(**fixture_kwargs_with_scope)(wrapper)  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor
 
     return decorator
 
@@ -58,6 +58,28 @@ def app() -> FastAPI:
     Use 'function' scope if tests modify app state (e.g., dependencies).
     """
     return main_app
+
+
+@fixture_wrapper(scope="session")
+def mock_env_settings() -> Generator[None, None, None]:
+    """Fixture to set required environment variables for tests using Settings."""
+    import os
+
+    os.environ["POSTGRES_DEV_URL"] = "postgresql://test:test@localhost/test_db"
+    os.environ["POSTGRES_TEST_URL"] = "postgresql://test:test@localhost/test_test_db"
+    os.environ["REDIS_HOST"] = "localhost"
+    os.environ["REDIS_PORT"] = "6379"
+    # REDIS_PASSWORD is set from the environment for security
+    os.environ["REDIS_PASSWORD"] = os.environ.get("REDIS_PASSWORD", "test_password")
+    yield
+    for var in [
+        "POSTGRES_DEV_URL",
+        "POSTGRES_TEST_URL",
+        "REDIS_HOST",
+        "REDIS_PORT",
+        "REDIS_PASSWORD",
+    ]:
+        os.environ.pop(var, None)
 
 
 @fixture_wrapper(scope="function")

@@ -39,7 +39,7 @@ class TestServices:
             assert result["cc"] == "online"
             assert "message" in result
 
-    @pytest.mark.asyncio  # type: ignore[misc]
+    @pytest.mark.asyncio
     async def test_check_system_health_all_healthy(self) -> None:
         """Test check_system_health with all modules healthy."""
         # Mock database session
@@ -71,7 +71,7 @@ class TestServices:
                 assert "modules" in result
                 assert len(result["modules"]) == 2
 
-    @pytest.mark.asyncio  # type: ignore[misc]
+    @pytest.mark.asyncio
     async def test_check_system_health_degraded(self) -> None:
         """Test check_system_health with at least one degraded module."""
         # Mock database session
@@ -97,7 +97,7 @@ class TestServices:
                 assert "modules" in result
                 assert len(result["modules"]) == 2
 
-    @pytest.mark.asyncio  # type: ignore[misc]
+    @pytest.mark.asyncio
     async def test_get_cc_configuration(self) -> None:
         """Test get_cc_configuration function."""
         # Mock database session
@@ -126,7 +126,7 @@ class TestServices:
                 assert result["modules_loaded"] == ["cc", "mem0"]
                 assert "environment" in result
 
-    @pytest.mark.asyncio  # type: ignore[misc]
+    @pytest.mark.asyncio
     async def test_ping_module_cc(self) -> None:
         """Test ping_module function for cc module."""
         # Mock database session
@@ -154,7 +154,7 @@ class TestServices:
             assert result["status"] == "healthy"
             assert "latency_ms" in result
 
-    @pytest.mark.asyncio  # type: ignore[misc]
+    @pytest.mark.asyncio
     async def test_ping_module_unknown(self) -> None:
         """Test ping_module function for an unknown module."""
         # Mock database session

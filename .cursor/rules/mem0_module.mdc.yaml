@@ -1,42 +1,44 @@
 ---
 metadata:
-  name: mem0_module
+  name: mem0_memory_module
   applies_to:
+    - src/memory/mem0/*.py
     - common/mem0_client.py
-    - common/logger.py
+    - docker-compose.mem0.yml
+    - redis.conf
   rule_type: agent_requested
-  summary: Lightweight Layer 1 memory system for COS - fast, resilient, and non-blocking.
+  summary: COS Layer 1/2 Memory System - volatile + evolving memory backed by Redis Stack and FastAPI.
 
 definition:
   name: mem0
-  scope: mem0
+  scope: memory.l1
   summary: |
-    Ephemeral Layer 1 memory system providing rapid, isolated storage
-    for prompt/result/task logging with minimal system impact.
+    The mem0 module implements ephemeral (L1) and evolving (L2) memory operations via Redis Stack.
+    It supports prompt/result/log ingestion from PEM, Cursor, and agents—prior to graphification or archiving.
+    Designed to be fast, container-resilient, and compatible with memory upgrades like mem0g (L3).
 
   pattern:
     description: |
-      Core memory system foundations:
-      - Fast JSON persistence via local filesystem or API
-      - Essential logging for PEM, Cursor, and Logger components
-      - Balanced logging approach (not verbose, not sparse)
-      - Fault-tolerant - continues operation if subsystems fail
-      - Minimal LLM context usage via agent_requested pattern
-      - Containerized deployment ready (docker-compose.mem0.yml)
+      - Exposed via FastAPI on port 80 (proxied to http://mem0.cos.local)
+      - Uses Redis Stack (JSON + optional vector) with persistent mount to E:/mem0_data
+      - Splits memory logic into `scratchpad.py` (L1) and `buffer.py` (L2)
+      - Accepts internal logs and updates, not public-facing
+      - Offloads context to L3 (`mem0g`) or archive (L4/Postgres) when necessary
+      - Compatible with `docker-compose.mem0.yml` and Traefik reverse proxy
 
     best_practices:
-      - Log strategically - capture key interactions only
-      - Implement robust error handling and timeouts
-      - Keep memory schema clean and intuitive
-      - Maintain strict memory layer boundaries (L1 ≠ L2 ≠ L3)
+      - Use low-token, JSON-based schemas
+      - Avoid writing to L4 unless routing via PEM/agent
+      - Maintain L1–L2 boundary: scratchpad clears often, buffer persists temporarily
+      - Reference schema in `README.memory.md` and `cos_memory_layers.yaml`
 
   examples:
-    - health_check: "GET http://localhost:7790/health → {\"status\": \"ok\"}"
-    - memory_log: "POST /log with {\"prompt\": ..., \"result\": ...}"
-    - low_token_budget: "Use minimal payloads, essential fields only"
-    - integration: "log_event(source=\"pem\", data={...}, tags=[\"pem\", \"memory\"])"
+    - health_check: "GET http://mem0.cos.local/health → {\"status\": \"ok\"}"
+    - log_event: "POST /memory/write {\"source\": \"pem\", \"data\": {..}, \"tags\": [\"trace\"]}"
+    - scratch: "Use `scratchpad.set_memory(key, value)` → short-lived"
+    - buffer: "Use `buffer.store_interaction()` → persists across restart"
 
   notes:
-    - Keep backend/Postgres dependencies isolated
-    - Ensure resilience during backend outages
-    - Restrict API access to internal modules only
+    - Redis is configured via redis.conf, volume-mounted at E:/mem0_data
+    - Only log meaningful memory events—agentic decisions, user inputs, etc.
+    - Thus `mem0` feeds into `mem0g` (graph memory) via internal linkers (planned)

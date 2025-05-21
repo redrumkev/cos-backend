@@ -13,7 +13,7 @@ from src.backend.cc.deps import (
 )
 
 
-@pytest.mark.asyncio  # type: ignore
+@pytest.mark.asyncio
 async def test_get_module_config_structure() -> None:
     """Test get_module_config returns correct config structure.
 
@@ -28,7 +28,7 @@ async def test_get_module_config_structure() -> None:
     assert config["environment"] == "development"
 
 
-@pytest.mark.asyncio  # type: ignore
+@pytest.mark.asyncio
 async def test_get_module_config_logs_event(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -54,7 +54,7 @@ async def test_get_module_config_logs_event(
     assert config.get("environment") == "development"
 
 
-@pytest.mark.asyncio  # type: ignore
+@pytest.mark.asyncio
 async def test_get_db_session_returns_mock() -> None:
     """Test that get_db_session returns a mock session.
 
@@ -67,7 +67,7 @@ async def test_get_db_session_returns_mock() -> None:
     assert hasattr(session, "execute")
 
 
-@pytest.mark.asyncio  # type: ignore
+@pytest.mark.asyncio
 async def test_get_db_session_iteration_works() -> None:
     """Test async iteration over get_db_session yields a mock session.
 
@@ -82,7 +82,7 @@ async def test_get_db_session_iteration_works() -> None:
     assert count == 1
 
 
-@pytest.mark.asyncio  # type: ignore
+@pytest.mark.asyncio
 async def test_get_module_config_multiple_calls() -> None:
     """Test that multiple calls to get_module_config return consistent results."""
     config1 = await get_module_config()
@@ -92,7 +92,7 @@ async def test_get_module_config_multiple_calls() -> None:
     assert config1["environment"] == "development"
 
 
-@pytest.mark.asyncio  # type: ignore
+@pytest.mark.asyncio
 async def test_get_module_config_type_hints() -> None:
     """Test that get_module_config returns a dict with string keys and values."""
     config = await get_module_config()

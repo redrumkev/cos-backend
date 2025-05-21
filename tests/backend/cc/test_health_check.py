@@ -9,7 +9,7 @@ from src.backend.cc.cc_main import cc_app
 from src.backend.cc.schemas import HealthStatus, SystemHealthReport
 
 
-@pytest.fixture  # type: ignore
+@pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     """Create a test client for the CC module."""
     with TestClient(cc_app) as client_instance:

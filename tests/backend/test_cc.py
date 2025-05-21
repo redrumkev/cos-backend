@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from backend.cc.cc_main import cc_app
 
 
-@pytest.fixture(scope="module")  # type: ignore[misc]
+@pytest.fixture(scope="module")
 def module_client() -> Generator[TestClient, None, None]:
     """Create a TestClient instance specifically for the cc_app."""
     client = TestClient(cc_app)

@@ -15,7 +15,7 @@ from src.backend.cc.services import ping_module
 class TestServicesCompleteCoverage:
     """Additional tests for CC services to reach 100% coverage."""
 
-    @pytest.mark.asyncio  # type: ignore
+    @pytest.mark.asyncio
     async def test_ping_module_mem0(self) -> None:
         """Test ping_module function specifically for mem0 module.
 

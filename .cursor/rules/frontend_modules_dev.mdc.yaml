@@ -1,0 +1,14 @@
+# ---
+# name: frontend_modules_dev
+# version: 1.0
+# created: 2025-05-02
+# applies_to: ["frontend/modules_dev/**/*.ts", "frontend/modules_dev/**/*.tsx"]
+# trigger: agent_requested
+# summary: Patterns for dev-focused frontend modules in COS
+# ---
+definition:
+  purpose: "Ensure frontend modules use COS-compatible structure and async handling"
+  pattern:
+    - Use atomic components per feature
+    - Isolate hooks by responsibility
+    - Ensure all state flows are declarative, not imperative

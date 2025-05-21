@@ -1,0 +1,37 @@
+name: backend_module_structure
+rule_type: always
+scope: backend_modules
+summary: Ensure proper database structure and Alembic compatibility for COS backend modules.
+
+pattern:
+  description: >
+    Each module in COS must define SQLAlchemy models that comply with the canonical DB layer
+    and support Alembic migration generation. Models must be schema-isolated, registered
+    in `env.py`, and use the shared Base.
+
+  requirements:
+    - All SQLAlchemy models must:
+        - "Use __table_args__ = {\"schema\": \"<module>\"}"
+        - "Import Base from src.db.base"
+        - "Reside in the module folder (e.g., src/backend/cc/models.py)"
+    - "env.py must explicitly import all module models"
+    - "Alembic target_metadata must be set to Base.metadata"
+    - "alembic.ini should not hardcode DB URLs; use environment injection"
+    - "Avoid calling declarative_base() directly in module code"
+
+  violations:
+    - "Redefining Base with declarative_base() in any module"
+    - "Alembic migrations that miss models due to import omission"
+    - "Models missing schema definition in __table_args__"
+
+  validation:
+    - "Check for from src.db.base import Base in every models.py"
+    - "Check for schema declaration: __table_args__ = {\"schema\": \"<module>\"}"
+    - "Check env.py for explicit import of each module’s models"
+    - "Check alembic.ini for use of placeholder or runtime-injected DB URL"
+
+  examples:
+    - "cc/models.py"
+    - "pem/models.py"
+    - "src/db/migrations/env.py"
+    - "alembic.ini"

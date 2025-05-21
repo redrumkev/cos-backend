@@ -1,0 +1,86 @@
+# ---
+# name: backend
+# version: 1.0
+# created: 2025-05-02
+# applies_to: ["src/backend/**/*.py"]
+# trigger: always
+# summary: Development and structure rules for all backend code
+# ---
+
+# COS Backend Development Rules v1.0
+
+## DOCUMENT CONTEXT
+- PURPOSE: Guide AI-assisted development of the COS FastAPI backend
+- SCOPE: Initial CC (Control Center) gold standard module development
+- PROJECT: Creative Operating System - Kevin's multi-century authorship framework
+- MANDATE: 100% Quality | 100% Efficiency (no exceptions)
+
+## ARCHITECTURAL CONSTRAINTS
+- PATTERN: Hybrid Vertical Slice + Atomic Composition
+- STRUCTURE: Each module is self-contained with no cross-module imports
+- COMMUNICATION: API endpoints or Redis pub/sub only
+- SCHEMA: Dynamic binding via config.settings (never hardcoded)
+
+## CODE QUALITY REQUIREMENTS
+- TYPE CHECKING: Strict mypy compliance, all parameters typed
+- PYDANTIC: All data models use Pydantic for validation
+- LINTING: Zero warnings from Ruff
+- FORMATTING: Black-compliant
+- IMPORTS: Organized by isort standards
+
+## TDD WORKFLOW ENFORCEMENT
+- TEST FIRST: Write failing test before implementation
+- COVERAGE: Minimum 97% test coverage
+- TEST TYPES: Unit, integration, and edge case tests required
+- FIXTURES: Use pytest fixtures for reusable components
+
+## DATABASE PATTERNS
+- SCHEMA ISOLATION: Each module has its own schema
+- MODELS: SQLAlchemy with Table Args for schema
+- MIGRATIONS: Alembic with isolated schemas
+- SESSIONS: Dependency injection pattern
+
+## FILE STRUCTURE RULES
+- MAIN.PY: Only FastAPI app initialization and router mounting
+- ROUTER.PY: Only endpoint definitions, business logic in services
+- SERVICES.PY: Core business logic, calls CRUD functions
+- SCHEMAS.PY: Pydantic models for request/response validation
+- MODELS.PY: SQLAlchemy models with dynamic schema
+- DEPS.PY: FastAPI dependencies
+
+## LOGGING STANDARDS
+- SUCCESS: Minimal green confirmations only
+- ERRORS: Detailed "Mama Bear" pattern with actionable context
+- FORMAT: Use Rich for terminal output, structured JSON for files
+
+## REDIS USAGE
+- CACHING: Use for repeated operations
+- PUB/SUB: Use for cross-module communication
+- PERSISTENCE: Avoid for primary data (use PostgreSQL)
+
+## COMMON CODE RULES
+- UTILITIES: Only truly universal code in common/
+- CONFIG: All settings via environment variables or .env
+- DUPLICATION: Prefer duplication over coupling for module independence
+
+## CODE GENERATION APPROACH
+- MODULARITY: Generate smallest logical units (functions, classes)
+- TESTS: Generate tests alongside or before implementation
+- DOCUMENTATION: Clear docstrings explaining purpose, not mechanics
+- EXAMPLES: Include example usage in docstrings
+
+## PERFORMANCE PRIORITIES
+- ASYNC: Use async endpoints and database operations
+- PAGINATION: All list endpoints must support pagination
+- CACHING: Identify and cache expensive operations
+- N+1 PREVENTION: Avoid nested queries, use joins or batch loading
+
+## ERROR HANDLING
+- EXPLICIT: Catch and handle specific exceptions
+- INFORMATIVE: Error messages include context and potential fixes
+- CONSISTENCY: Use standard error response format across all modules
+
+## REMEMBER: COS IS NOT JUST CODE
+- PURPOSE: Enable frictionless capture and evolution of Kevin's authorship
+- LONGEVITY: Build for multi-century maintainability
+- SOUL: This is a living system, not just functional code

@@ -1,0 +1,85 @@
+# ---
+# name: env_workflow
+# applies_to: ["/infrastructure/.env", "src/db/migrations/env.py"]
+# trigger: agent_requested
+# summary: Runtime environment pattern for executing Alembic migrations
+# tags:
+#   - alembic
+#   - migration
+#   - .env
+#   - runtime
+#   - postgres
+#   - backend_sync
+# ---
+
+name: alembic_env_workflow
+rule_type: always
+scope: runtime_config
+summary: Load .env environment variables and execute Alembic migrations cleanly in COS.
+
+pattern:
+  description: |
+    When modifying or initializing database schema for any COS module (cc, pem, etc.),
+    Alembic must be run with access to environment variables stored in `infrastructure/.env`.
+
+    **Migrations require a synchronous driver URL:**
+    - Use `POSTGRES_MIGRATE_URL` (e.g., `postgresql+psycopg://...`) for Alembic migrations.
+    - Use `POSTGRES_DEV_URL` (e.g., `postgresql+asyncpg://...`) for application runtime.
+    - If `POSTGRES_MIGRATE_URL` is not set, Alembic will attempt to convert `POSTGRES_DEV_URL` to a sync driver by replacing `+asyncpg` with `+psycopg`.
+    - This ensures migrations do not fail due to async driver incompatibility.
+
+    Alembic requires `POSTGRES_DEV_URL` to be present in the shell or Docker container
+    environment at execution time. This rule outlines both manual and container-based workflows.
+
+  usage_modes:
+    - manual_shell:
+        description: Manual migration via terminal using `uv run alembic`
+        prerequisites:
+          - Ensure `POSTGRES_DEV_URL` is in `.env`
+          - Alembic initialized and configured via `env.py`
+        steps:
+          - |
+            # Bash / Unix
+            cd G:/cos
+            set -a && source infrastructure/.env && uv run alembic revision --autogenerate -m "new schema"
+            uv run alembic upgrade head
+          - |
+            # Windows PowerShell
+            $env:POSTGRES_DEV_URL="postgresql+asyncpg://cos_user:pass@localhost:5433/cos_db_dev"
+            uv run alembic upgrade head
+
+    - docker_container:
+        description: Execute Alembic inside a temporary service/container
+        prerequisites:
+          - Docker Compose is up
+          - "`POSTGRES_DEV_URL` is passed into container"
+        steps:
+          - |
+            # Example container service in docker-compose.override.yml
+            services:
+              alembic_migrate:
+                image: python:3.11
+                working_dir: /app
+                volumes:
+                  - ./src:/app/src
+                  - ./infrastructure/.env:/app/.env
+                environment:
+                  POSTGRES_DEV_URL: ${POSTGRES_DEV_URL}
+                command: bash -c "source .env && alembic upgrade head"
+                depends_on:
+                  - postgres_dev
+                networks:
+                  - cos_network
+
+    - automated_script:
+        description: Called from `generate_module.py` or Cursor tasks
+        output: >
+          "PostgreSQL schema synchronized via Alembic: {module_name} → cc/health_status, cc/modules"
+
+validation:
+  required:
+    - "`.env` must define `POSTGRES_DEV_URL` (async, for runtime) and `POSTGRES_MIGRATE_URL` (sync, for migrations)"
+    - "`env.py` must import all models (e.g., `from src.backend.cc import models`)"
+    - "`Base.metadata` must be passed to `target_metadata`"
+    - Alembic CLI must receive populated `sqlalchemy.url` at runtime
+    - "Migrations must use a synchronous driver (psycopg), not asyncpg."

@@ -31,7 +31,7 @@ def test_health_status_schema() -> None:
 
     # Test that invalid status raises an error
     with pytest.raises(ValidationError):
-        HealthStatus(status="invalid_status")  # type: ignore[arg-type]
+        HealthStatus(status="invalid_status")  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor[arg-type]
 
 
 def test_ccconfig_schema() -> None:
@@ -72,7 +72,7 @@ def test_module_health_status_schema() -> None:
     with pytest.raises(ValidationError):
         ModuleHealthStatus(
             module="cc",
-            status="invalid_status",  # type: ignore[arg-type]
+            status="invalid_status",  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor[arg-type]
             last_updated="2025-04-02T10:00:00Z",
         )
 
@@ -120,7 +120,7 @@ def test_module_ping_request_schema() -> None:
 
     # Test that missing module raises an error
     with pytest.raises(ValidationError):
-        ModulePingRequest()  # type: ignore[call-arg]
+        ModulePingRequest()  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor[call-arg]
 
 
 def test_module_ping_response_schema() -> None:
@@ -141,6 +141,6 @@ def test_module_ping_response_schema() -> None:
     with pytest.raises(ValidationError):
         ModulePingResponse(
             module="cc",
-            status="invalid_status",  # type: ignore[arg-type]
+            status="invalid_status",  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor[arg-type]
             latency_ms=5,
         )

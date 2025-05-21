@@ -1,8 +1,10 @@
 import logging
+import os
 import uuid
 from datetime import UTC, datetime
 from typing import Any, cast
 
+from httpx import ConnectError
 from rich.logging import RichHandler
 
 from common.mem0_client import Mem0Client
@@ -49,7 +51,18 @@ def log_event(
     if memo is not None:
         payload["memo"] = memo
 
-    return cast(dict[str, Any], mem.set(log_id, payload))
+    try:
+        return cast(dict[str, Any], mem.set(log_id, payload))
+    except ConnectError as e:
+        if os.getenv("ENV", "development") != "production":
+            logger.warning(f"[mem0] Connection error — log not persisted: {e}")
+            return {
+                "status": "mem0_unreachable",
+                "log_id": log_id,
+                "memo": memo,
+                "data": data,
+            }
+        raise
 
 
 # Optional usage example

@@ -1,0 +1,43 @@
+---
+metadata:
+  name: mem0g_graph_memory_module
+  applies_to:
+    - src/memory/mem0g/*.py
+    - docker-compose.mem0g.yml
+    - neo4j_client.py
+  rule_type: agent_requested
+  summary: COS Graph-Based Memory Layer (L3) for long-term semantic reasoning and Zettelkasten-style linkage.
+
+definition:
+  name: mem0g
+  scope: memory.l3
+  summary: |
+    `mem0g` implements a semantic memory layer using Neo4j to enable long-term, multi-hop reasoning,
+    entity/relation graphing, and Zettelkasten-style contextual expansion. It receives signal from `mem0`,
+    PEM, and other agentic modules and persists knowledge through nodes, edges, timestamps, and relationships.
+
+  pattern:
+    description: |
+      - Uses Neo4j (via Docker, mounted at F:/neo4j_cos_data) as graph engine
+      - Exposes FastAPI endpoints via `graph_router.py` for memory node/edge ops
+      - Includes `neo4j_client.py` as reusable SDK for graph operations across modules
+      - Connects to L1–L2 via memory link bridging logic (planned)
+      - Serves MBQ trace nodes, quote origins, ZK links, entity/event sequencing
+
+    best_practices:
+      - Ensure all graph ops (CREATE, LINK, MERGE, MATCH) go through `neo4j_client.py`
+      - Design schemas around: MemoryNode, SourceLink, Event → Relation → Node patterns
+      - Add agent-visible utility: node tagging, timestamp edges, human-readable `summary`
+      - Routes only confirmed memory to L4 (Postgres) via link/mirror trace
+      - Embed metadata for publishing lineage when relevant
+
+  examples:
+    - node: "CREATE (MemoryNode {id, type, summary, source, created_at})"
+    - edge: "LINK (node_a)-[:INFLUENCED_BY {strength: 0.8}]->(node_b)"
+    - search: "MATCH (n:MemoryNode {tag: 'MBQ'}) RETURN n"
+    - router: "POST /graph/node | GET /graph/edge/{id}"
+
+  notes:
+    - "mem0g is the semantic heart of COS long-term memory"
+    - "Works best when PEM/ZK integrate quotes, summaries, or origin trace here"
+    - "Planned: dual vector-graph hybrid retrieval engine (e.g. Qdrant + Neo4j)"

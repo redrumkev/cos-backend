@@ -1,0 +1,162 @@
+services:
+  postgres_prod:
+    image: postgres:17.5-bookworm
+    container_name: cos_postgres_prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PROD}
+      POSTGRES_DB: ${POSTGRES_DB_PROD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - type: bind
+        source: P:/postgres_cos_prod
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres_dev:
+    image: postgres:17.5-bookworm
+    container_name: cos_postgres_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_DEV}
+      POSTGRES_DB: ${POSTGRES_DB_DEV}
+    ports:
+      - "5433:5432"
+    volumes:
+      - type: bind
+        source: P:/postgres_cos_dev
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres_test:
+    image: postgres:17.5-bookworm
+    container_name: cos_postgres_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_TEST}
+      POSTGRES_DB: ${POSTGRES_DB_TEST}
+    ports:
+      - "5434:5432"
+    volumes:
+      - type: volume
+        source: pg_test_data
+        target: /var/lib/postgresql/data
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    restart: always
+    image: redis/redis-stack:latest # Use :latest for dev only; PIN version in production!
+    container_name: cos_redis
+    ports:
+      - "${REDIS_PORT}:6379"
+      - "8001:8001"
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - type: bind
+        source: E:/redis_cos_data
+        target: /data
+      - type: bind
+        source: ./redis.conf
+        target: /usr/local/etc/redis/redis.conf
+    environment:
+      # The requirepass in redis.conf already uses ${REDIS_PASSWORD}
+      # No need to set REDIS_ARGS or REDIS_PASSWORD here if conf file handles it.
+      # If redis.conf wasn't using it, you'd do:
+      # REDIS_ARGS: --requirepass ${REDIS_PASSWORD}
+      # For clarity, ensure redis.conf IS using ${REDIS_PASSWORD} from the environment.
+      # Docker Compose passes .env variables to the container's environment,
+      # and redis.conf can substitute them if it's processed by an entrypoint script
+      # or if Redis itself supports env var substitution in its config file loading.
+      # A common pattern is for the Redis image's entrypoint to handle this.
+      # If not, you might need to use `env_file: .env` directly in the service definition
+      # OR ensure the command explicitly passes it if the conf file cannot substitute.
+      # For redis/redis-stack, simply having REDIS_PASSWORD in the container's env
+      # and `requirepass ${REDIS_PASSWORD}` in redis.conf should work as the image
+      # often has an entrypoint script that processes the .conf file.
+      # For safety, you can add:
+      REDIS_PASSWORD: ${REDIS_PASSWORD} # Makes it available to entrypoint scripts
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  elasticsearch:
+    restart: unless-stopped
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.1
+    container_name: cos_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms4g -Xmx4g
+    ports:
+      - "9200:9200"
+    volumes:
+      - type: bind
+        source: F:/elasticsearch_cos_data
+        target: /usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Placeholder for backend container
+  # (Currently building the 'cc' module — later integrate backend server here)
+
+  # Placeholder for frontend and shared OpenAPI logic
+  # TODO: Should frontend/backend share OpenAPI via volume or generated schema?
+  # IDE/Agent decision point: depends on workflow (Next.js vs FastAPI-only vs gateway)
+
+volumes:
+  pg_test_data:
+
+networks:
+  cos_network:
+    driver: bridge
+    # Uncomment below for custom subnet if needed
+    # ipam:
+    #   config:
+    #     - subnet: 172.28.0.0/16

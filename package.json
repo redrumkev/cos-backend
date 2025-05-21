@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "fastmcp": "^1.23.2",
+    "uri-templates": "^0.2.0"
+  }
+}

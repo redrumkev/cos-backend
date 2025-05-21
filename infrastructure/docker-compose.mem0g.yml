@@ -1,0 +1,70 @@
+services:
+  neo4j:
+    restart: always
+    image: neo4j:2025.04.0 # Community Edition with new datacode 2025.04.0 format
+    container_name: cos_neo4j
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER}/${NEO4J_PASSWORD}
+      NEO4J_dbms_memory_pagecache_size: 2G
+      NEO4J_dbms_memory_heap_initial__size: 2G
+      NEO4J_dbms_memory_heap_max__size: 2G
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - type: bind
+        source: F:/neo4j_cos_data
+        target: /data
+      - type: bind
+        source: F:/neo4j_cos_logs
+        target: /logs
+      - type: bind
+        source: F:/neo4j_cos_transactions
+        target: /var/lib/neo4j/transactions
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.neo4j.rule=Host(`neo4j.cos.local`)"
+      - "traefik.http.routers.neo4j.entrypoints=web"
+      - "traefik.http.services.neo4j.loadbalancer.server.port=7474"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "7"
+    healthcheck:      # Use wget for healthcheck since it's available in the Neo4j image[3][5]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s   # Give Neo4j extra time to start up before healthcheck retries begin
+    networks:
+      - cos_network
+
+  mem0g:
+    restart: always
+    image: tiangolo/uvicorn-gunicorn-fastapi:python3.11
+    container_name: cos_mem0g
+    volumes:
+      - type: bind
+        source: ./src/memory/mem0g
+        target: /app
+    expose:
+      - "80"
+    environment:
+      MODULE_NAME: main # Or whatever your main .py file is without .py
+      VARIABLE_NAME: app  # Or whatever your FastAPI instance is named
+      LOG_LEVEL: info     # Or your preferred log level
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mem0g.rule=Host(`mem0g.cos.local`)"
+      - "traefik.http.routers.mem0g.entrypoints=web"
+      - "traefik.http.services.mem0g.loadbalancer.server.port=80"
+    networks:
+      - cos_network
+    depends_on:
+      - neo4j
+
+networks:
+  cos_network:
+    external: true
+    name: cos_network # Explicitly naming it is good practice

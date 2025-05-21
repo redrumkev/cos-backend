@@ -1,7 +1,7 @@
 repos:
 -   repo: https://github.com/astral-sh/ruff-pre-commit
     # This version should align with what's installed in your environment
-    rev: v0.11.2  # Change from v0.4.4 to v0.11.2 which is more stable with pyproject.toml
+    rev: v0.11.10
     hooks:
         # Run the linter first (important when using --fix)
         - id: ruff
@@ -11,7 +11,7 @@ repos:
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
     # Mypy version defined in pyproject.toml
-    rev: 'v1.9.0' # Pin to a specific tag, check compatibility with your mypy version
+    rev: 'v1.15.0' # Pin to a specific tag, check compatibility with your mypy version
     hooks:
     -   id: mypy
         # args: [--strict] # Can add args here, but prefer config in pyproject.toml
@@ -23,7 +23,7 @@ repos:
 
 -   repo: https://github.com/PyCQA/bandit
     # Bandit version defined in pyproject.toml
-    rev: '1.7.8' # Pin to a specific tag, check compatibility
+    rev: '1.8.3' # Pin to a specific tag, check compatibility
     hooks:
     -   id: bandit
         args: ["-c", "pyproject.toml"] # Use config from pyproject.toml
@@ -31,7 +31,7 @@ repos:
         additional_dependencies: ["bandit[toml]"] # Need this for pyproject.toml config
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: check-added-large-files # Prevents giant files from being committed
       - id: check-yaml              # Validates all YAML files

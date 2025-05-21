@@ -1,0 +1,10 @@
+# ---
+# name: frontend_init_setup
+# version: 1.0
+# created: 2025-05-02
+# applies_to: ["frontend/init_setup/*.ts", "frontend/init_setup/*.tsx"]
+# trigger: agent_requested
+# summary: Rules for initializing the frontend setup module
+# ---
+
+# placeholder for frontend init

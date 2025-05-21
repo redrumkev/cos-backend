@@ -1,0 +1,40 @@
+metadata:
+  name: canonical_db_layer
+  applies_to:
+    - src/db/*.py
+    - src/db/models/*.py
+    - src/db/schemas/*.py
+    - src/db/migrations/**/*.py
+    - alembic.ini
+  rule_type: always
+  summary: Canonical archival layer (L4) for PRD logs, memory lineage, and publishing traceability.
+
+definition:
+  name: canonical_storage
+  scope: memory.l4
+  summary: |
+    This layer serves as the final, immutable archive of the COS system. It stores ground-truth artifacts,
+    PRD evolution logs, publishing state, and audit-ready traces. It uses PostgreSQL (via Docker), SQLAlchemy,
+    Alembic, and Pydantic to support a multi-schema architecture aligned with each COS module.
+
+  pattern:
+    description: |
+      - Each backend module may define its own models locally in `src/backend/{module}/models.py` if:
+        • It uses `__table_args__ = {"schema": "<module>"}` for schema isolation
+        • It imports `Base` from `src.db.base`
+        • It registers models in Alembic's `env.py` for visibility
+      - Shared or cross-module models should be placed in `src/db/models/`
+      - Alembic migrations are stored in `src/db/migrations/versions/`
+      - SQLAlchemy `Base` must come from `src.db.base.Base`, not redeclared per module
+      - `.env` or `connection.py` should provide the database URL
+
+  best_practices:
+    - Align each table with a schema matching its module name
+    - Use Alembic revision autogenerate for all structural changes
+    - Avoid mixing storage layers: L4 (canonical) vs L3 (mem0) should remain distinct
+    - Never modify generated migrations directly unless correcting SQL syntax
+
+  examples:
+    - model: HealthStatus (in `cc/models.py`, using schema='cc')
+    - model: PRDLog (in `db/models/prd_log.py`, using schema='canonical')
+    - schema: PRDLogCreate → serialized via `pydantic.BaseModel`
