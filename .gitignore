@@ -101,6 +101,7 @@ ENV/
 env/
 */env/
 */venv/
+.cursor/mcp.json
 
 # Spyder project settings
 .spyderproject
