@@ -18,9 +18,10 @@ class Settings(BaseSettings):  # type: ignore[misc]
     REDIS_PASSWORD: str | None = Field(
         default="test_password", validation_alias="REDIS_PASSWORD"
     )
+    MEM0_SCHEMA: str = Field(default="mem0_cc", validation_alias="MEM0_SCHEMA")
 
     model_config = {
-        "env_file": ".env",
+        "env_file": "infrastructure/.env",
         "env_file_encoding": "utf-8",
         "extra": "allow",
     }

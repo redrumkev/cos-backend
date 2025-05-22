@@ -3,7 +3,13 @@ import functools
 import sys
 from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Any, TypeVar, cast
+
+# TODO: temp ignore — remove after refactor: from cos_main import app as cos_app back on
+from typing import (
+    Any,
+    TypeVar,
+    cast,
+)
 
 import pytest
 from fastapi import FastAPI
@@ -43,20 +49,25 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 
-# Import the app AFTER potentially modifying sys.path
-from cos_main import app as cos_app  # Rename the import
+# Only import the FastAPI app if a test requests the 'app' fixture
+# This avoids import errors for pure unit/config tests
 
-# Cast the imported app to FastAPI type
-main_app = cast(FastAPI, cos_app)
+try:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from cos_main import app as cos_app
+
+    main_app = cast(FastAPI, cos_app)
+except ImportError:
+    main_app = None
+    FastAPI = None
+    TestClient = None
 
 
 @fixture_wrapper(scope="session")
-def app() -> FastAPI:
-    """Create main FastAPI application instance for testing.
-
-    Scope is 'session' if the app state is safe to share across all tests.
-    Use 'function' scope if tests modify app state (e.g., dependencies).
-    """
+def app() -> "FastAPI | None":
+    """Create main FastAPI application instance for testing or None if not available."""
     return main_app
 
 
@@ -82,10 +93,9 @@ def mock_env_settings() -> Generator[None, None, None]:
         os.environ.pop(var, None)
 
 
-@fixture_wrapper(scope="function")
-def test_client(app: FastAPI) -> TestClient:
-    """Creates a TestClient for making requests to the test app.
+if TestClient is not None:
 
-    Scope is 'function' to ensure isolation between tests.
-    """
-    return TestClient(app)
+    @fixture_wrapper(scope="function")
+    def test_client(app: "FastAPI") -> "TestClient":
+        """Creates a TestClient for making requests to the test app."""
+        return TestClient(app)
