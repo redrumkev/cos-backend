@@ -1,5 +1,4 @@
 # ruff: noqa: E402
-import asyncio
 import functools
 import os
 import sys
@@ -13,7 +12,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# sqlalchemy
 # local helpers
 from src.db.connection import get_async_engine, get_async_session_maker
 
@@ -103,22 +101,27 @@ def test_client(app: FastAPI) -> TestClient:
 
 
 # ------------------------------------------------------------------
-# Event loop (session scope) - one per xdist worker
-# ------------------------------------------------------------------
-@pytest_asyncio.fixture(scope="session")
-async def event_loop() -> AsyncGenerator[asyncio.AbstractEventLoop, None]:
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-# ------------------------------------------------------------------
 # Async DB session (function scope) with nested TX rollback
 # ------------------------------------------------------------------
 @pytest_asyncio.fixture(scope="function")
-async def test_db_session(
-    event_loop: asyncio.AbstractEventLoop,
-) -> AsyncGenerator[AsyncSession, None]:
+async def test_db_session() -> AsyncGenerator[AsyncSession, None]:
+    engine = get_async_engine()
+    async with engine.begin() as conn:  # conn is of type AsyncConnection
+        tx = await conn.begin_nested()
+        session_maker = get_async_session_maker()
+        async_session = session_maker(bind=conn)
+        try:
+            yield async_session  # type: ignore[misc]
+        finally:
+            await async_session.close()  # type: ignore[func-returns-value]
+            await tx.rollback()
+
+
+# ------------------------------------------------------------------
+# Async mem0 DB session (function scope) with nested TX rollback
+# ------------------------------------------------------------------
+@pytest_asyncio.fixture(scope="function")
+async def mem0_db_session() -> AsyncGenerator[AsyncSession, None]:
     engine = get_async_engine()
     async with engine.begin() as conn:  # conn is of type AsyncConnection
         tx = await conn.begin_nested()
@@ -138,28 +141,37 @@ try:
     from fastapi.testclient import TestClient
 
     # Import get_db_session from the correct location
-    # This might need adjustment based on your actual project structure
     try:
         from src.backend.cc.deps import get_db_session  # type: ignore[attr-defined]
     except (ImportError, AttributeError):
-        try:
-            from src.db.deps import get_db_session
-        except (ImportError, AttributeError):
-            get_db_session = None
+        get_db_session = None
 
-    from src.cos_main import app as cos_app
+    if main_app is not None:
 
-    @pytest.fixture(scope="function")
-    def client(test_db_session: AsyncSession) -> Generator[TestClient, None, None]:
-        cos_app.dependency_overrides[get_db_session] = lambda: test_db_session
-        with TestClient(cos_app) as c:
-            yield c
+        @pytest.fixture(scope="function")
+        def client(test_db_session: AsyncSession) -> Generator[TestClient, None, None]:
+            assert main_app is not None
+            if get_db_session is not None:
+                main_app.dependency_overrides[get_db_session] = lambda: test_db_session
+            with TestClient(main_app) as c:
+                yield c
+            main_app.dependency_overrides.clear()
+    else:
+
+        @pytest.fixture(scope="function")
+        def client(test_db_session: AsyncSession) -> Generator[TestClient, None, None]:
+            # Create a dummy TestClient that will fail gracefully for missing app
+            from fastapi import FastAPI
+
+            dummy_app = FastAPI()
+            with TestClient(dummy_app) as c:
+                yield c
 except ImportError:
-    get_db_session = None
 
     @pytest.fixture(scope="function")
     def client(test_db_session: AsyncSession) -> Generator[TestClient, None, None]:
-        if get_db_session is not None:
-            cos_app.dependency_overrides[get_db_session] = lambda: test_db_session
-        with TestClient(cos_app) as c:
+        from fastapi import FastAPI
+
+        dummy_app = FastAPI()
+        with TestClient(dummy_app) as c:
             yield c
