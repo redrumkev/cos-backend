@@ -39,6 +39,7 @@ dev = [
     "uv", # Include uv itself as a dev dependency if desired
     "pre-commit>=4.2.0",
     "autoflake>=2.3.1",
+    "pytest-benchmark>=4.0.0",  # perf tracking
 ]
 rust-extensions = [
     "msgspec>=0.19.0",  # Only use if you encounter no installation issues
@@ -69,7 +70,7 @@ markers = [
 ]
 minversion = "6.0"
 # Optimized options: parallel testing, concise output, coverage report, disable unnecessary plugins
-addopts = "-n auto --cov=src --cov-report=term-missing --cov-fail-under=0"
+addopts = "-q -ra -n auto --dist=loadscope --cov=src --cov-report=term-missing --cov-fail-under=0"
 testpaths = ["tests"]
 pythonpath = ["."] # Or potentially ["src", "."] if needed, but editable should handle src
 asyncio_mode = "auto"
