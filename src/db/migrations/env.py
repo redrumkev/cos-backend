@@ -9,18 +9,15 @@ from logging.config import fileConfig
 from pathlib import Path
 
 # --- Patch sys.path for robust module resolution ---
-PROJECT_ROOT = (Path(__file__).parent.parent.parent).resolve()
-SRC_DIR = (PROJECT_ROOT / "src").resolve()
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+src_path = Path(__file__).parent.parent.parent
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
 
 # --- Third-party imports ---
 try:
     from dotenv import load_dotenv
 
-    DOTENV_PATH = (PROJECT_ROOT / ".env").resolve()
+    DOTENV_PATH = (src_path / ".env").resolve()
     load_dotenv(str(DOTENV_PATH), override=False)
 except ImportError:
     pass

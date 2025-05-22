@@ -1,14 +1,21 @@
 # ruff: noqa: E402
+import asyncio
 import functools
 import os
 import sys
-from collections.abc import Callable, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from pathlib import Path
 from typing import Any, Optional, TypeVar  # noqa: F401
 
 import pytest
+import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# sqlalchemy
+# local helpers
+from src.db.connection import get_async_engine, get_async_session_maker
 
 # Add these type definitions to help with decorator typing
 T = TypeVar("T", bound=Callable[..., Any])
@@ -47,7 +54,7 @@ if str(project_root) not in sys.path:
 # Only import the FastAPI app if a test requests the 'app' fixture
 # This avoids import errors for pure unit/config tests
 try:
-    from cos_main import app as cos_app
+    from src.cos_main import app as cos_app
 
     main_app = cos_app  # type: Optional[FastAPI]
 except ImportError:
@@ -93,3 +100,66 @@ def test_client(app: FastAPI) -> TestClient:
     if app is None:
         raise ValueError("FastAPI app is not available")
     return TestClient(app)
+
+
+# ------------------------------------------------------------------
+# Event loop (session scope) - one per xdist worker
+# ------------------------------------------------------------------
+@pytest_asyncio.fixture(scope="session")
+async def event_loop() -> AsyncGenerator[asyncio.AbstractEventLoop, None]:
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+# ------------------------------------------------------------------
+# Async DB session (function scope) with nested TX rollback
+# ------------------------------------------------------------------
+@pytest_asyncio.fixture(scope="function")
+async def test_db_session(
+    event_loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[AsyncSession, None]:
+    engine = get_async_engine()
+    async with engine.begin() as conn:  # conn is of type AsyncConnection
+        tx = await conn.begin_nested()
+        session_maker = get_async_session_maker()
+        async_session = session_maker(bind=conn)
+        try:
+            yield async_session  # type: ignore[misc]
+        finally:
+            await async_session.close()  # type: ignore[func-returns-value]
+            await tx.rollback()
+
+
+# ------------------------------------------------------------------
+# FastAPI TestClient overriding DB dependency
+# ------------------------------------------------------------------
+try:
+    from fastapi.testclient import TestClient
+
+    # Import get_db_session from the correct location
+    # This might need adjustment based on your actual project structure
+    try:
+        from src.backend.cc.deps import get_db_session  # type: ignore[attr-defined]
+    except (ImportError, AttributeError):
+        try:
+            from src.db.deps import get_db_session
+        except (ImportError, AttributeError):
+            get_db_session = None
+
+    from src.cos_main import app as cos_app
+
+    @pytest.fixture(scope="function")
+    def client(test_db_session: AsyncSession) -> Generator[TestClient, None, None]:
+        cos_app.dependency_overrides[get_db_session] = lambda: test_db_session
+        with TestClient(cos_app) as c:
+            yield c
+except ImportError:
+    get_db_session = None
+
+    @pytest.fixture(scope="function")
+    def client(test_db_session: AsyncSession) -> Generator[TestClient, None, None]:
+        if get_db_session is not None:
+            cos_app.dependency_overrides[get_db_session] = lambda: test_db_session
+        with TestClient(cos_app) as c:
+            yield c

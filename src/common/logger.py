@@ -1,20 +1,17 @@
 import logging
-import os
 import uuid
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
-from httpx import ConnectError
 from rich.logging import RichHandler
 
-from common.mem0_client import Mem0Client
+# NOTE: Mem0 client removed in Sprint 1.  Will return in Sprint 2.
+mem = None  # placeholder so call sites do not break
 
 logging.basicConfig(
     level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
 )
 logger = logging.getLogger("cos")
-
-mem = Mem0Client()
 
 
 def log_event(
@@ -51,18 +48,16 @@ def log_event(
     if memo is not None:
         payload["memo"] = memo
 
-    try:
-        return cast(dict[str, Any], mem.set(log_id, payload))
-    except ConnectError as e:
-        if os.getenv("ENV", "development") != "production":
-            logger.warning(f"[mem0] Connection error — log not persisted: {e}")
-            return {
-                "status": "mem0_unreachable",
-                "log_id": log_id,
-                "memo": memo,
-                "data": data,
-            }
-        raise
+    logger.warning(
+        "[mem0] log_event called, but Mem0 client is not available (Sprint 1 stub). "
+        "Returning stub response."
+    )
+    return {
+        "status": "mem0_stub",
+        "log_id": log_id,
+        "memo": memo,
+        "data": data,
+    }
 
 
 # Optional usage example

@@ -1,8 +1,16 @@
 # MDC: app_entrypoint
+# Add src/ to import path once
+import sys
+from pathlib import Path
+
 from fastapi import FastAPI
 
 from backend.cc.router import router
 from common.logger import log_event
+
+src_path = Path(__file__).parent
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
 
 # Create the FastAPI application instance
 app: FastAPI = FastAPI(
