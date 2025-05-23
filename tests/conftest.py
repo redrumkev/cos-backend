@@ -12,6 +12,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Force settings to load dummy env file during test collection
+os.environ.setdefault(
+    "ENV_FILE", str(Path(__file__).parents[1] / "infrastructure" / ".env.ci")
+)
+
 # local helpers
 from src.db.connection import get_async_engine, get_async_session_maker
 

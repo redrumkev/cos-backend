@@ -1,7 +1,18 @@
+import os
 from functools import lru_cache
+from pathlib import Path
 
+from dotenv import load_dotenv
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# ------------------------ dynamic dotenv loading -------------------------
+# Priority: ENV_FILE (explicit)  > infrastructure/.env  > ignore
+candidate = os.getenv("ENV_FILE") or str(
+    Path(__file__).parents[2] / "infrastructure" / ".env"
+)
+if Path(candidate).exists():
+    load_dotenv(candidate)
 
 
 class Settings(BaseSettings):  # type: ignore[misc]
@@ -20,11 +31,7 @@ class Settings(BaseSettings):  # type: ignore[misc]
     )
     MEM0_SCHEMA: str = Field(default="mem0_cc", validation_alias="MEM0_SCHEMA")
 
-    model_config = {
-        "env_file": "infrastructure/.env",
-        "env_file_encoding": "utf-8",
-        "extra": "allow",
-    }
+    model_config = SettingsConfigDict(env_file=None)  # dotenv loaded manually
 
     @property
     def sync_db_url(self) -> str:
