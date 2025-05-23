@@ -8,11 +8,10 @@ connecting client requests to the appropriate services.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.logger import log_event
 
-from .deps import ModuleConfig, get_db_session, get_module_config
+from .deps import DBSession, ModuleConfig, get_module_config
 from .schemas import (
     CCConfig,
     HealthStatus,
@@ -71,7 +70,7 @@ async def get_config(
     tags=["Health"],
 )
 async def system_health_report(
-    db: Annotated[AsyncSession, Depends(get_db_session)],
+    db: DBSession,
 ) -> SystemHealthReport:
     """Get a comprehensive health report for all system modules."""
     log_event(
@@ -103,7 +102,7 @@ async def system_health_report(
 )
 async def ping(
     request: ModulePingRequest,
-    db: Annotated[AsyncSession, Depends(get_db_session)],
+    db: DBSession,
 ) -> ModulePingResponse:
     """Ping a specific module to verify its health status."""
     log_event(

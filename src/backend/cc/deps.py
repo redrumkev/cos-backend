@@ -1,10 +1,9 @@
-"""FastAPI dependencies for the Control Center module.
+"""Dependencies for the **cc** module.
 
-This file contains shared dependencies that can be used across router endpoints
-such as database sessions, authentication, and configuration access.
+This module exposes `get_cc_db`, a FastAPI dependency that yields an `AsyncSession`
+bound to the canonical asyncpg engine defined in `src.db.connection`.
 """
 
-# MDC: cc_module
 from typing import Annotated
 
 from fastapi import Depends
@@ -12,6 +11,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.logger import log_event
 from src.db.connection import get_async_db
+
+# Public dependency -----------------------------------------------------------
+
+
+async def get_cc_db(
+    db: AsyncSession = Depends(get_async_db),  # pragma: no cover  # noqa: B008
+) -> AsyncSession:
+    """Yield a real database session scoped to the current request / background task."""
+    return db
+
+
+# Back-compat alias (old tests may still import this name)
+get_db_session = get_cc_db
 
 
 async def get_module_config() -> dict[str, str]:
@@ -34,8 +46,6 @@ async def get_module_config() -> dict[str, str]:
     }
 
 
-# Common type annotation for module config
+# Common type annotations
 ModuleConfig = Annotated[dict[str, str], Depends(get_module_config)]
-
-# Remove the old get_db_session and its usage, update DBSession:
-DBSession = Annotated[AsyncSession, Depends(get_async_db)]
+DBSession = Annotated[AsyncSession, Depends(get_cc_db)]

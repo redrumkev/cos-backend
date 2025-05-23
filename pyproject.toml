@@ -57,6 +57,9 @@ disallow_untyped_defs = true
 check_untyped_defs = true
 strict = true # Enable strict mode
 allow_untyped_decorators = true
+exclude = [
+    "src/db/migrations/",
+]
 
 # Add Pydantic plugin if needed (check latest mypy/pydantic docs for integration)
 # plugins = ["pydantic.mypy"]
@@ -112,5 +115,6 @@ no-cov-on-fail = false
 
 [dependency-groups]
 dev = [
+    "pydantic-settings>=2.9.1",
     "ruff>=0.11.10",
 ]

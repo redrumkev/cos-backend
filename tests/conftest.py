@@ -145,19 +145,19 @@ async def mem0_db_session() -> AsyncGenerator[AsyncSession, None]:
 try:
     from fastapi.testclient import TestClient
 
-    # Import get_db_session from the correct location
+    # Import get_cc_db from the correct location
     try:
-        from src.backend.cc.deps import get_db_session  # type: ignore[attr-defined]
+        from src.backend.cc.deps import get_cc_db
     except (ImportError, AttributeError):
-        get_db_session = None
+        get_cc_db = None  # type: ignore[assignment]
 
     if main_app is not None:
 
         @pytest.fixture(scope="function")
         def client(test_db_session: AsyncSession) -> Generator[TestClient, None, None]:
             assert main_app is not None
-            if get_db_session is not None:
-                main_app.dependency_overrides[get_db_session] = lambda: test_db_session
+            if get_cc_db is not None:
+                main_app.dependency_overrides[get_cc_db] = lambda: test_db_session
             with TestClient(main_app) as c:
                 yield c
             main_app.dependency_overrides.clear()
