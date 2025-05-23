@@ -13,9 +13,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Force settings to load dummy env file during test collection
-os.environ.setdefault(
-    "ENV_FILE", str(Path(__file__).parents[1] / "infrastructure" / ".env.ci")
-)
+os.environ.setdefault("ENV_FILE", str(Path(__file__).parents[1] / "infrastructure" / ".env.ci"))
 
 # local helpers
 from src.db.connection import get_async_engine, get_async_session_maker
@@ -25,9 +23,7 @@ T = TypeVar("T", bound=Callable[..., Any])
 
 
 # Use a properly typed decorator pattern that passes through fixture arguments
-def fixture_wrapper(
-    scope: str | None = None, **fixture_kwargs: Any
-) -> Callable[[T], T]:
+def fixture_wrapper(scope: str | None = None, **fixture_kwargs: Any) -> Callable[[T], T]:
     """Being wrapper to preserve types for pytest fixtures."""
 
     def decorator(func: T) -> T:

@@ -12,17 +12,17 @@ dependencies = [
     "pydantic[email]",
     "pydantic-settings",
     "sqlalchemy[asyncio]",
-    "asyncpg",  # Required for SQLAlchemy async Postgres driver
+    "asyncpg", # Required for SQLAlchemy async Postgres driver
     "alembic",
     "httpx",
     "redis[hiredis]",
     "python-dotenv",
     "psycopg[binary]",
     "rich",
-
     # Rust-powered high-performance dependencies
-    "orjson>=3.10.16",           # Fast JSON processing with Python 3.13 support
-    "neo4j-rust-ext>=5.27.0.0",  # Up to 10x faster Neo4j driver
+    "orjson>=3.10.16", # Fast JSON processing with Python 3.13 support
+    "neo4j-rust-ext>=5.27.0.0", # Up to 10x faster Neo4j driver
+    "aiosqlite>=0.21.0",
 ]
 
 [project.optional-dependencies]
@@ -73,7 +73,7 @@ markers = [
 ]
 minversion = "6.0"
 # Optimized options: parallel testing, concise output, coverage report, disable unnecessary plugins
-addopts = "-q -ra -n auto --dist=loadscope --cov=src --cov-report=term-missing --cov-fail-under=0"
+addopts = """    -q"""# Tip: run `pytest -n auto` when you *do* want parallelism.
 testpaths = ["tests"]
 pythonpath = ["."] # Or potentially ["src", "."] if needed, but editable should handle src
 asyncio_mode = "auto"

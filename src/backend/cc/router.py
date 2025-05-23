@@ -7,31 +7,33 @@ connecting client requests to the appropriate services.
 # MDC: cc_module
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.common.logger import log_event
 
 from .deps import DBSession, ModuleConfig, get_module_config
 from .schemas import (
     CCConfig,
-    HealthStatus,
+    HealthStatusResponse,
     ModuleHealthStatus,
     ModulePingRequest,
     ModulePingResponse,
     SystemHealthReport,
 )
+from .services import read_system_health
 
 router = APIRouter()
 
 
 @router.get(
     "/health",
-    response_model=HealthStatus,
+    response_model=HealthStatusResponse,
+    response_model_exclude_none=True,
     summary="Basic Health Check",
     description="Provides a simple health status check for the service.",
     tags=["Health"],
 )
-async def health_check() -> HealthStatus:
+async def health_check(db: DBSession) -> HealthStatusResponse:
     """Return the health status of the service."""
     log_event(
         source="cc",
@@ -39,7 +41,13 @@ async def health_check() -> HealthStatus:
         tags=["health", "cc_router"],
         memo="Health check endpoint accessed.",
     )
-    return HealthStatus(status="healthy")
+    row = await read_system_health(db)
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="no health record yet",
+        )
+    return HealthStatusResponse.model_validate(row)
 
 
 @router.get(
@@ -82,12 +90,8 @@ async def system_health_report(
     return SystemHealthReport(
         overall_status="healthy",
         modules=[
-            ModuleHealthStatus(
-                module="cc", status="healthy", last_updated="2025-04-02T10:00:00Z"
-            ),
-            ModuleHealthStatus(
-                module="mem0", status="healthy", last_updated="2025-04-02T09:55:00Z"
-            ),
+            ModuleHealthStatus(module="cc", status="healthy", last_updated="2025-04-02T10:00:00Z"),
+            ModuleHealthStatus(module="mem0", status="healthy", last_updated="2025-04-02T09:55:00Z"),
         ],
         timestamp="2025-04-02T10:15:00Z",
     )

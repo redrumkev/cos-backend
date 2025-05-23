@@ -37,10 +37,7 @@ fileConfig(config.config_file_name)
 migrate_url = os.getenv("POSTGRES_MIGRATE_URL")
 if not migrate_url:
     dev_url = os.getenv("POSTGRES_DEV_URL")
-    if dev_url and "+asyncpg" in dev_url:
-        migrate_url = dev_url.replace("+asyncpg", "+psycopg")
-    else:
-        migrate_url = dev_url
+    migrate_url = dev_url.replace("+asyncpg", "+psycopg") if dev_url and "+asyncpg" in dev_url else dev_url
 if not migrate_url:
     raise RuntimeError("No database URL found for Alembic migrations.")
 config.set_main_option("sqlalchemy.url", migrate_url)
@@ -52,9 +49,7 @@ target_metadata = Base.metadata
 WATCH_SCHEMAS = {"cc", "mem0_cc"}
 
 
-def include_object(
-    obj: object, name: str, type_: str, reflected: bool, compare_to: object
-) -> bool:
+def include_object(obj: object, name: str, type_: str, reflected: bool, compare_to: object) -> bool:
     if type_ == "table":
         return obj.schema in WATCH_SCHEMAS  # type: ignore[attr-defined]
     return True

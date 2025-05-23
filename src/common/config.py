@@ -8,9 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ------------------------ dynamic dotenv loading -------------------------
 # Priority: ENV_FILE (explicit)  > infrastructure/.env  > ignore
-candidate = os.getenv("ENV_FILE") or str(
-    Path(__file__).parents[2] / "infrastructure" / ".env"
-)
+candidate = os.getenv("ENV_FILE") or str(Path(__file__).parents[2] / "infrastructure" / ".env")
 if Path(candidate).exists():
     load_dotenv(candidate)
 
@@ -26,9 +24,7 @@ class Settings(BaseSettings):
     )
     REDIS_HOST: str = Field(default="localhost", validation_alias="REDIS_HOST")
     REDIS_PORT: int = Field(default=6379, validation_alias="REDIS_PORT")
-    REDIS_PASSWORD: str | None = Field(
-        default="test_password", validation_alias="REDIS_PASSWORD"
-    )
+    REDIS_PASSWORD: str | None = Field(default="test_password", validation_alias="REDIS_PASSWORD")
     MEM0_SCHEMA: str = Field(default="mem0_cc", validation_alias="MEM0_SCHEMA")
 
     model_config = SettingsConfigDict(env_file=None)  # dotenv loaded manually
@@ -41,9 +37,7 @@ class Settings(BaseSettings):
     def async_db_url(self) -> str:
         # Convert sync URL to asyncpg format if needed
         if self.POSTGRES_DEV_URL.startswith("postgresql://"):
-            return self.POSTGRES_DEV_URL.replace(
-                "postgresql://", "postgresql+asyncpg://", 1
-            )
+            return self.POSTGRES_DEV_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
         return self.POSTGRES_DEV_URL
 
 

@@ -13,9 +13,7 @@ from src.db.connection import get_async_engine
 
 # Set up environment for testing
 os.environ["POSTGRES_DEV_URL"] = "postgresql+asyncpg://test:test@localhost:5432/test_db"
-os.environ["POSTGRES_MIGRATE_URL"] = (
-    "postgresql+psycopg://test:test@localhost:5432/test_db"
-)
+os.environ["POSTGRES_MIGRATE_URL"] = "postgresql+psycopg://test:test@localhost:5432/test_db"
 
 ALEMBIC_CFG = Config("alembic.ini")
 
@@ -65,19 +63,13 @@ async def test_schemas_created(engine: AsyncEngine) -> None:
     async with engine.connect() as conn:
         # Check cc schema exists
         result = await conn.execute(
-            text(
-                "SELECT schema_name FROM information_schema.schemata "
-                "WHERE schema_name = 'cc'"
-            )
+            text("SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'cc'")
         )
         assert result.scalar() == "cc"
 
         # Check mem0_cc schema exists
         result = await conn.execute(
-            text(
-                "SELECT schema_name FROM information_schema.schemata "
-                "WHERE schema_name = 'mem0_cc'"
-            )
+            text("SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'mem0_cc'")
         )
         assert result.scalar() == "mem0_cc"
 
@@ -152,9 +144,7 @@ def test_schema_isolation() -> None:
     # Define the function locally for testing
     watch_schemas = {"cc", "mem0_cc"}
 
-    def include_object(
-        obj: object, name: str, type_: str, reflected: bool, compare_to: object
-    ) -> bool:
+    def include_object(obj: object, name: str, type_: str, reflected: bool, compare_to: object) -> bool:
         if type_ == "table":
             return obj.schema in watch_schemas  # type: ignore[attr-defined]
         return True

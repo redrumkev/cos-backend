@@ -20,21 +20,37 @@ class HealthStatus(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": {"status": "healthy"}})
 
 
+# Health Status Database Record Schema
+class HealthStatusResponse(BaseModel):
+    """Model for health status database record response."""
+
+    id: str = Field(..., description="Unique identifier for the health status record.")
+    module: str = Field(..., description="The name of the module.")
+    status: str = Field(..., description="The operational status of the module.")
+    last_updated: str = Field(..., description="ISO-8601 timestamp of the last status update.")
+    details: str | None = Field(None, description="Additional details about the status.")
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "module": "cc",
+                "status": "healthy",
+                "last_updated": "2025-04-02T10:00:00Z",
+                "details": "All systems operational",
+            }
+        },
+    )
+
+
 # Configuration Schema
 class CCConfig(BaseModel):
     """Model for the CC configuration response."""
 
-    version: str = Field(
-        default="0.1.0", description="The version of the Control Center module."
-    )
-    modules_loaded: list[str] = Field(
-        default=["cc"], description="List of modules currently loaded."
-    )
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {"version": "0.1.0", "modules_loaded": ["cc", "mem0"]}
-        }
-    )
+    version: str = Field(default="0.1.0", description="The version of the Control Center module.")
+    modules_loaded: list[str] = Field(default=["cc"], description="List of modules currently loaded.")
+    model_config = ConfigDict(json_schema_extra={"example": {"version": "0.1.0", "modules_loaded": ["cc", "mem0"]}})
 
 
 # Module Health Schema
@@ -42,12 +58,8 @@ class ModuleHealthStatus(BaseModel):
     """Model for an individual module's health status."""
 
     module: str = Field(..., description="The name of the module.")
-    status: Literal["healthy", "degraded", "offline"] = Field(
-        ..., description="The operational status of the module."
-    )
-    last_updated: str = Field(
-        ..., description="ISO-8601 timestamp of the last status update."
-    )
+    status: Literal["healthy", "degraded", "offline"] = Field(..., description="The operational status of the module.")
+    last_updated: str = Field(..., description="ISO-8601 timestamp of the last status update.")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -67,12 +79,8 @@ class SystemHealthReport(BaseModel):
     overall_status: Literal["healthy", "degraded", "offline"] = Field(
         ..., description="The overall status of the entire system."
     )
-    modules: list[ModuleHealthStatus] = Field(
-        ..., description="Health status of individual modules."
-    )
-    timestamp: str = Field(
-        ..., description="ISO-8601 timestamp when the report was generated."
-    )
+    modules: list[ModuleHealthStatus] = Field(..., description="Health status of individual modules.")
+    timestamp: str = Field(..., description="ISO-8601 timestamp when the report was generated.")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -115,8 +123,4 @@ class ModulePingResponse(BaseModel):
     )
     latency_ms: int = Field(..., description="Round-trip latency in milliseconds.")
 
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {"module": "mem0", "status": "healthy", "latency_ms": 5}
-        }
-    )
+    model_config = ConfigDict(json_schema_extra={"example": {"module": "mem0", "status": "healthy", "latency_ms": 5}})

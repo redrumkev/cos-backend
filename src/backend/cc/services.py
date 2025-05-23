@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.common.logger import log_event
 
 from .crud import get_active_modules, get_system_health, update_module_status
+from .models import HealthStatus
 
 
 def get_status() -> dict[str, str]:
@@ -31,6 +32,24 @@ def get_status() -> dict[str, str]:
         memo="Initial /status check",
     )
     return {"cc": "online", "message": "Control Center active."}
+
+
+async def read_system_health(db: AsyncSession) -> HealthStatus | None:
+    """Thin façade consumed by the router for getting system health.
+
+    Args:
+        db: AsyncSession: The database session
+
+    Returns:
+        Optional[HealthStatus]: Most recent health status record or None
+
+    Example:
+        ```python
+        health_record = await read_system_health(db)
+        ```
+
+    """
+    return await get_system_health(db)
 
 
 async def check_system_health(db: AsyncSession) -> dict[str, Any]:
@@ -58,14 +77,21 @@ async def check_system_health(db: AsyncSession) -> dict[str, Any]:
     # Get health status for all modules
     module_health = await get_system_health(db)
 
-    # Compute overall system health
-    all_healthy = all(item["status"] == "healthy" for item in module_health)
-    overall_status = "healthy" if all_healthy else "degraded"
+    # Compute overall system health based on the single health record
+    if module_health and module_health.status == "healthy":
+        overall_status = "healthy"
+        modules = [{"module": module_health.module, "status": module_health.status}]
+    elif module_health:
+        overall_status = "degraded"
+        modules = [{"module": module_health.module, "status": module_health.status}]
+    else:
+        overall_status = "unknown"
+        modules = []
 
     # Structure the response
     return {
         "overall_status": overall_status,
-        "modules": module_health,
+        "modules": modules,
         # Will use datetime.utcnow().isoformat() + "Z"
         "timestamp": "2025-04-02T10:15:00Z",
     }

@@ -1,5 +1,7 @@
 # ruff.toml
-line-length = 88
+# Harmonise with black's (PEP 8) *or* project style – we raise it a bit
+# so docstrings & URLs fit without ugly wrapping.
+line-length = 120
 target-version = "py312"
 
 [lint]

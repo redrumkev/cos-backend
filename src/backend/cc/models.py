@@ -54,8 +54,4 @@ class Module(Base):
 
     def __repr__(self) -> str:
         """Return string representation of Module object."""
-        return (
-            f"<Module(name='{self.name}', "
-            f"version='{self.version}', "
-            f"active={self.active})>"
-        )
+        return f"<Module(name='{self.name}', version='{self.version}', active={self.active})>"

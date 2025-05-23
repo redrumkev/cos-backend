@@ -8,9 +8,7 @@ from rich.logging import RichHandler
 # NOTE: Mem0 client removed in Sprint 1.  Will return in Sprint 2.
 mem = None  # placeholder so call sites do not break
 
-logging.basicConfig(
-    level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
-)
+logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()])
 logger = logging.getLogger("cos")
 
 
@@ -49,8 +47,7 @@ def log_event(
         payload["memo"] = memo
 
     logger.warning(
-        "[mem0] log_event called, but Mem0 client is not available (Sprint 1 stub). "
-        "Returning stub response."
+        "[mem0] log_event called, but Mem0 client is not available (Sprint 1 stub). Returning stub response."
     )
     return {
         "status": "mem0_stub",

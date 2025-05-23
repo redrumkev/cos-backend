@@ -7,19 +7,22 @@ using SQLAlchemy's async API for optimal performance.
 # MDC: cc_module
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.logger import log_event
 
+from .models import HealthStatus
 
-async def get_system_health(db: AsyncSession) -> list[dict[str, Any]]:
-    """Get system health information for all modules.
+
+async def get_system_health(db: AsyncSession) -> HealthStatus | None:
+    """Return the most recent HealthStatus row (or None).
 
     Args:
         db: AsyncSession: The database session
 
     Returns:
-        list[dict[str, Any]]: List of health status records for all modules
+        Optional[HealthStatus]: Most recent health status record or None
 
     Example:
         ```python
@@ -34,29 +37,12 @@ async def get_system_health(db: AsyncSession) -> list[dict[str, Any]]:
         memo="Querying system health from database",
     )
 
-    # Placeholder implementation - will query from health_status table once implemented
-    # query = select(HealthStatus).order_by(HealthStatus.last_updated.desc())
-    # result = await db.execute(query)
-    # return result.scalars().all()
-
-    # Return mock data for now
-    return [
-        {
-            "module": "cc",
-            "status": "healthy",
-            "last_updated": "2025-04-02T10:00:00Z",
-        },
-        {
-            "module": "mem0",
-            "status": "healthy",
-            "last_updated": "2025-04-02T09:55:00Z",
-        },
-    ]
+    stmt = select(HealthStatus).order_by(HealthStatus.last_updated.desc()).limit(1)
+    result = await db.execute(stmt)
+    return result.scalars().first()
 
 
-async def update_module_status(
-    db: AsyncSession, module_name: str, status: str
-) -> dict[str, Any]:
+async def update_module_status(db: AsyncSession, module_name: str, status: str) -> dict[str, Any]:
     """Update health status for a specific module.
 
     Args:

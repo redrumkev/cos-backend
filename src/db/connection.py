@@ -34,9 +34,7 @@ def get_async_engine() -> AsyncEngine:
 @lru_cache
 def get_async_session_maker() -> sessionmaker[Session]:
     engine = get_async_engine()
-    maker: sessionmaker[Session] = sessionmaker(
-        bind=engine, class_=AsyncSession, expire_on_commit=False
-    )  # type: ignore
+    maker: sessionmaker[Session] = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)  # type: ignore
     return maker
 
 

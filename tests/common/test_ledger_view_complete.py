@@ -18,9 +18,7 @@ class TestLedgerViewCompleteCoverage:
 
     @patch("src.common.ledger_view.MEMORY_PATH")
     @patch("src.common.ledger_view.console")
-    def test_load_memories_general_exception(
-        self, mock_console: Mock, mock_path: Mock
-    ) -> None:
+    def test_load_memories_general_exception(self, mock_console: Mock, mock_path: Mock) -> None:
         """Test handling of general exceptions in load_memories.
 
         This tests line 58 in ledger_view.py where a general exception is caught.

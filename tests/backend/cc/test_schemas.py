@@ -51,9 +51,7 @@ def test_ccconfig_schema() -> None:
 def test_module_health_status_schema() -> None:
     """Test the ModuleHealthStatus schema."""
     # Create a valid instance
-    module_health = ModuleHealthStatus(
-        module="cc", status="healthy", last_updated="2025-04-02T10:00:00Z"
-    )
+    module_health = ModuleHealthStatus(module="cc", status="healthy", last_updated="2025-04-02T10:00:00Z")
 
     # Verify the values
     assert module_health.module == "cc"
@@ -83,12 +81,8 @@ def test_system_health_report_schema() -> None:
     report = SystemHealthReport(
         overall_status="healthy",
         modules=[
-            ModuleHealthStatus(
-                module="cc", status="healthy", last_updated="2025-04-02T10:00:00Z"
-            ),
-            ModuleHealthStatus(
-                module="mem0", status="healthy", last_updated="2025-04-02T09:55:00Z"
-            ),
+            ModuleHealthStatus(module="cc", status="healthy", last_updated="2025-04-02T10:00:00Z"),
+            ModuleHealthStatus(module="mem0", status="healthy", last_updated="2025-04-02T09:55:00Z"),
         ],
         timestamp="2025-04-02T10:15:00Z",
     )
