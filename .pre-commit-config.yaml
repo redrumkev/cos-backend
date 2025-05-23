@@ -18,6 +18,7 @@ repos:
         additional_dependencies: [
             # Add any necessary Mypy plugins here if not managed elsewhere
             "pydantic", # Ensure pydantic types are available to mypy hook
+            "pydantic-settings", # BaseSettings typing
             "sqlalchemy[mypy]" # Ensure sqlalchemy stubs/plugin are available
             ]
 

@@ -15,7 +15,7 @@ if Path(candidate).exists():
     load_dotenv(candidate)
 
 
-class Settings(BaseSettings):  # type: ignore[misc]
+class Settings(BaseSettings):
     POSTGRES_DEV_URL: str = Field(
         default="postgresql://test:test@localhost/test_db",
         validation_alias="POSTGRES_DEV_URL",
