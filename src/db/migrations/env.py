@@ -48,6 +48,17 @@ config.set_main_option("sqlalchemy.url", migrate_url)
 # --- Target metadata for autogenerate ---
 target_metadata = Base.metadata
 
+# --- filter so Alembic only watches our schemas ------------
+WATCH_SCHEMAS = {"cc", "mem0_cc"}
+
+
+def include_object(
+    obj: object, name: str, type_: str, reflected: bool, compare_to: object
+) -> bool:
+    if type_ == "table":
+        return obj.schema in WATCH_SCHEMAS  # type: ignore[attr-defined]
+    return True
+
 
 # --- Migration routines ---
 def run_migrations_offline() -> None:
@@ -55,6 +66,7 @@ def run_migrations_offline() -> None:
         url=config.get_main_option("sqlalchemy.url"),
         target_metadata=target_metadata,
         literal_binds=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -67,7 +79,11 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+        )
         with context.begin_transaction():
             context.run_migrations()
 
