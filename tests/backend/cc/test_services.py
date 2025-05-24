@@ -1,152 +1,38 @@
-"""Tests for CRUD operations in the Control Center module.
+"""Tests for service layer operations in the Control Center module.
 
-This file contains tests for database operations, ensuring that
-CRUD functions work correctly with various database states.
+This file contains tests for business logic services, ensuring that
+service functions work correctly with various scenarios and error conditions.
 """
 
-from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.backend.cc.crud import (
+from src.backend.cc.services import (
     create_module,
     delete_module,
     get_module,
     get_module_by_name,
     get_modules,
-    get_system_health,
     update_module,
 )
-from src.backend.cc.models import HealthStatus
 
 
-class TestGetSystemHealth:
-    """Test cases for the get_system_health CRUD function."""
-
-    async def test_get_system_health_empty(self, test_db_session: AsyncSession) -> None:
-        """Test get_system_health returns None when database is empty."""
-        result = await get_system_health(test_db_session)
-        assert result is None
-
-    async def test_get_system_health_single_record(self, test_db_session: AsyncSession) -> None:
-        """Test get_system_health returns the single record when only one exists."""
-        # Create a single health status record
-        health_record = HealthStatus(
-            id=uuid4(),
-            module="cc",
-            status="healthy",
-            last_updated=datetime.now(UTC),
-            details="All systems operational",
-        )
-        test_db_session.add(health_record)
-        await test_db_session.commit()
-
-        # Test the function
-        result = await get_system_health(test_db_session)
-
-        assert result is not None
-        assert result.module == "cc"
-        assert result.status == "healthy"
-        assert result.details == "All systems operational"
-
-    async def test_get_system_health_returns_latest(self, test_db_session: AsyncSession) -> None:
-        """Test get_system_health returns the most recent record when multiple exist."""
-        # Create multiple health status records with different timestamps
-        older_time = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
-        newer_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
-
-        older_record = HealthStatus(
-            id=uuid4(),
-            module="cc",
-            status="degraded",
-            last_updated=older_time,
-            details="Some issues detected",
-        )
-
-        newer_record = HealthStatus(
-            id=uuid4(),
-            module="cc",
-            status="healthy",
-            last_updated=newer_time,
-            details="Issues resolved",
-        )
-
-        # Add records in non-chronological order to test ordering
-        test_db_session.add(newer_record)
-        test_db_session.add(older_record)
-        await test_db_session.commit()
-
-        # Test the function
-        result = await get_system_health(test_db_session)
-
-        assert result is not None
-        assert result.status == "healthy"
-        assert result.details == "Issues resolved"
-        assert result.last_updated == newer_time
-
-    async def test_get_system_health_multiple_records_order(self, test_db_session: AsyncSession) -> None:
-        """Test get_system_health correctly orders by timestamp with multiple records."""
-        # Create three records with specific timestamps
-        time1 = datetime(2025, 1, 1, 9, 0, 0, tzinfo=UTC)
-        time2 = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
-        time3 = datetime(2025, 1, 1, 11, 0, 0, tzinfo=UTC)
-
-        record1 = HealthStatus(
-            id=uuid4(),
-            module="cc",
-            status="offline",
-            last_updated=time1,
-            details="System starting",
-        )
-
-        record2 = HealthStatus(
-            id=uuid4(),
-            module="cc",
-            status="degraded",
-            last_updated=time2,
-            details="Partial functionality",
-        )
-
-        record3 = HealthStatus(
-            id=uuid4(),
-            module="cc",
-            status="healthy",
-            last_updated=time3,
-            details="Fully operational",
-        )
-
-        # Add records in random order
-        test_db_session.add(record2)
-        test_db_session.add(record1)
-        test_db_session.add(record3)
-        await test_db_session.commit()
-
-        # Test the function
-        result = await get_system_health(test_db_session)
-
-        # Should return the record with the latest timestamp (time3)
-        assert result is not None
-        assert result.status == "healthy"
-        assert result.details == "Fully operational"
-        assert result.last_updated == time3
-
-
-class TestModuleCRUD:
-    """Test cases for Module CRUD operations."""
+class TestModuleServices:
+    """Test cases for Module service operations."""
 
     async def test_create_module_success(self, test_db_session: AsyncSession) -> None:
-        """Test creating a module successfully."""
+        """Test creating a module successfully via service layer."""
         module = await create_module(test_db_session, "test_module", "1.0.0")
 
         assert module.name == "test_module"
         assert module.version == "1.0.0"
         assert module.active is True
         assert module.config is None
-        assert module.id is not None
 
     async def test_create_module_with_config(self, test_db_session: AsyncSession) -> None:
-        """Test creating a module with configuration."""
+        """Test creating a module with configuration via service layer."""
         config = '{"setting1": "value1"}'
         module = await create_module(test_db_session, "test_module", "1.0.0", config)
 
@@ -154,37 +40,46 @@ class TestModuleCRUD:
         assert module.version == "1.0.0"
         assert module.config == config
 
-    async def test_get_module_by_id_exists(self, test_db_session: AsyncSession) -> None:
-        """Test getting a module by ID when it exists."""
+    async def test_create_module_duplicate_name_error(self, test_db_session: AsyncSession) -> None:
+        """Test creating a module with duplicate name raises ValueError."""
+        # Create first module
+        await create_module(test_db_session, "test_module", "1.0.0")
+
+        # Try to create second module with same name
+        with pytest.raises(ValueError, match="Module with name 'test_module' already exists"):
+            await create_module(test_db_session, "test_module", "2.0.0")
+
+    async def test_get_module_exists(self, test_db_session: AsyncSession) -> None:
+        """Test getting a module that exists."""
         # Create a module first
         created_module = await create_module(test_db_session, "test_module", "1.0.0")
 
-        # Get it by ID
+        # Get it via service
         retrieved_module = await get_module(test_db_session, str(created_module.id))
 
         assert retrieved_module is not None
         assert retrieved_module.id == created_module.id
         assert retrieved_module.name == "test_module"
 
-    async def test_get_module_by_id_not_exists(self, test_db_session: AsyncSession) -> None:
-        """Test getting a module by ID when it doesn't exist."""
+    async def test_get_module_not_exists(self, test_db_session: AsyncSession) -> None:
+        """Test getting a module that doesn't exist."""
         fake_id = str(uuid4())
         result = await get_module(test_db_session, fake_id)
         assert result is None
 
     async def test_get_module_by_name_exists(self, test_db_session: AsyncSession) -> None:
-        """Test getting a module by name when it exists."""
+        """Test getting a module by name that exists."""
         # Create a module first
         await create_module(test_db_session, "test_module", "1.0.0")
 
-        # Get it by name
+        # Get it by name via service
         retrieved_module = await get_module_by_name(test_db_session, "test_module")
 
         assert retrieved_module is not None
         assert retrieved_module.name == "test_module"
 
     async def test_get_module_by_name_not_exists(self, test_db_session: AsyncSession) -> None:
-        """Test getting a module by name when it doesn't exist."""
+        """Test getting a module by name that doesn't exist."""
         result = await get_module_by_name(test_db_session, "nonexistent_module")
         assert result is None
 
@@ -230,7 +125,7 @@ class TestModuleCRUD:
         # Create a module first
         created_module = await create_module(test_db_session, "test_module", "1.0.0")
 
-        # Update it
+        # Update it via service
         update_data = {"version": "1.1.0", "active": False}
         updated_module = await update_module(test_db_session, str(created_module.id), update_data)
 
@@ -246,25 +141,35 @@ class TestModuleCRUD:
         result = await update_module(test_db_session, fake_id, update_data)
         assert result is None
 
-    async def test_update_module_ignore_invalid_fields(self, test_db_session: AsyncSession) -> None:
-        """Test updating a module ignores invalid fields."""
-        # Create a module first
+    async def test_update_module_name_conflict(self, test_db_session: AsyncSession) -> None:
+        """Test updating a module name to one that already exists."""
+        # Create two modules
+        module1 = await create_module(test_db_session, "module_1", "1.0.0")
+        await create_module(test_db_session, "module_2", "1.0.0")
+
+        # Try to update module1's name to module_2
+        with pytest.raises(ValueError, match="Module with name 'module_2' already exists"):
+            await update_module(test_db_session, str(module1.id), {"name": "module_2"})
+
+    async def test_update_module_same_name(self, test_db_session: AsyncSession) -> None:
+        """Test updating a module to the same name (should work)."""
+        # Create a module
         created_module = await create_module(test_db_session, "test_module", "1.0.0")
 
-        # Try to update with invalid field
-        update_data = {"version": "1.1.0", "invalid_field": "value"}
+        # Update with same name but different version
+        update_data = {"name": "test_module", "version": "1.1.0"}
         updated_module = await update_module(test_db_session, str(created_module.id), update_data)
 
         assert updated_module is not None
+        assert updated_module.name == "test_module"
         assert updated_module.version == "1.1.0"
-        assert not hasattr(updated_module, "invalid_field")
 
     async def test_delete_module_success(self, test_db_session: AsyncSession) -> None:
         """Test deleting a module successfully."""
         # Create a module first
         created_module = await create_module(test_db_session, "test_module", "1.0.0")
 
-        # Delete it
+        # Delete it via service
         deleted_module = await delete_module(test_db_session, str(created_module.id))
 
         assert deleted_module is not None

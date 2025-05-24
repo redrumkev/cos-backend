@@ -21,7 +21,7 @@ class TestHealthStatusModel:
     def test_table_name_and_schema(self) -> None:
         """Test that the table name and schema are correctly defined."""
         assert HealthStatus.__tablename__ == "health_status"
-        assert HealthStatus.__table_args__ == {"schema": "cc"}
+        assert HealthStatus.__table_args__ == {"schema": "cc", "extend_existing": True}
 
     def test_columns_exist(self) -> None:
         """Test that all expected columns exist in the model."""
@@ -114,7 +114,7 @@ class TestModuleModel:
     def test_table_name_and_schema(self) -> None:
         """Test that the table name and schema are correctly defined."""
         assert Module.__tablename__ == "modules"
-        assert Module.__table_args__ == {"schema": "cc"}
+        assert Module.__table_args__ == {"schema": "cc", "extend_existing": True}
 
     def test_columns_exist(self) -> None:
         """Test that all expected columns exist in the model."""

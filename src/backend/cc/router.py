@@ -8,6 +8,7 @@ connecting client requests to the appropriate services.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 
 from src.common.logger import log_event
 
@@ -15,12 +16,20 @@ from .deps import DBSession, ModuleConfig, get_module_config
 from .schemas import (
     CCConfig,
     HealthStatusResponse,
+    Module,
+    ModuleCreate,
     ModuleHealthStatus,
     ModulePingRequest,
     ModulePingResponse,
+    ModuleUpdate,
     SystemHealthReport,
 )
+from .services import create_module as service_create_module
+from .services import delete_module as service_delete_module
+from .services import get_module as service_get_module
+from .services import get_modules as service_get_modules
 from .services import read_system_health
+from .services import update_module as service_update_module
 
 router = APIRouter()
 
@@ -133,3 +142,143 @@ async def get_status() -> dict[str, str]:
         memo="CC status endpoint accessed.",
     )
     return {"status": "ok"}
+
+
+# Module CRUD Endpoints
+@router.post(
+    "/modules",
+    response_model=Module,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create Module",
+    description="Create a new module in the system.",
+    tags=["Modules"],
+)
+async def create_module(
+    module_data: ModuleCreate,
+    db: DBSession,
+) -> Module:
+    """Create a new module."""
+    log_event(
+        source="cc",
+        data={"module": module_data.name},
+        tags=["module", "create", "cc_router"],
+        memo=f"Creating module {module_data.name}.",
+    )
+
+    try:
+        module = await service_create_module(
+            db, name=module_data.name, version=module_data.version, config=module_data.config
+        )
+        return Module.model_validate(module)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+
+
+@router.get(
+    "/modules",
+    response_model=list[Module],
+    summary="List Modules",
+    description="Get a list of all modules with optional pagination.",
+    tags=["Modules"],
+)
+async def list_modules(
+    db: DBSession,
+    skip: int = 0,
+    limit: int = 100,
+) -> list[Module]:
+    """Get a list of modules with pagination."""
+    log_event(
+        source="cc",
+        data={"skip": skip, "limit": limit},
+        tags=["module", "list", "cc_router"],
+        memo=f"Listing modules with skip={skip}, limit={limit}.",
+    )
+
+    modules = await service_get_modules(db, skip=skip, limit=limit)
+    return [Module.model_validate(module) for module in modules]
+
+
+@router.get(
+    "/modules/{module_id}",
+    response_model=Module,
+    summary="Get Module",
+    description="Get a specific module by its ID.",
+    tags=["Modules"],
+)
+async def get_module(
+    module_id: str,
+    db: DBSession,
+) -> Module:
+    """Get a specific module by ID."""
+    log_event(
+        source="cc",
+        data={"module_id": module_id},
+        tags=["module", "get", "cc_router"],
+        memo=f"Getting module {module_id}.",
+    )
+
+    module = await service_get_module(db, module_id)
+    if not module:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Module with ID {module_id} not found")
+
+    return Module.model_validate(module)
+
+
+@router.patch(
+    "/modules/{module_id}",
+    response_model=Module,
+    summary="Update Module",
+    description="Update a specific module by its ID.",
+    tags=["Modules"],
+)
+async def update_module(
+    module_id: str,
+    module_data: ModuleUpdate,
+    db: DBSession,
+) -> Module:
+    """Update a specific module by ID."""
+    log_event(
+        source="cc",
+        data={"module_id": module_id, "update_data": module_data.model_dump(exclude_unset=True)},
+        tags=["module", "update", "cc_router"],
+        memo=f"Updating module {module_id}.",
+    )
+
+    try:
+        # Convert Pydantic model to dict, excluding unset fields
+        update_data = module_data.model_dump(exclude_unset=True)
+
+        module = await service_update_module(db, module_id, update_data)
+        if not module:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Module with ID {module_id} not found")
+
+        return Module.model_validate(module)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+
+
+@router.delete(
+    "/modules/{module_id}",
+    summary="Delete Module",
+    description="Delete a specific module by its ID.",
+    tags=["Modules"],
+)
+async def delete_module(
+    module_id: str,
+    db: DBSession,
+) -> JSONResponse:
+    """Delete a specific module by ID."""
+    log_event(
+        source="cc",
+        data={"module_id": module_id},
+        tags=["module", "delete", "cc_router"],
+        memo=f"Deleting module {module_id}.",
+    )
+
+    module = await service_delete_module(db, module_id)
+    if not module:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Module with ID {module_id} not found")
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK, content={"message": f"Module {module.name} deleted successfully"}
+    )

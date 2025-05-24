@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.logger import log_event
 
-from .models import HealthStatus
+from .models import HealthStatus, Module
 
 
 async def get_system_health(db: AsyncSession) -> HealthStatus | None:
@@ -107,10 +107,196 @@ async def get_active_modules(db: AsyncSession) -> list[str]:
         memo="Querying active modules from database",
     )
 
-    # Placeholder implementation
-    # query = select(Module.name).where(Module.active == True)
-    # result = await db.execute(query)
-    # return result.scalars().all()
+    stmt = select(Module.name).where(Module.active == True)  # noqa: E712
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
 
-    # Return mock data for now
-    return ["cc", "mem0"]
+
+# Module CRUD Operations
+async def create_module(db: AsyncSession, name: str, version: str, config: str | None = None) -> Module:
+    """Create a new module record.
+
+    Args:
+        db: AsyncSession: The database session
+        name: str: Name of the module
+        version: str: Version of the module
+        config: str | None: Optional JSON configuration string
+
+    Returns:
+        Module: The created module record
+
+    Example:
+        ```python
+        module = await create_module(db, "new_module", "1.0.0")
+        ```
+
+    """
+    log_event(
+        source="cc",
+        data={"name": name, "version": version},
+        tags=["db", "module", "create"],
+        memo=f"Creating new module {name} version {version}",
+    )
+
+    module = Module(name=name, version=version, config=config)
+    db.add(module)
+    await db.commit()
+    await db.refresh(module)
+    return module
+
+
+async def get_module(db: AsyncSession, module_id: str) -> Module | None:
+    """Get a module by its ID.
+
+    Args:
+        db: AsyncSession: The database session
+        module_id: str: UUID of the module
+
+    Returns:
+        Module | None: The module record or None if not found
+
+    Example:
+        ```python
+        module = await get_module(db, "123e4567-e89b-12d3-a456-426614174000")
+        ```
+
+    """
+    log_event(
+        source="cc",
+        data={"module_id": module_id},
+        tags=["db", "module", "read"],
+        memo=f"Retrieving module {module_id}",
+    )
+
+    stmt = select(Module).where(Module.id == module_id)
+    result = await db.execute(stmt)
+    return result.scalars().first()
+
+
+async def get_module_by_name(db: AsyncSession, name: str) -> Module | None:
+    """Get a module by its name.
+
+    Args:
+        db: AsyncSession: The database session
+        name: str: Name of the module
+
+    Returns:
+        Module | None: The module record or None if not found
+
+    Example:
+        ```python
+        module = await get_module_by_name(db, "cc")
+        ```
+
+    """
+    log_event(
+        source="cc",
+        data={"name": name},
+        tags=["db", "module", "read"],
+        memo=f"Retrieving module by name {name}",
+    )
+
+    stmt = select(Module).where(Module.name == name)
+    result = await db.execute(stmt)
+    return result.scalars().first()
+
+
+async def get_modules(db: AsyncSession, skip: int = 0, limit: int = 100) -> list[Module]:
+    """Get a list of modules with pagination.
+
+    Args:
+        db: AsyncSession: The database session
+        skip: int: Number of records to skip
+        limit: int: Maximum number of records to return
+
+    Returns:
+        list[Module]: List of module records
+
+    Example:
+        ```python
+        modules = await get_modules(db, skip=0, limit=10)
+        ```
+
+    """
+    log_event(
+        source="cc",
+        data={"skip": skip, "limit": limit},
+        tags=["db", "module", "read"],
+        memo=f"Retrieving modules with skip={skip}, limit={limit}",
+    )
+
+    stmt = select(Module).offset(skip).limit(limit).order_by(Module.name)
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def update_module(db: AsyncSession, module_id: str, data: dict[str, Any]) -> Module | None:
+    """Update a module record.
+
+    Args:
+        db: AsyncSession: The database session
+        module_id: str: UUID of the module
+        data: dict[str, Any]: Dictionary of fields to update
+
+    Returns:
+        Module | None: The updated module record or None if not found
+
+    Example:
+        ```python
+        updated = await update_module(db, "123e4567-e89b-12d3-a456-426614174000", {"version": "1.1.0"})
+        ```
+
+    """
+    log_event(
+        source="cc",
+        data={"module_id": module_id, "update_data": data},
+        tags=["db", "module", "update"],
+        memo=f"Updating module {module_id}",
+    )
+
+    stmt = select(Module).where(Module.id == module_id)
+    result = await db.execute(stmt)
+    module = result.scalars().first()
+
+    if module:
+        for key, value in data.items():
+            if hasattr(module, key):
+                setattr(module, key, value)
+        await db.commit()
+        await db.refresh(module)
+
+    return module
+
+
+async def delete_module(db: AsyncSession, module_id: str) -> Module | None:
+    """Delete a module record.
+
+    Args:
+        db: AsyncSession: The database session
+        module_id: str: UUID of the module
+
+    Returns:
+        Module | None: The deleted module record or None if not found
+
+    Example:
+        ```python
+        deleted = await delete_module(db, "123e4567-e89b-12d3-a456-426614174000")
+        ```
+
+    """
+    log_event(
+        source="cc",
+        data={"module_id": module_id},
+        tags=["db", "module", "delete"],
+        memo=f"Deleting module {module_id}",
+    )
+
+    stmt = select(Module).where(Module.id == module_id)
+    result = await db.execute(stmt)
+    module = result.scalars().first()
+
+    if module:
+        await db.delete(module)
+        await db.commit()
+
+    return module

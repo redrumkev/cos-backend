@@ -124,3 +124,55 @@ class ModulePingResponse(BaseModel):
     latency_ms: int = Field(..., description="Round-trip latency in milliseconds.")
 
     model_config = ConfigDict(json_schema_extra={"example": {"module": "mem0", "status": "healthy", "latency_ms": 5}})
+
+
+# Module CRUD Schemas
+class ModuleBase(BaseModel):
+    """Base schema for module data."""
+
+    name: str = Field(..., description="The name of the module.", min_length=1, max_length=255)
+    version: str = Field(..., description="The version of the module.", min_length=1, max_length=50)
+    config: str | None = Field(None, description="Optional JSON configuration string for the module.")
+
+
+class ModuleCreate(ModuleBase):
+    """Schema for creating a new module."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"name": "new_module", "version": "1.0.0", "config": '{"setting1": "value1"}'}}
+    )
+
+
+class ModuleUpdate(BaseModel):
+    """Schema for updating an existing module."""
+
+    name: str | None = Field(None, description="The name of the module.", min_length=1, max_length=255)
+    version: str | None = Field(None, description="The version of the module.", min_length=1, max_length=50)
+    active: bool | None = Field(None, description="Whether the module is active.")
+    config: str | None = Field(None, description="Optional JSON configuration string for the module.")
+
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"version": "1.1.0", "active": True, "config": '{"setting1": "new_value"}'}}
+    )
+
+
+class Module(ModuleBase):
+    """Schema for module response."""
+
+    id: str = Field(..., description="Unique identifier for the module.")
+    active: bool = Field(..., description="Whether the module is active.")
+    last_active: str = Field(..., description="ISO-8601 timestamp of when the module was last active.")
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "name": "cc",
+                "version": "1.0.0",
+                "active": True,
+                "last_active": "2025-04-02T10:00:00Z",
+                "config": '{"setting1": "value1"}',
+            }
+        },
+    )

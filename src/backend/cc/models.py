@@ -22,7 +22,7 @@ class HealthStatus(Base):
     """
 
     __tablename__ = "health_status"
-    __table_args__ = {"schema": "cc"}  # noqa: RUF012
+    __table_args__ = {"schema": "cc", "extend_existing": True}  # noqa: RUF012
 
     id = Column(POSTGRES_UUID, primary_key=True, default=uuid4)
     module = Column(String, nullable=False, unique=True, index=True)
@@ -43,7 +43,7 @@ class Module(Base):
     """
 
     __tablename__ = "modules"
-    __table_args__ = {"schema": "cc"}  # noqa: RUF012
+    __table_args__ = {"schema": "cc", "extend_existing": True}  # noqa: RUF012
 
     id = Column(POSTGRES_UUID, primary_key=True, default=uuid4)
     name = Column(String, nullable=False, unique=True, index=True)
