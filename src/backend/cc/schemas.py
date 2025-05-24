@@ -5,9 +5,10 @@ and response formatting, ensuring type safety and data integrity.
 """
 
 # MDC: cc_module
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 # Health Check Schema
@@ -27,8 +28,13 @@ class HealthStatusResponse(BaseModel):
     id: str = Field(..., description="Unique identifier for the health status record.")
     module: str = Field(..., description="The name of the module.")
     status: str = Field(..., description="The operational status of the module.")
-    last_updated: str = Field(..., description="ISO-8601 timestamp of the last status update.")
+    last_updated: datetime = Field(..., description="Timestamp of the last status update.")
     details: str | None = Field(None, description="Additional details about the status.")
+
+    @field_serializer("last_updated")
+    def serialize_last_updated(self, value: datetime) -> str:
+        """Serialize datetime to ISO-8601 string."""
+        return value.isoformat()
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -161,7 +167,12 @@ class Module(ModuleBase):
 
     id: str = Field(..., description="Unique identifier for the module.")
     active: bool = Field(..., description="Whether the module is active.")
-    last_active: str = Field(..., description="ISO-8601 timestamp of when the module was last active.")
+    last_active: datetime = Field(..., description="Timestamp of when the module was last active.")
+
+    @field_serializer("last_active")
+    def serialize_last_active(self, value: datetime) -> str:
+        """Serialize datetime to ISO-8601 string."""
+        return value.isoformat()
 
     model_config = ConfigDict(
         from_attributes=True,

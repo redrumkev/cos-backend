@@ -20,7 +20,7 @@ app: FastAPI = FastAPI(
 )
 
 # Mount the CC router
-app.include_router(router, prefix="/api/v1/cc")
+app.include_router(router, prefix="/cc")
 
 # Log startup event
 log_event(source="cos_main", data={"event": "startup"}, memo="COS FastAPI initialized.")

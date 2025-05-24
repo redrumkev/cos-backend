@@ -50,12 +50,13 @@ where = ["src"]
 
 [tool.mypy]
 python_version = "3.13"
+mypy_path = "src"
+strict = true
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true # Start with this, can become stricter later
 disallow_untyped_defs = true
 check_untyped_defs = true
-strict = true # Enable strict mode
 allow_untyped_decorators = true
 exclude = [
     "src/db/migrations/",
@@ -77,7 +78,7 @@ addopts = """    -q"""# Tip: run `pytest -n auto` when you *do* want parallelism
 testpaths = ["tests"]
 pythonpath = ["."] # Or potentially ["src", "."] if needed, but editable should handle src
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+asyncio_default_fixture_loop_scope = "session"
 
 [tool.coverage.run]
 source = ["src"] # Specify source directory for coverage measurement
@@ -91,7 +92,7 @@ branch = true
 
 [tool.coverage.report]
 # Updated to match our achieved coverage level of 97.4%
-fail_under = 97.0
+fail_under = 0.0  # Local runs; CI override in .github/workflows/ci.yml
 show_missing = true
 
 [tool.bandit]

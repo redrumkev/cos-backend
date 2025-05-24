@@ -1,79 +1,164 @@
 # ruff: noqa: E402
-import functools
 import os
 import sys
-from collections.abc import AsyncGenerator, Callable, Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Any, Optional, TypeVar  # noqa: F401
+from typing import Any, TypeVar
 
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 # Force settings to load dummy env file during test collection
 os.environ.setdefault("ENV_FILE", str(Path(__file__).parents[1] / "infrastructure" / ".env.ci"))
 
-# local helpers
-from src.db.connection import get_async_engine, get_async_session_maker
-
-# Add these type definitions to help with decorator typing
-T = TypeVar("T", bound=Callable[..., Any])
-
-
-# Use a properly typed decorator pattern that passes through fixture arguments
-def fixture_wrapper(scope: str | None = None, **fixture_kwargs: Any) -> Callable[[T], T]:
-    """Being wrapper to preserve types for pytest fixtures."""
-
-    def decorator(func: T) -> T:
-        @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            return func(*args, **kwargs)
-
-        fixture_kwargs_with_scope = fixture_kwargs
-        if scope:
-            fixture_kwargs_with_scope["scope"] = scope
-
-        return pytest.fixture(**fixture_kwargs_with_scope)(wrapper)  # type: ignore
-
-    return decorator
-
-
+# Add src to Python path
 project_root = Path(__file__).parent.parent  # Should be g:\cos
 src_path = project_root / "src"  # Should be g:\cos\src
-# Add src_path first so its packages (backend, common) are preferred
+
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
-# Add project_root if needed for finding cos_main directly
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+# Import database components
+from src.db.base import Base
 
-# Only import the FastAPI app if a test requests the 'app' fixture
-# This avoids import errors for pure unit/config tests
-try:
-    from src.cos_main import app as cos_app
+# Determine database URL based on environment
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "sqlite+aiosqlite:///:memory:"
+    if os.getenv("ENABLE_DB_INTEGRATION") != "1"
+    else os.getenv("POSTGRES_TEST_URL", "postgresql+asyncpg://user:pass@localhost/test"),
+)
 
-    main_app = cos_app  # type: Optional[FastAPI]
-except ImportError:
-    main_app = None
+# Create engine once per test session
+engine = create_async_engine(DATABASE_URL, echo=False)
+AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+# Type helpers
+T = TypeVar("T", bound=Callable[..., Any])
 
 
-@fixture_wrapper(scope="session")
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def setup_database():
+    """Create all tables once at session start."""
+    # Import all models to ensure they're registered with Base.metadata
+    from src.backend.cc import models  # noqa: F401
+    # Note: mem0_models.py doesn't exist yet, so we skip importing it
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def db_session():
+    """Provide a transactional session for each test."""
+    async with engine.begin() as conn:
+        # Start a savepoint
+        trans = await conn.begin_nested()
+
+        # Create session bound to this connection
+        async with AsyncSessionLocal(bind=conn) as session:
+            yield session
+
+        # Rollback to savepoint after test
+        await trans.rollback()
+
+
+@pytest.fixture(scope="function")
+def override_get_db(db_session):
+    """Override FastAPI dependency."""
+
+    async def _get_db():
+        yield db_session
+
+    # Import the FastAPI app if available
+    try:
+        from src.backend.cc.deps import get_cc_db
+        from src.cos_main import app
+
+        # Import all possible db dependencies
+        from src.db.connection import get_async_db
+
+        # Override them all
+        app.dependency_overrides[get_async_db] = _get_db
+        app.dependency_overrides[get_cc_db] = _get_db
+
+        yield
+
+        # Clean up
+        app.dependency_overrides.clear()
+    except ImportError:
+        # No app available, yield anyway for tests that don't need it
+        yield
+
+
+@pytest.fixture(scope="function")
+def client(override_get_db):
+    """Test client with overridden db."""
+    try:
+        from src.cos_main import app
+
+        with TestClient(app) as c:
+            yield c
+    except ImportError:
+        # No app available, yield None for pure unit tests
+        yield None
+
+
+# Legacy aliases for backward compatibility
+@pytest_asyncio.fixture(scope="function")
+async def test_db_session(db_session):
+    """Legacy alias for db_session."""
+    yield db_session
+
+
+@pytest_asyncio.fixture(scope="function")
+async def mem0_db_session(db_session):
+    """Legacy alias for db_session."""
+    yield db_session
+
+
+@pytest.fixture(scope="function")
+def test_client(client):
+    """Legacy alias for client."""
+    if client is None:
+        raise ValueError("FastAPI app is not available")
+    return client
+
+
+@pytest.fixture(scope="session")
 def app() -> FastAPI | None:
     """Create main FastAPI application instance for testing or None if not available."""
-    return main_app
+    try:
+        from src.cos_main import app as cos_app
+
+        return cos_app
+    except ImportError:
+        return None
 
 
-@fixture_wrapper(scope="session")
+@pytest.fixture(scope="function")
+def unique_test_id() -> str:
+    """Generate a unique ID for this test to avoid data conflicts."""
+    import uuid
+
+    return str(uuid.uuid4())[:8]
+
+
+# Session-scoped environment setup fixtures
+@pytest.fixture(scope="session")
 def mock_env_settings() -> Generator[None, None, None]:
     """Fixture to set required environment variables for tests using Settings."""
     os.environ["POSTGRES_DEV_URL"] = "postgresql://test:test@localhost/test_db"
     os.environ["POSTGRES_TEST_URL"] = "postgresql://test:test@localhost/test_test_db"
     os.environ["REDIS_HOST"] = "localhost"
     os.environ["REDIS_PORT"] = "6379"
-    # REDIS_PASSWORD is set from the environment for security
     os.environ["REDIS_PASSWORD"] = os.environ.get("REDIS_PASSWORD", "test_password")
     yield
     for var in [
@@ -86,93 +171,9 @@ def mock_env_settings() -> Generator[None, None, None]:
         os.environ.pop(var, None)
 
 
-@fixture_wrapper(scope="session")
+@pytest.fixture(scope="session")
 def current_test_env() -> Generator[None, None, None]:
+    """Mark that we're in test mode."""
     os.environ["PYTEST_CURRENT_TEST"] = "1"
     yield
     os.environ.pop("PYTEST_CURRENT_TEST", None)
-
-
-@fixture_wrapper(scope="function")
-def test_client(app: FastAPI) -> TestClient:
-    """Creates a TestClient for making requests to the test app."""
-    if app is None:
-        raise ValueError("FastAPI app is not available")
-    return TestClient(app)
-
-
-# ------------------------------------------------------------------
-# Async DB session (function scope) with nested TX rollback
-# ------------------------------------------------------------------
-@pytest_asyncio.fixture(scope="function")
-async def test_db_session() -> AsyncGenerator[AsyncSession, None]:
-    engine = get_async_engine()
-    async with engine.begin() as conn:  # conn is of type AsyncConnection
-        tx = await conn.begin_nested()
-        session_maker = get_async_session_maker()
-        async_session = session_maker(bind=conn)
-        try:
-            yield async_session  # type: ignore[misc]
-        finally:
-            await async_session.close()  # type: ignore[func-returns-value]
-            await tx.rollback()
-
-
-# ------------------------------------------------------------------
-# Async mem0 DB session (function scope) with nested TX rollback
-# ------------------------------------------------------------------
-@pytest_asyncio.fixture(scope="function")
-async def mem0_db_session() -> AsyncGenerator[AsyncSession, None]:
-    engine = get_async_engine()
-    async with engine.begin() as conn:  # conn is of type AsyncConnection
-        tx = await conn.begin_nested()
-        session_maker = get_async_session_maker()
-        async_session = session_maker(bind=conn)
-        try:
-            yield async_session  # type: ignore[misc]
-        finally:
-            await async_session.close()  # type: ignore[func-returns-value]
-            await tx.rollback()
-
-
-# ------------------------------------------------------------------
-# FastAPI TestClient overriding DB dependency
-# ------------------------------------------------------------------
-try:
-    from fastapi.testclient import TestClient
-
-    # Import get_cc_db from the correct location
-    try:
-        from src.backend.cc.deps import get_cc_db
-    except (ImportError, AttributeError):
-        get_cc_db = None  # type: ignore[assignment]
-
-    if main_app is not None:
-
-        @pytest.fixture(scope="function")
-        def client(test_db_session: AsyncSession) -> Generator[TestClient, None, None]:
-            assert main_app is not None
-            if get_cc_db is not None:
-                main_app.dependency_overrides[get_cc_db] = lambda: test_db_session
-            with TestClient(main_app) as c:
-                yield c
-            main_app.dependency_overrides.clear()
-    else:
-
-        @pytest.fixture(scope="function")
-        def client(test_db_session: AsyncSession) -> Generator[TestClient, None, None]:
-            # Create a dummy TestClient that will fail gracefully for missing app
-            from fastapi import FastAPI
-
-            dummy_app = FastAPI()
-            with TestClient(dummy_app) as c:
-                yield c
-except ImportError:
-
-    @pytest.fixture(scope="function")
-    def client(test_db_session: AsyncSession) -> Generator[TestClient, None, None]:
-        from fastapi import FastAPI
-
-        dummy_app = FastAPI()
-        with TestClient(dummy_app) as c:
-            yield c

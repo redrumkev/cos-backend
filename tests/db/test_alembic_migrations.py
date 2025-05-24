@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from src.db.connection import get_async_engine
+from tests.helpers import skip_if_no_db
 
 # Set up environment for testing
 os.environ["POSTGRES_DEV_URL"] = "postgresql+asyncpg://test:test@localhost:5432/test_db"
@@ -24,6 +25,7 @@ async def engine() -> AsyncGenerator[AsyncEngine, None]:
     yield get_async_engine()
 
 
+@skip_if_no_db
 @pytest.mark.asyncio
 async def test_upgrade_idempotent(engine: AsyncEngine) -> None:
     """Test that running upgrade twice doesn't cause errors."""
@@ -36,6 +38,7 @@ async def test_upgrade_idempotent(engine: AsyncEngine) -> None:
             assert q.scalar(), f"{tbl} missing"
 
 
+@skip_if_no_db
 @pytest.mark.asyncio
 async def test_recreate_after_drop(engine: AsyncEngine) -> None:
     """Test that migration works after manually dropping tables."""
@@ -48,6 +51,7 @@ async def test_recreate_after_drop(engine: AsyncEngine) -> None:
         assert q.scalar()
 
 
+@skip_if_no_db
 @pytest.mark.asyncio
 async def test_downgrade_then_upgrade() -> None:
     """Test that downgrade and upgrade work correctly together."""
@@ -56,6 +60,7 @@ async def test_downgrade_then_upgrade() -> None:
     command.upgrade(ALEMBIC_CFG, "head")
 
 
+@skip_if_no_db
 @pytest.mark.asyncio
 async def test_schemas_created(engine: AsyncEngine) -> None:
     """Test that required schemas are created by migration."""
@@ -74,6 +79,7 @@ async def test_schemas_created(engine: AsyncEngine) -> None:
         assert result.scalar() == "mem0_cc"
 
 
+@skip_if_no_db
 @pytest.mark.asyncio
 async def test_tables_in_correct_schema(engine: AsyncEngine) -> None:
     """Test that tables are created in the correct schemas."""
@@ -106,6 +112,7 @@ async def test_tables_in_correct_schema(engine: AsyncEngine) -> None:
         assert row[1] == "modules"
 
 
+@skip_if_no_db
 @pytest.mark.asyncio
 async def test_indexes_created(engine: AsyncEngine) -> None:
     """Test that unique indexes are properly created."""
