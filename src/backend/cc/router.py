@@ -8,7 +8,6 @@ connecting client requests to the appropriate services.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
 
 from src.common.logger import log_event
 
@@ -259,6 +258,7 @@ async def update_module(
 
 @router.delete(
     "/modules/{module_id}",
+    response_model=Module,
     summary="Delete Module",
     description="Delete a specific module by its ID.",
     tags=["Modules"],
@@ -266,7 +266,7 @@ async def update_module(
 async def delete_module(
     module_id: str,
     db: DBSession,
-) -> JSONResponse:
+) -> Module:
     """Delete a specific module by ID."""
     log_event(
         source="cc",
@@ -279,6 +279,4 @@ async def delete_module(
     if not module:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Module with ID {module_id} not found")
 
-    return JSONResponse(
-        status_code=status.HTTP_200_OK, content={"message": f"Module {module.name} deleted successfully"}
-    )
+    return Module.model_validate(module)

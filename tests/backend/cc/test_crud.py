@@ -83,7 +83,7 @@ class TestGetSystemHealth:
         assert result is not None
         assert result.status == "healthy"
         assert result.details == "Issues resolved"
-        assert result.last_updated == newer_time
+        assert result.last_updated == newer_time.replace(tzinfo=None)
 
     async def test_get_system_health_multiple_records_order(
         self, test_db_session: AsyncSession, unique_test_id: str
@@ -131,7 +131,7 @@ class TestGetSystemHealth:
         assert result is not None
         assert result.status == "healthy"
         assert result.details == "Fully operational"
-        assert result.last_updated == time3
+        assert result.last_updated == time3.replace(tzinfo=None)
 
 
 class TestModuleCRUD:

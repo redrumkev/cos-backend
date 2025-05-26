@@ -7,6 +7,7 @@ using SQLAlchemy's declarative syntax with Table Args for schema isolation.
 # MDC: cc_module
 import os
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import Boolean, Column, DateTime, String
@@ -17,7 +18,7 @@ from sqlalchemy.types import TypeDecorator
 from src.db.base import Base
 
 
-class UUID(TypeDecorator):
+class UUID(TypeDecorator[str]):
     """Platform-independent UUID type.
 
     Uses PostgreSQL UUID when available, otherwise String.
@@ -26,26 +27,26 @@ class UUID(TypeDecorator):
     impl = SQLString
     cache_ok = True
 
-    def load_dialect_impl(self, dialect):
+    def load_dialect_impl(self, dialect: Any) -> Any:
         if dialect.name == "postgresql":
             return dialect.type_descriptor(POSTGRES_UUID())
         else:
             return dialect.type_descriptor(SQLString(36))
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
         if value is None or dialect.name == "postgresql":
             return value
         else:
             return str(value)
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
         if value is None or dialect.name == "postgresql":
             return value
         else:
             return value
 
 
-def get_table_args():
+def get_table_args() -> dict[str, Any]:
     """Get table args based on database type."""
     # Only use schema for PostgreSQL
     if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
