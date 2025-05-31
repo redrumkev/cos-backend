@@ -1,0 +1,3 @@
+# Files removed for KISS approach - functionality integrated into start-cos.ps1
+# test-redis.ps1 - Redis testing now built into startup script
+# health-check.ps1 - Health checking now built into startup script
