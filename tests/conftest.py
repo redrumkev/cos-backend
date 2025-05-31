@@ -1,7 +1,7 @@
 # ruff: noqa: E402
 import os
 import sys
-from collections.abc import Callable, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -29,9 +29,9 @@ from src.db.base import Base
 # Determine database URL based on environment
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "sqlite+aiosqlite:///:memory:"
-    if os.getenv("ENABLE_DB_INTEGRATION") != "1"
-    else os.getenv("POSTGRES_TEST_URL", "postgresql+asyncpg://user:pass@localhost/test"),
+    "postgresql+asyncpg://test:Police9119!!Sql_test@127.0.0.1:5434/cos_db_test"
+    if os.getenv("ENABLE_DB_INTEGRATION") == "1"
+    else "sqlite+aiosqlite:///:memory:",
 )
 
 # Create engine once per test session
@@ -43,7 +43,7 @@ T = TypeVar("T", bound=Callable[..., Any])
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
-async def setup_database():
+async def setup_database() -> AsyncGenerator[None, None]:
     """Create all tables once at session start."""
     # Import all models to ensure they're registered with Base.metadata
     from src.backend.cc import models  # noqa: F401
@@ -56,7 +56,7 @@ async def setup_database():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db_session():
+async def db_session() -> AsyncGenerator[Any, None]:
     """Provide a transactional session for each test."""
     async with engine.begin() as conn:
         # Start a savepoint
@@ -71,10 +71,10 @@ async def db_session():
 
 
 @pytest.fixture(scope="function")
-def override_get_db(db_session):
+def override_get_db(db_session: Any) -> Generator[None, None, None]:
     """Override FastAPI dependency."""
 
-    async def _get_db():
+    async def _get_db() -> AsyncGenerator[Any, None]:
         yield db_session
 
     # Import the FastAPI app if available
@@ -99,7 +99,7 @@ def override_get_db(db_session):
 
 
 @pytest.fixture(scope="function")
-def client(override_get_db):
+def client(override_get_db: Any) -> Generator[TestClient | None, None, None]:
     """Test client with overridden db."""
     try:
         from src.cos_main import app
@@ -113,19 +113,19 @@ def client(override_get_db):
 
 # Legacy aliases for backward compatibility
 @pytest_asyncio.fixture(scope="function")
-async def test_db_session(db_session):
+async def test_db_session(db_session: Any) -> AsyncGenerator[Any, None]:
     """Legacy alias for db_session."""
     yield db_session
 
 
 @pytest_asyncio.fixture(scope="function")
-async def mem0_db_session(db_session):
+async def mem0_db_session(db_session: Any) -> AsyncGenerator[Any, None]:
     """Legacy alias for db_session."""
     yield db_session
 
 
 @pytest.fixture(scope="function")
-def test_client(client):
+def test_client(client: TestClient | None) -> TestClient:
     """Legacy alias for client."""
     if client is None:
         raise ValueError("FastAPI app is not available")

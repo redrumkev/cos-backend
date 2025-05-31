@@ -20,9 +20,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan event handler for the CC module.
 
     Args:
+    ----
         app: The FastAPI application instance
 
     Yields:
+    ------
         None
 
     """

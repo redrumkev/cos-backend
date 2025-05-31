@@ -29,7 +29,8 @@ get_db_session = get_cc_db
 async def get_module_config() -> dict[str, str]:
     """Get current CC module configuration for dependency injection.
 
-    Returns:
+    Returns
+    -------
         dict[str, str]: Module configuration
 
     """

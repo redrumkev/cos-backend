@@ -1,7 +1,7 @@
 repos:
 -   repo: https://github.com/astral-sh/ruff-pre-commit
     # This version should align with what's installed in your environment
-    rev: v0.11.10
+    rev: v0.4.4
     hooks:
         # Run the linter first (important when using --fix)
         - id: ruff
@@ -19,7 +19,8 @@ repos:
             # Add any necessary Mypy plugins here if not managed elsewhere
             "pydantic", # Ensure pydantic types are available to mypy hook
             "pydantic-settings", # BaseSettings typing
-            "sqlalchemy[mypy]" # Ensure sqlalchemy stubs/plugin are available
+            "sqlalchemy[mypy]", # Ensure sqlalchemy stubs/plugin are available
+            "mypy==1.15.0"
             ]
 
 -   repo: https://github.com/PyCQA/bandit

@@ -19,12 +19,15 @@ async def get_system_health(db: AsyncSession) -> HealthStatus | None:
     """Return the most recent HealthStatus row (or None).
 
     Args:
+    ----
         db: AsyncSession: The database session
 
     Returns:
+    -------
         Optional[HealthStatus]: Most recent health status record or None
 
     Example:
+    -------
         ```python
         health_data = await get_system_health(db)
         ```
@@ -46,14 +49,17 @@ async def update_module_status(db: AsyncSession, module_name: str, status: str) 
     """Update health status for a specific module.
 
     Args:
+    ----
         db: AsyncSession: The database session
         module_name: str: Name of the module to update
         status: str: New status to set
 
     Returns:
+    -------
         dict[str, Any]: Updated status record
 
     Example:
+    -------
         ```python
         updated = await update_module_status(db, "cc", "healthy")
         ```
@@ -89,12 +95,15 @@ async def get_active_modules(db: AsyncSession) -> list[str]:
     """Get a list of all active modules in the system.
 
     Args:
+    ----
         db: AsyncSession: The database session
 
     Returns:
+    -------
         list[str]: List of active module names
 
     Example:
+    -------
         ```python
         modules = await get_active_modules(db)
         ```
@@ -117,15 +126,18 @@ async def create_module(db: AsyncSession, name: str, version: str, config: str |
     """Create a new module record.
 
     Args:
+    ----
         db: AsyncSession: The database session
         name: str: Name of the module
         version: str: Version of the module
         config: str | None: Optional JSON configuration string
 
     Returns:
+    -------
         Module: The created module record
 
     Example:
+    -------
         ```python
         module = await create_module(db, "new_module", "1.0.0")
         ```
@@ -149,13 +161,16 @@ async def get_module(db: AsyncSession, module_id: str) -> Module | None:
     """Get a module by its ID.
 
     Args:
+    ----
         db: AsyncSession: The database session
         module_id: str: UUID of the module
 
     Returns:
+    -------
         Module | None: The module record or None if not found
 
     Example:
+    -------
         ```python
         module = await get_module(db, "123e4567-e89b-12d3-a456-426614174000")
         ```
@@ -177,13 +192,16 @@ async def get_module_by_name(db: AsyncSession, name: str) -> Module | None:
     """Get a module by its name.
 
     Args:
+    ----
         db: AsyncSession: The database session
         name: str: Name of the module
 
     Returns:
+    -------
         Module | None: The module record or None if not found
 
     Example:
+    -------
         ```python
         module = await get_module_by_name(db, "cc")
         ```
@@ -205,14 +223,17 @@ async def get_modules(db: AsyncSession, skip: int = 0, limit: int = 100) -> list
     """Get a list of modules with pagination.
 
     Args:
+    ----
         db: AsyncSession: The database session
         skip: int: Number of records to skip
         limit: int: Maximum number of records to return
 
     Returns:
+    -------
         list[Module]: List of module records
 
     Example:
+    -------
         ```python
         modules = await get_modules(db, skip=0, limit=10)
         ```
@@ -234,14 +255,17 @@ async def update_module(db: AsyncSession, module_id: str, data: dict[str, Any]) 
     """Update a module record.
 
     Args:
+    ----
         db: AsyncSession: The database session
         module_id: str: UUID of the module
         data: dict[str, Any]: Dictionary of fields to update
 
     Returns:
+    -------
         Module | None: The updated module record or None if not found
 
     Example:
+    -------
         ```python
         updated = await update_module(db, "123e4567-e89b-12d3-a456-426614174000", {"version": "1.1.0"})
         ```
@@ -272,13 +296,16 @@ async def delete_module(db: AsyncSession, module_id: str) -> Module | None:
     """Delete a module record.
 
     Args:
+    ----
         db: AsyncSession: The database session
         module_id: str: UUID of the module
 
     Returns:
+    -------
         Module | None: The deleted module record or None if not found
 
     Example:
+    -------
         ```python
         deleted = await delete_module(db, "123e4567-e89b-12d3-a456-426614174000")
         ```

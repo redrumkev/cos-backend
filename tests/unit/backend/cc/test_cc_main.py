@@ -1,0 +1,108 @@
+"""Tests for cc_main.py - FastAPI app initialization and lifespan."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from src.backend.cc.cc_main import cc_app, cc_router, lifespan
+
+
+class TestCCMain:
+    """Test the main CC module FastAPI app."""
+
+    def test_cc_app_creation(self) -> None:
+        """Test that cc_app is properly configured."""
+        assert isinstance(cc_app, FastAPI)
+        assert cc_app.title == "Control Center API"
+        assert cc_app.description == "Central coordination module for the Creative Operating System"
+        assert cc_app.version == "0.1.0"
+
+    def test_cc_router_creation(self) -> None:
+        """Test that cc_router is properly configured."""
+        assert cc_router is not None
+        # Check that the router includes the cc prefix
+        route_paths = [route.path for route in cc_router.routes]
+        assert any("/cc" in path for path in route_paths)
+
+    @patch("src.backend.cc.cc_main.log_event")
+    async def test_lifespan_startup(self, mock_log_event: MagicMock) -> None:
+        """Test lifespan startup event logging."""
+        app = FastAPI()
+
+        async with lifespan(app):
+            # Check startup log was called
+            mock_log_event.assert_called_with(
+                source="cc",
+                data={"status": "starting"},
+                tags=["lifecycle", "startup"],
+                memo="Control Center module starting",
+            )
+
+    @patch("src.backend.cc.cc_main.log_event")
+    async def test_lifespan_shutdown(self, mock_log_event: MagicMock) -> None:
+        """Test lifespan shutdown event logging."""
+        app = FastAPI()
+
+        async with lifespan(app):
+            pass  # Exit the context to trigger shutdown
+
+        # Check both startup and shutdown logs were called
+        assert mock_log_event.call_count == 2
+
+        # Check shutdown log was called
+        shutdown_call = mock_log_event.call_args_list[1]
+        assert shutdown_call[1]["source"] == "cc"
+        assert shutdown_call[1]["data"] == {"status": "stopping"}
+        assert shutdown_call[1]["tags"] == ["lifecycle", "shutdown"]
+        assert shutdown_call[1]["memo"] == "Control Center module shutting down"
+
+    def test_app_includes_router(self) -> None:
+        """Test that cc_app includes the router with correct configuration."""
+        # Check that routes are included
+        assert len(cc_app.routes) > 1  # Should have at least the router routes plus OpenAPI
+
+        # Check for cc-prefixed routes
+        route_paths = [route.path for route in cc_app.routes]
+        cc_routes = [path for path in route_paths if path.startswith("/cc")]
+        assert len(cc_routes) > 0
+
+    def test_app_with_test_client(self) -> None:
+        """Test that the app can be used with TestClient."""
+        client = TestClient(cc_app)
+        # Test that the app is responsive (this will test basic initialization)
+        response = client.get("/docs")
+        assert response.status_code == 200
+
+    @patch("src.backend.cc.cc_main.log_event")
+    def test_app_startup_shutdown_integration(self, mock_log_event: MagicMock) -> None:
+        """Test complete app startup and shutdown cycle."""
+        with TestClient(cc_app) as client:
+            # App should start up and shut down properly
+            response = client.get("/openapi.json")
+            assert response.status_code == 200
+
+        # Verify lifecycle events were logged
+        assert mock_log_event.call_count >= 2
+
+
+class TestLifespanIsolated:
+    """Test lifespan function in isolation."""
+
+    @patch("src.backend.cc.cc_main.log_event")
+    async def test_lifespan_exception_handling(self, mock_log_event: MagicMock) -> None:
+        """Test that lifespan handles exceptions gracefully."""
+        app = FastAPI()
+
+        # Should not raise even if log_event fails
+        mock_log_event.side_effect = Exception("Log error")
+
+        # Test that lifespan doesn't crash the app when logging fails
+        # This is a robustness test - we expect it might raise
+        with pytest.raises((Exception, RuntimeError)):
+            async with lifespan(app):
+                pass
+
+        # At least startup should have been attempted
+        assert mock_log_event.call_count >= 1

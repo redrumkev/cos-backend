@@ -27,7 +27,8 @@ def get_status() -> dict[str, str]:
 
     Legacy function moved from controller.py
 
-    Returns:
+    Returns
+    -------
         dict[str, str]: Simple status response
 
     """
@@ -44,12 +45,15 @@ async def read_system_health(db: AsyncSession) -> HealthStatus | None:
     """Thin façade consumed by the router for getting system health.
 
     Args:
+    ----
         db: AsyncSession: The database session
 
     Returns:
+    -------
         Optional[HealthStatus]: Most recent health status record or None
 
     Example:
+    -------
         ```python
         health_record = await read_system_health(db)
         ```
@@ -62,12 +66,15 @@ async def check_system_health(db: AsyncSession) -> dict[str, Any]:
     """Perform a comprehensive system health check across all modules.
 
     Args:
+    ----
         db: AsyncSession: The database session
 
     Returns:
+    -------
         dict[str, Any]: System health report including status for all modules
 
     Example:
+    -------
         ```python
         health_report = await check_system_health(db)
         ```
@@ -107,12 +114,15 @@ async def get_cc_configuration(db: AsyncSession) -> dict[str, Any]:
     """Get current Control Center configuration including active modules.
 
     Args:
+    ----
         db: AsyncSession: The database session
 
     Returns:
+    -------
         dict[str, Any]: Current CC configuration
 
     Example:
+    -------
         ```python
         config = await get_cc_configuration(db)
         ```
@@ -140,13 +150,16 @@ async def ping_module(db: AsyncSession, module_name: str) -> dict[str, Any]:
     """Ping a specific module to check its health status.
 
     Args:
+    ----
         db: AsyncSession: The database session
         module_name: str: Name of the module to ping
 
     Returns:
+    -------
         dict[str, Any]: Module ping response
 
     Example:
+    -------
         ```python
         ping_result = await ping_module(db, "mem0")
         ```
@@ -179,18 +192,22 @@ async def create_module(db: AsyncSession, name: str, version: str, config: str |
     """Create a new module with business logic validation.
 
     Args:
+    ----
         db: AsyncSession: The database session
         name: str: Name of the module
         version: str: Version of the module
         config: str | None: Optional JSON configuration string
 
     Returns:
+    -------
         Module: The created module record
 
     Raises:
+    ------
         ValueError: If module with the same name already exists
 
     Example:
+    -------
         ```python
         module = await create_module(db, "new_module", "1.0.0")
         ```
@@ -216,13 +233,16 @@ async def get_module(db: AsyncSession, module_id: str) -> Module | None:
     """Get a module by its ID.
 
     Args:
+    ----
         db: AsyncSession: The database session
         module_id: str: UUID of the module
 
     Returns:
+    -------
         Module | None: The module record or None if not found
 
     Example:
+    -------
         ```python
         module = await get_module(db, "123e4567-e89b-12d3-a456-426614174000")
         ```
@@ -242,13 +262,16 @@ async def get_module_by_name(db: AsyncSession, name: str) -> Module | None:
     """Get a module by its name.
 
     Args:
+    ----
         db: AsyncSession: The database session
         name: str: Name of the module
 
     Returns:
+    -------
         Module | None: The module record or None if not found
 
     Example:
+    -------
         ```python
         module = await get_module_by_name(db, "cc")
         ```
@@ -268,14 +291,17 @@ async def get_modules(db: AsyncSession, skip: int = 0, limit: int = 100) -> list
     """Get a list of modules with pagination.
 
     Args:
+    ----
         db: AsyncSession: The database session
         skip: int: Number of records to skip
         limit: int: Maximum number of records to return
 
     Returns:
+    -------
         list[Module]: List of module records
 
     Example:
+    -------
         ```python
         modules = await get_modules(db, skip=0, limit=10)
         ```
@@ -295,17 +321,21 @@ async def update_module(db: AsyncSession, module_id: str, data: dict[str, Any]) 
     """Update a module record with business logic validation.
 
     Args:
+    ----
         db: AsyncSession: The database session
         module_id: str: UUID of the module
         data: dict[str, Any]: Dictionary of fields to update
 
     Returns:
+    -------
         Module | None: The updated module record or None if not found
 
     Raises:
+    ------
         ValueError: If trying to update to a name that already exists
 
     Example:
+    -------
         ```python
         updated = await update_module(db, "123e4567-e89b-12d3-a456-426614174000", {"version": "1.1.0"})
         ```
@@ -331,13 +361,16 @@ async def delete_module(db: AsyncSession, module_id: str) -> Module | None:
     """Delete a module record.
 
     Args:
+    ----
         db: AsyncSession: The database session
         module_id: str: UUID of the module
 
     Returns:
+    -------
         Module | None: The deleted module record or None if not found
 
     Example:
+    -------
         ```python
         deleted = await delete_module(db, "123e4567-e89b-12d3-a456-426614174000")
         ```
