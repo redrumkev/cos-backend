@@ -149,10 +149,11 @@ def test_module_create_schema() -> None:
     # Verify the values
     assert module.name == "cc"
     assert module.version == "1.0.0"
+    assert module.config is None
 
     # Test serialization
     serialized = module.model_dump()
-    assert serialized == {"name": "cc", "version": "1.0.0"}
+    assert serialized == {"name": "cc", "version": "1.0.0", "config": None}
 
     # Test that invalid name raises an error
     with pytest.raises(ValidationError):

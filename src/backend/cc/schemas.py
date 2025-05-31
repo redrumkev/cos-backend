@@ -114,7 +114,7 @@ class SystemHealthReport(BaseModel):
 class ModulePingRequest(BaseModel):
     """Model for module ping request."""
 
-    module: str = Field(..., description="The name of the module to ping.")
+    module: str = Field(..., description="The name of the module to ping.", min_length=1)
 
     model_config = ConfigDict(json_schema_extra={"example": {"module": "mem0"}})
 

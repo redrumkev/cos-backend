@@ -65,11 +65,19 @@ class HealthStatus(Base):
     __tablename__ = "cc_health_status"  # Prefix with cc_ for SQLite
     __table_args__ = get_table_args()
 
-    id = Column(UUID, primary_key=True, default=uuid4)
+    id = Column(UUID, primary_key=True, default=lambda: str(uuid4()))
     module = Column(String, nullable=False, unique=True, index=True)
     status = Column(String, nullable=False)
     last_updated = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     details = Column(String, nullable=True)
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize HealthStatus with defaults."""
+        if "id" not in kwargs:
+            kwargs["id"] = str(uuid4())
+        if "last_updated" not in kwargs:
+            kwargs["last_updated"] = datetime.now(UTC)
+        super().__init__(**kwargs)
 
     def __repr__(self) -> str:
         """Return string representation of HealthStatus."""
@@ -86,12 +94,22 @@ class Module(Base):
     __tablename__ = "cc_modules"  # Prefix with cc_ for SQLite
     __table_args__ = get_table_args()
 
-    id = Column(UUID, primary_key=True, default=uuid4)
+    id = Column(UUID, primary_key=True, default=lambda: str(uuid4()))
     name = Column(String, nullable=False, unique=True, index=True)
     version = Column(String, nullable=False)
     active = Column(Boolean, nullable=False, default=True)
     last_active = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     config = Column(String, nullable=True)  # JSON string
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize Module with defaults."""
+        if "id" not in kwargs:
+            kwargs["id"] = str(uuid4())
+        if "active" not in kwargs:
+            kwargs["active"] = True
+        if "last_active" not in kwargs:
+            kwargs["last_active"] = datetime.now(UTC)
+        super().__init__(**kwargs)
 
     def __repr__(self) -> str:
         """Return string representation of Module object."""

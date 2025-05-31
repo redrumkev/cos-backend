@@ -70,6 +70,26 @@ async def db_session() -> AsyncGenerator[Any, None]:
         await trans.rollback()
 
 
+@pytest_asyncio.fixture(scope="function")
+async def postgres_session() -> AsyncGenerator[Any, None]:
+    """Provide a session factory for concurrent tests."""
+    async with engine.begin() as conn:
+        # Start a savepoint for the entire test
+        trans = await conn.begin_nested()
+
+        # Create a session factory bound to this connection
+        test_session_local = async_sessionmaker(bind=conn, expire_on_commit=False)
+
+        def session_factory() -> Any:
+            """Create a new session bound to the test connection."""
+            return test_session_local()
+
+        yield session_factory
+
+        # Rollback to savepoint after test
+        await trans.rollback()
+
+
 @pytest.fixture(scope="function")
 def override_get_db(db_session: Any) -> Generator[None, None, None]:
     """Override FastAPI dependency."""

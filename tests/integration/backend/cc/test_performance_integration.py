@@ -6,6 +6,7 @@ Tests demonstrate proper async patterns, transaction performance, and reliabilit
 
 import asyncio
 import time
+from typing import Any
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -19,14 +20,19 @@ class TestPerformanceIntegration:
     """Performance tests demonstrating dual mandate efficiency."""
 
     @pytest.mark.asyncio
-    async def test_concurrent_module_creation_performance(self, db_session: AsyncSession) -> None:
+    async def test_concurrent_module_creation_performance(self, postgres_session: Any) -> None:
         """Test concurrent module creation maintains performance under load."""
         start_time = time.time()
 
-        # Create 10 modules concurrently
+        # Create coroutines that each use their own session
+        async def create_module_async(name: str, version: str) -> Any:
+            async with postgres_session() as session:
+                return await create_module(session, name, version)
+
+        # Create 10 modules concurrently using separate sessions
         tasks = []
         for i in range(10):
-            task = create_module(db_session, f"perf_module_{i:03d}", "1.0.0")
+            task = create_module_async(f"perf_module_{i:03d}", "1.0.0")
             tasks.append(task)
 
         modules = await asyncio.gather(*tasks)
@@ -36,6 +42,7 @@ class TestPerformanceIntegration:
         # Validate all modules created successfully
         assert len(modules) == 10
         for i, module in enumerate(modules):
+            assert module is not None, f"Module {i} is None"
             assert module.name == f"perf_module_{i:03d}"
             assert module.version == "1.0.0"
             assert module.active is True
@@ -71,21 +78,22 @@ class TestPerformanceIntegration:
         assert retrieval_time < 1.0, f"Bulk retrieval took {retrieval_time:.2f}s, should be < 1.0s"
 
     @pytest.mark.asyncio
-    async def test_transaction_isolation_reliability(self, db_session: AsyncSession) -> None:
+    async def test_transaction_isolation_reliability(self, postgres_session: Any) -> None:
         """Test transaction isolation maintains data integrity under concurrent access."""
 
-        async def create_and_verify(session: AsyncSession, prefix: str, count: int) -> list[str]:
-            """Create modules and return their names."""
-            names = []
-            for i in range(count):
-                name = f"{prefix}_{i:02d}"
-                module = await create_module(session, name, "1.0.0")
-                names.append(str(module.name))  # Ensure we get the string value
-            return names
+        async def create_and_verify(prefix: str, count: int) -> Any:
+            """Create modules using a fresh session and return their names."""
+            async with postgres_session() as session:
+                names = []
+                for i in range(count):
+                    name = f"{prefix}_{i:02d}"
+                    module = await create_module(session, name, "1.0.0")
+                    names.append(str(module.name))  # Ensure we get the string value
+                return names
 
         # Simulate concurrent operations that could interfere
-        task1 = create_and_verify(db_session, "isolation_test_a", 5)
-        task2 = create_and_verify(db_session, "isolation_test_b", 5)
+        task1 = create_and_verify("isolation_test_a", 5)
+        task2 = create_and_verify("isolation_test_b", 5)
 
         names_a, names_b = await asyncio.gather(task1, task2)
 
@@ -96,9 +104,10 @@ class TestPerformanceIntegration:
         assert all(name.startswith("isolation_test_b") for name in names_b)
 
         # Verify all modules are actually persisted
-        all_modules = await get_modules(db_session, skip=0, limit=20)
-        isolation_modules = [m for m in all_modules if m.name.startswith("isolation_test_")]
-        assert len(isolation_modules) == 10
+        async with postgres_session() as session:
+            all_modules = await get_modules(session, skip=0, limit=20)
+            isolation_modules = [m for m in all_modules if m.name.startswith("isolation_test_")]
+            assert len(isolation_modules) == 10
 
     @pytest.mark.asyncio
     async def test_service_layer_performance(self, db_session: AsyncSession) -> None:
@@ -122,28 +131,49 @@ class TestPerformanceIntegration:
         # Validate efficiency - service layer should add minimal overhead
         assert elapsed < 3.0, f"Service layer operations took {elapsed:.2f}s, should be < 3.0s"
 
+    @pytest.mark.asyncio
+    async def test_10_parallel_inserts_do_not_deadlock(self, postgres_session: Any) -> None:
+        """Test that 10 parallel inserts don't deadlock when using separate sessions."""
+
+        async def create(idx: int) -> None:
+            async with postgres_session() as session:  # Fresh session for each task
+                await create_module(session, f"parallel_module_{idx}", "1.0.0")
+
+        # Run 10 parallel inserts
+        await asyncio.gather(*(create(i) for i in range(10)))
+
+        # Verify all modules were created
+        async with postgres_session() as session:
+            all_modules = await get_modules(session, skip=0, limit=20)
+            parallel_modules = [m for m in all_modules if m.name.startswith("parallel_module_")]
+            assert len(parallel_modules) == 10
+
 
 class TestReliabilityIntegration:
     """Reliability tests ensuring system resilience."""
 
     @pytest.mark.asyncio
-    async def test_error_recovery_maintains_consistency(self, db_session: AsyncSession) -> None:
+    async def test_error_recovery_maintains_consistency(self, postgres_session: Any) -> None:
         """Test that errors don't leave system in inconsistent state."""
         # Create a baseline module
-        baseline = await create_module(db_session, "reliability_baseline", "1.0.0")
-        assert baseline is not None
+        async with postgres_session() as session:
+            baseline = await create_module(session, "reliability_baseline", "1.0.0")
+            assert baseline is not None
 
-        # Attempt to create duplicate (should fail)
-        with pytest.raises(IntegrityError):
-            await create_module(db_session, "reliability_baseline", "2.0.0")
+        # Attempt to create duplicate (should fail) - use fresh session
+        async with postgres_session() as session:
+            with pytest.raises(IntegrityError):
+                await create_module(session, "reliability_baseline", "2.0.0")
 
-        # Verify system is still functional after error
-        new_module = await create_module(db_session, "reliability_recovery", "1.0.0")
-        assert new_module is not None
-        assert new_module.name == "reliability_recovery"
+        # Verify system is still functional after error - use fresh session
+        async with postgres_session() as session:
+            new_module = await create_module(session, "reliability_recovery", "1.0.0")
+            assert new_module is not None
+            assert new_module.name == "reliability_recovery"
 
         # Verify original data unchanged
-        modules = await get_modules(db_session, skip=0, limit=10)
-        baseline_modules = [m for m in modules if m.name == "reliability_baseline"]
-        assert len(baseline_modules) == 1
-        assert baseline_modules[0].version == "1.0.0"  # Original version preserved
+        async with postgres_session() as session:
+            modules = await get_modules(session, skip=0, limit=10)
+            baseline_modules = [m for m in modules if m.name == "reliability_baseline"]
+            assert len(baseline_modules) == 1
+            assert baseline_modules[0].version == "1.0.0"  # Original version preserved
