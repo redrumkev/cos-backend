@@ -7,7 +7,7 @@ focusing on custom types, table args, and model behavior.
 import os
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from src.backend.cc.models import UUID, HealthStatus, Module, get_table_args
 from src.db.base import Base
@@ -20,6 +20,82 @@ class TestUUIDType:
         """Test that UUID type has cache_ok set correctly."""
         uuid_type = UUID()
         assert uuid_type.cache_ok is True
+
+    def test_uuid_type_load_dialect_impl_postgres(self) -> None:
+        """Test UUID type load_dialect_impl for PostgreSQL - covers line 32."""
+        uuid_type = UUID()
+
+        # Mock PostgreSQL dialect
+        mock_dialect = MagicMock()
+        mock_dialect.name = "postgresql"
+        mock_dialect.type_descriptor = MagicMock()
+
+        # Call the method
+        uuid_type.load_dialect_impl(mock_dialect)
+
+        # Verify PostgreSQL UUID type is used (line 32)
+        mock_dialect.type_descriptor.assert_called_once()
+
+    def test_uuid_type_load_dialect_impl_sqlite(self) -> None:
+        """Test UUID type load_dialect_impl for SQLite."""
+        uuid_type = UUID()
+
+        # Mock SQLite dialect
+        mock_dialect = MagicMock()
+        mock_dialect.name = "sqlite"
+
+        result = uuid_type.load_dialect_impl(mock_dialect)
+
+        # For SQLite, should return String(36)
+        assert hasattr(result, "length")
+
+    def test_uuid_type_process_bind_param_with_value(self) -> None:
+        """Test UUID type process_bind_param with value - covers line 38."""
+        uuid_type = UUID()
+
+        # Mock dialect and test value
+        mock_dialect = MagicMock()
+        test_value = "123e4567-e89b-12d3-a456-426614174000"
+
+        # Call the method
+        result = uuid_type.process_bind_param(test_value, mock_dialect)
+
+        # Should return the value as-is (line 38)
+        assert result == test_value
+
+    def test_uuid_type_process_bind_param_with_none(self) -> None:
+        """Test UUID type process_bind_param with None."""
+        uuid_type = UUID()
+
+        mock_dialect = MagicMock()
+
+        result = uuid_type.process_bind_param(None, mock_dialect)
+
+        assert result is None
+
+    def test_uuid_type_process_result_value_with_value(self) -> None:
+        """Test UUID type process_result_value with value - covers line 44."""
+        uuid_type = UUID()
+
+        # Mock dialect and test value
+        mock_dialect = MagicMock()
+        test_value = "123e4567-e89b-12d3-a456-426614174000"
+
+        # Call the method
+        result = uuid_type.process_result_value(test_value, mock_dialect)
+
+        # Should return the value as-is (line 44)
+        assert result == test_value
+
+    def test_uuid_type_process_result_value_with_none(self) -> None:
+        """Test UUID type process_result_value with None."""
+        uuid_type = UUID()
+
+        mock_dialect = MagicMock()
+
+        result = uuid_type.process_result_value(None, mock_dialect)
+
+        assert result is None
 
 
 class TestTableArgs:
@@ -45,6 +121,60 @@ class TestTableArgs:
         result = get_table_args()
 
         assert result == {"extend_existing": True}
+
+
+class TestModuleModelInit:
+    """Test Module model __init__ behavior - covers lines 106-108."""
+
+    def test_module_init_without_id_adds_uuid(self) -> None:
+        """Test Module __init__ adds UUID when id not provided - covers lines 106-107."""
+        # Create module without specifying id
+        module = Module(name="test_module", version="1.0.0")
+
+        # Should have auto-generated UUID (lines 106-107)
+        assert module.id is not None
+        assert isinstance(module.id, str)
+        assert len(module.id) == 36  # UUID string length
+
+    def test_module_init_with_id_keeps_provided_id(self) -> None:
+        """Test Module __init__ keeps provided id."""
+        custom_id = "custom-test-id"
+        module = Module(id=custom_id, name="test_module", version="1.0.0")
+
+        # Should keep the provided id
+        assert module.id == custom_id
+
+    def test_module_init_without_active_defaults_to_true(self) -> None:
+        """Test Module __init__ sets active=True when not provided - covers line 108."""
+        # Create module without specifying active
+        module = Module(name="test_module", version="1.0.0")
+
+        # Should default to True (line 108 and beyond)
+        assert module.active is True
+
+    def test_module_init_with_active_false_keeps_value(self) -> None:
+        """Test Module __init__ keeps provided active value."""
+        module = Module(name="test_module", version="1.0.0", active=False)
+
+        # Should keep the provided value
+        assert module.active is False
+
+    def test_module_init_full_kwargs_coverage(self) -> None:
+        """Test Module __init__ with all possible kwargs combinations."""
+        # Test with id provided, active not provided
+        module1 = Module(id="test-id", name="test1", version="1.0.0")
+        assert module1.id == "test-id"
+        assert module1.active is True
+
+        # Test with active provided, id not provided
+        module2 = Module(name="test2", version="1.0.0", active=False)
+        assert module2.id is not None
+        assert module2.active is False
+
+        # Test with both provided
+        module3 = Module(id="test-id-3", name="test3", version="1.0.0", active=True)
+        assert module3.id == "test-id-3"
+        assert module3.active is True
 
 
 class TestHealthStatusModel:
