@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str | None = Field(default="test_password", validation_alias="REDIS_PASSWORD")
     MEM0_SCHEMA: str = Field(default="mem0_cc", validation_alias="MEM0_SCHEMA")
 
+    # Neo4j Configuration (Task 11)
+    NEO4J_URI: str = Field(default="bolt://localhost:7687", validation_alias="NEO4J_URI")
+    NEO4J_USER: str = Field(default="neo4j", validation_alias="NEO4J_USER")
+    NEO4J_PASSWORD: str = Field(default="test", validation_alias="NEO4J_PASSWORD")
+    ENABLE_GRAPH_INTEGRATION: bool = Field(default=False, validation_alias="ENABLE_GRAPH_INTEGRATION")
+
     # Scratch Data Configuration (Task 10)
     SCRATCH_DEFAULT_TTL_DAYS: int = Field(default=7, ge=1, le=365)
     SCRATCH_CLEANUP_BATCH_SIZE: int = Field(default=1000, ge=100, le=10000)

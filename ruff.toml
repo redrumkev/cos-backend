@@ -14,5 +14,10 @@ ignore = [
     "D203", # Explicitly ignore one-blank-line-before-class in favor of D211
 ]
 
+[lint.per-file-ignores]
+# FastAPI routers use dependency injection patterns that trigger B008
+"**/router.py" = ["B008"]
+"**/routers/*.py" = ["B008"]
+
 [format]
 # No specific format settings needed if defaults are fine

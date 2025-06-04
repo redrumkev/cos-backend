@@ -11,6 +11,8 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 
 from src.common.logger import log_event
+from src.graph.base import close_neo4j_connections
+from src.graph.router import router as graph_router
 
 from .router import router
 
@@ -48,6 +50,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         memo="Control Center module shutting down",
     )
 
+    # Close Neo4j connections
+    await close_neo4j_connections()
+
 
 # Create FastAPI app for the module
 cc_app = FastAPI(
@@ -57,9 +62,11 @@ cc_app = FastAPI(
     lifespan=lifespan,
 )
 
-# Include the router with prefix
+# Include the routers with prefix
 cc_app.include_router(router, prefix="/cc", tags=["cc"])
+cc_app.include_router(graph_router, tags=["graph"])
 
 # Entry router for use by main application
 cc_router = APIRouter()
 cc_router.include_router(router, prefix="/cc", tags=["cc"])
+cc_router.include_router(graph_router, tags=["graph"])
