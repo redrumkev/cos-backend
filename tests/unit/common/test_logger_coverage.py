@@ -3,7 +3,9 @@
 This file targets specific missing lines in logger.py.
 """
 
-from unittest.mock import patch
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
 
 from src.common.logger import _demo, log_event
 
@@ -11,7 +13,7 @@ from src.common.logger import _demo, log_event
 class TestLogEventFunction:
     """Test log_event function thoroughly."""
 
-    def test_log_event_with_all_parameters(self):
+    def test_log_event_with_all_parameters(self) -> None:
         """Test log_event with all parameters provided."""
         result = log_event(
             source="test_source", data={"key": "value"}, tags=["tag1", "tag2"], key="custom_key", memo="Test memo"
@@ -22,7 +24,7 @@ class TestLogEventFunction:
         assert result["memo"] == "Test memo"
         assert result["data"] == {"key": "value"}
 
-    def test_log_event_with_minimal_parameters(self):
+    def test_log_event_with_minimal_parameters(self) -> None:
         """Test log_event with only required parameters."""
         result = log_event(source="test_source", data="simple_string_data")
 
@@ -31,13 +33,13 @@ class TestLogEventFunction:
         assert result["memo"] is None
         assert result["data"] == "simple_string_data"
 
-    def test_log_event_with_none_memo(self):
+    def test_log_event_with_none_memo(self) -> None:
         """Test log_event with explicitly None memo."""
         result = log_event(source="test_source", data={"key": "value"}, memo=None)
 
         assert result["memo"] is None
 
-    def test_log_event_with_empty_string_memo(self):
+    def test_log_event_with_empty_string_memo(self) -> None:
         """Test log_event with empty string memo."""
         result = log_event(source="test_source", data={"key": "value"}, memo="")
 
@@ -47,7 +49,7 @@ class TestLogEventFunction:
 class TestDemoFunction:
     """Test the _demo function - covers line 62."""
 
-    def test_demo_function_execution(self):
+    def test_demo_function_execution(self) -> None:
         """Test that _demo function executes and returns expected structure."""
         result = _demo()
 
@@ -63,7 +65,7 @@ class TestMainExecution:
     """Test the if __name__ == '__main__' block - covers line 71."""
 
     @patch("src.common.logger.logger.info")
-    def test_main_execution_block_directly(self, mock_logger_info):
+    def test_main_execution_block_directly(self, mock_logger_info: MagicMock) -> None:
         """Test the main execution block directly - covers line 71."""
         # The missing line 71 is: logger.info(f"Demo log event result: {_demo()}")
 
@@ -79,7 +81,7 @@ class TestMainExecution:
         # Verify the call was made
         mock_logger_info.assert_called_with(expected_message)
 
-    def test_if_name_main_code_execution(self):
+    def test_if_name_main_code_execution(self) -> None:
         """Test that the if __name__ == '__main__' code can execute."""
         # Test the pattern of code in the main block
         from src.common.logger import _demo, logger
@@ -102,7 +104,7 @@ class TestLoggerModuleExecution:
 
     @patch("builtins.print")
     @patch("src.common.logger.logger.info")
-    def test_module_execution_as_main(self, mock_logger_info, mock_print):
+    def test_module_execution_as_main(self, mock_logger_info: MagicMock, mock_print: MagicMock) -> None:
         """Test the module execution when run as main script."""
         # Test that the main execution logic works
         result = _demo()
@@ -118,7 +120,7 @@ class TestLoggerModuleExecution:
 class TestLoggerConfiguration:
     """Test logger configuration and setup."""
 
-    def test_logger_is_configured(self):
+    def test_logger_is_configured(self) -> None:
         """Test that the logger is properly configured."""
         from src.common.logger import logger
 
@@ -129,7 +131,7 @@ class TestLoggerConfiguration:
 class TestMemPlaceholder:
     """Test the mem placeholder."""
 
-    def test_mem_placeholder_is_none(self):
+    def test_mem_placeholder_is_none(self) -> None:
         """Test that mem placeholder is None."""
         from src.common.logger import mem
 

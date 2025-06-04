@@ -4,6 +4,8 @@ This file tests the SQLAlchemy models defined in models.py,
 ensuring they have the correct structure, types, and behavior.
 """
 
+from __future__ import annotations
+
 import os
 from datetime import UTC, datetime
 

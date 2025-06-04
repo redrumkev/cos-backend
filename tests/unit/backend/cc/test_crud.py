@@ -4,6 +4,8 @@ This file contains tests for database operations, ensuring that
 CRUD functions work correctly with various database states.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from uuid import uuid4
 

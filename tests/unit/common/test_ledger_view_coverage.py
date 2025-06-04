@@ -3,18 +3,22 @@
 This file targets specific missing lines in ledger_view.py.
 """
 
+from __future__ import annotations
+
+from typing import Any
 from unittest.mock import MagicMock, patch
 
-from src.common.ledger_view import MemoryList, filter_memories, main, render_plain, render_rich_table
+from src.common.ledger_view import filter_memories, main, render_plain, render_rich_table
 
 
 class TestFilterMemoriesEdgeCases:
     """Test filter_memories function edge cases - covers line 56 (continue statement)."""
 
-    def test_filter_memories_skips_non_dict_data(self):
+    def test_filter_memories_skips_non_dict_data(self) -> None:
         """Test that filter_memories skips entries with non-dict data - covers line 56."""
         # Create memories with mixed data types (some not dicts)
-        memories: MemoryList = [
+        # Use Any to allow mixed types for testing error handling
+        memories: list[tuple[str, Any]] = [
             ("key1", {"source": "test", "tags": ["tag1"]}),  # Valid dict
             ("key2", "not_a_dict"),  # String, not dict - should be skipped
             ("key3", 123),  # Number, not dict - should be skipped
@@ -22,7 +26,7 @@ class TestFilterMemoriesEdgeCases:
             ("key5", {"source": "test", "tags": ["tag2"]}),  # Valid dict
         ]
 
-        # Filter by source
+        # Filter by source - cast to MemoryList for the function call
         result = filter_memories(memories, source="test")
 
         # Should only return the valid dict entries
@@ -30,9 +34,9 @@ class TestFilterMemoriesEdgeCases:
         assert result[0][0] == "key1"
         assert result[1][0] == "key5"
 
-    def test_filter_memories_with_invalid_data_types(self):
+    def test_filter_memories_with_invalid_data_types(self) -> None:
         """Test filter_memories handles various invalid data types."""
-        memories: MemoryList = [
+        memories: list[tuple[str, Any]] = [
             ("key1", []),  # List, not dict
             ("key2", set()),  # Set, not dict
             ("key3", ()),  # Tuple, not dict
@@ -50,10 +54,10 @@ class TestRenderRichTableEdgeCases:
     """Test render_rich_table function edge cases - covers line 67 (continue statement)."""
 
     @patch("src.common.ledger_view.console")
-    def test_render_rich_table_skips_non_dict_data(self, mock_console):
+    def test_render_rich_table_skips_non_dict_data(self, mock_console: MagicMock) -> None:
         """Test that render_rich_table skips entries with non-dict data - covers line 67."""
         # Create memories with mixed data types
-        memories: MemoryList = [
+        memories: list[tuple[str, Any]] = [
             ("key1", {"source": "test1", "timestamp": "2023-01-01T10:00:00", "tags": ["tag1"], "memo": "memo1"}),
             ("key2", "not_a_dict"),  # Should be skipped
             ("key3", 123),  # Should be skipped
@@ -70,9 +74,9 @@ class TestRenderRichTableEdgeCases:
         # (We can't easily verify the table contents, but we know it ran without error)
 
     @patch("src.common.ledger_view.console")
-    def test_render_rich_table_with_all_invalid_data(self, mock_console):
+    def test_render_rich_table_with_all_invalid_data(self, mock_console: MagicMock) -> None:
         """Test render_rich_table with all invalid data types."""
-        memories: MemoryList = [
+        memories: list[tuple[str, Any]] = [
             ("key1", "string"),
             ("key2", 123),
             ("key3", []),
@@ -90,9 +94,9 @@ class TestRenderPlainEdgeCases:
     """Test render_plain function edge cases."""
 
     @patch("src.common.ledger_view.console")
-    def test_render_plain_skips_non_dict_data(self, mock_console):
+    def test_render_plain_skips_non_dict_data(self, mock_console: MagicMock) -> None:
         """Test that render_plain skips entries with non-dict data."""
-        memories: MemoryList = [
+        memories: list[tuple[str, Any]] = [
             ("key1", {"source": "test1", "timestamp": "2023-01-01T10:00:00", "tags": ["tag1"], "memo": "memo1"}),
             ("key2", "not_a_dict"),  # Should be skipped
             ("key3", {"source": "test2", "timestamp": "2023-01-02T10:00:00", "tags": ["tag2"], "memo": "memo2"}),
@@ -111,7 +115,9 @@ class TestMainFunction:
     @patch("src.common.ledger_view.load_memories")
     @patch("src.common.ledger_view.render_rich_table")
     @patch("argparse.ArgumentParser.parse_args")
-    def test_main_function_with_rich_table_rendering(self, mock_parse_args, mock_render_rich, mock_load_memories):
+    def test_main_function_with_rich_table_rendering(
+        self, mock_parse_args: MagicMock, mock_render_rich: MagicMock, mock_load_memories: MagicMock
+    ) -> None:
         """Test main function with rich table rendering."""
         # Mock arguments
         mock_args = MagicMock()
@@ -140,7 +146,9 @@ class TestMainFunction:
     @patch("src.common.ledger_view.load_memories")
     @patch("src.common.ledger_view.render_plain")
     @patch("argparse.ArgumentParser.parse_args")
-    def test_main_function_with_plain_rendering(self, mock_parse_args, mock_render_plain, mock_load_memories):
+    def test_main_function_with_plain_rendering(
+        self, mock_parse_args: MagicMock, mock_render_plain: MagicMock, mock_load_memories: MagicMock
+    ) -> None:
         """Test main function with plain rendering."""
         # Mock arguments for plain output
         mock_args = MagicMock()
@@ -168,7 +176,9 @@ class TestMainFunction:
     @patch("src.common.ledger_view.load_memories")
     @patch("src.common.ledger_view.filter_memories")
     @patch("argparse.ArgumentParser.parse_args")
-    def test_main_function_with_filtering(self, mock_parse_args, mock_filter_memories, mock_load_memories):
+    def test_main_function_with_filtering(
+        self, mock_parse_args: MagicMock, mock_filter_memories: MagicMock, mock_load_memories: MagicMock
+    ) -> None:
         """Test main function applies filtering correctly."""
         # Mock arguments with filters
         mock_args = MagicMock()
@@ -193,7 +203,7 @@ class TestMainFunction:
 class TestMainExecutionBlock:
     """Test the if __name__ == '__main__' execution block - covers line 98."""
 
-    def test_main_execution_block_directly(self):
+    def test_main_execution_block_directly(self) -> None:
         """Test the main execution block code directly - covers line 98."""
         # We need to test the actual line 98: main()
         # This is the call inside the if __name__ == "__main__": block
@@ -207,7 +217,7 @@ class TestMainExecutionBlock:
                     # This directly tests line 98 - the main() call
                     main()
 
-    def test_if_name_main_condition_coverage(self):
+    def test_if_name_main_condition_coverage(self) -> None:
         """Test that we can trigger the if __name__ == '__main__' condition."""
         # This test ensures the condition is testable
         module_name = "__main__"
@@ -228,7 +238,9 @@ class TestMemoryListSorting:
     @patch("src.common.ledger_view.load_memories")
     @patch("src.common.ledger_view.render_rich_table")
     @patch("argparse.ArgumentParser.parse_args")
-    def test_memory_sorting_with_dict_data(self, mock_parse_args, mock_render_rich, mock_load_memories):
+    def test_memory_sorting_with_dict_data(
+        self, mock_parse_args: MagicMock, mock_render_rich: MagicMock, mock_load_memories: MagicMock
+    ) -> None:
         """Test that memories are sorted correctly by timestamp."""
         # Mock arguments
         mock_args = MagicMock()

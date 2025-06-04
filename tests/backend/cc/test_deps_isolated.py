@@ -3,14 +3,17 @@
 These test the dependency injection logic and type annotations without real DB.
 """
 
+from __future__ import annotations
+
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from backend.cc.deps import DBSession, get_cc_db
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.cc.deps import DBSession, get_cc_db
 
 
 def test_dependency_imports() -> None:

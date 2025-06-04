@@ -3,6 +3,8 @@
 This file targets specific missing lines in schemas.py to achieve 100% coverage.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 
 import pytest
@@ -23,7 +25,7 @@ from src.backend.cc.schemas import (
 class TestFieldSerializers:
     """Test field serializers in schemas - covers missing serialization lines."""
 
-    def test_health_status_response_serialize_last_updated(self):
+    def test_health_status_response_serialize_last_updated(self) -> None:
         """Test HealthStatusResponse serialize_last_updated method - covers line 37."""
         # Create a datetime object
         test_datetime = datetime(2025, 1, 1, 12, 0, 0)
@@ -43,7 +45,7 @@ class TestFieldSerializers:
         serialized = health_status.serialize_last_updated(test_datetime)
         assert serialized == "2025-01-01T12:00:00"
 
-    def test_module_serialize_last_active(self):
+    def test_module_serialize_last_active(self) -> None:
         """Test Module serialize_last_active method."""
         # Create a datetime object
         test_datetime = datetime(2025, 1, 1, 12, 0, 0)
@@ -72,7 +74,7 @@ class TestFieldSerializers:
 class TestSchemaValidation:
     """Test schema validation edge cases."""
 
-    def test_module_ping_request_empty_module_validation(self):
+    def test_module_ping_request_empty_module_validation(self) -> None:
         """Test ModulePingRequest validates minimum length."""
         with pytest.raises(ValidationError) as exc_info:
             ModulePingRequest(module="")
@@ -81,7 +83,7 @@ class TestSchemaValidation:
         assert len(errors) == 1
         assert "at least 1 character" in str(errors[0])
 
-    def test_module_base_validation_edge_cases(self):
+    def test_module_base_validation_edge_cases(self) -> None:
         """Test ModuleBase field validations."""
         # Test minimum length validation for name
         with pytest.raises(ValidationError):
@@ -101,7 +103,7 @@ class TestSchemaValidation:
         with pytest.raises(ValidationError):
             ModuleBase(name="test", version=long_version)
 
-    def test_module_update_optional_fields(self):
+    def test_module_update_optional_fields(self) -> None:
         """Test ModuleUpdate with all None values."""
         # This should be valid since all fields are optional
         update = ModuleUpdate()
@@ -121,12 +123,12 @@ class TestSchemaValidation:
 class TestSchemaDefaults:
     """Test schema default values."""
 
-    def test_health_status_default(self):
+    def test_health_status_default(self) -> None:
         """Test HealthStatus default value."""
         health = HealthStatus()
         assert health.status == "healthy"
 
-    def test_cc_config_defaults(self):
+    def test_cc_config_defaults(self) -> None:
         """Test CCConfig default values."""
         config = CCConfig()
         assert config.version == "0.1.0"
@@ -136,13 +138,13 @@ class TestSchemaDefaults:
 class TestSchemaExamples:
     """Test that schema examples are valid."""
 
-    def test_health_status_example(self):
+    def test_health_status_example(self) -> None:
         """Test HealthStatus example data."""
         example_data = {"status": "healthy"}
         health = HealthStatus(**example_data)
         assert health.status == "healthy"
 
-    def test_health_status_response_example(self):
+    def test_health_status_response_example(self) -> None:
         """Test HealthStatusResponse example data."""
         example_data = {
             "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -155,13 +157,13 @@ class TestSchemaExamples:
         assert health.id == "123e4567-e89b-12d3-a456-426614174000"
         assert health.module == "cc"
 
-    def test_module_ping_request_example(self):
+    def test_module_ping_request_example(self) -> None:
         """Test ModulePingRequest example data."""
         example_data = {"module": "mem0"}
         ping = ModulePingRequest(**example_data)
         assert ping.module == "mem0"
 
-    def test_module_ping_response_example(self):
+    def test_module_ping_response_example(self) -> None:
         """Test ModulePingResponse example data."""
         example_data = {"module": "mem0", "status": "healthy", "latency_ms": 5}
         response = ModulePingResponse(**example_data)
@@ -173,7 +175,7 @@ class TestSchemaExamples:
 class TestSchemaConfigDict:
     """Test schema configuration dictionaries."""
 
-    def test_health_status_response_from_attributes(self):
+    def test_health_status_response_from_attributes(self) -> None:
         """Test HealthStatusResponse can be created from SQLAlchemy model attributes."""
 
         # Mock an SQLAlchemy model object
@@ -192,7 +194,7 @@ class TestSchemaConfigDict:
         assert health.module == "cc"
         assert health.status == "healthy"
 
-    def test_module_from_attributes(self):
+    def test_module_from_attributes(self) -> None:
         """Test Module can be created from SQLAlchemy model attributes."""
 
         # Mock an SQLAlchemy model object

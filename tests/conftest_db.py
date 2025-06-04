@@ -4,6 +4,8 @@ Based on SQLAlchemy async best practices for test transaction management.
 Uses savepoint patterns for optimal test isolation.
 """
 
+from __future__ import annotations
+
 from collections.abc import AsyncGenerator
 
 import pytest_asyncio

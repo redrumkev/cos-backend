@@ -4,6 +4,8 @@ Tests all CRUD functions including edge cases, error handling,
 and cleanup operations.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 

@@ -3,6 +3,8 @@
 This file contains unit tests for the Pydantic models used in the CC module.
 """
 
+from __future__ import annotations
+
 # MDC: cc_module
 import pytest
 from pydantic import ValidationError

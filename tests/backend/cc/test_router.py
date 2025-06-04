@@ -4,6 +4,8 @@ This file contains tests for HTTP endpoints, ensuring that
 router functions work correctly with various request scenarios.
 """
 
+from __future__ import annotations
+
 from uuid import uuid4
 
 from fastapi.testclient import TestClient

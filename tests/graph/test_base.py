@@ -4,6 +4,8 @@ Tests cover Neo4j connection management, health monitoring, and error handling
 with both integration and unit testing approaches.
 """
 
+from __future__ import annotations
+
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -22,7 +24,7 @@ from src.graph.base import (
 class TestNeo4jClient:
     """Test cases for Neo4jClient class."""
 
-    def test_init_creates_client_with_settings(self):
+    def test_init_creates_client_with_settings(self) -> None:
         """Test that Neo4jClient initializes with proper settings."""
         client = Neo4jClient()
 
@@ -33,7 +35,7 @@ class TestNeo4jClient:
         assert client._password is not None
 
     @pytest.mark.asyncio
-    async def test_connect_successful(self):
+    async def test_connect_successful(self) -> None:
         """Test successful connection to Neo4j."""
         client = Neo4jClient()
 
@@ -58,7 +60,7 @@ class TestNeo4jClient:
             mock_graph_db.driver.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_connect_fails_with_invalid_credentials(self):
+    async def test_connect_fails_with_invalid_credentials(self) -> None:
         """Test connection failure with invalid credentials."""
         client = Neo4jClient()
 
@@ -72,7 +74,7 @@ class TestNeo4jClient:
             assert client._is_connected is False
 
     @pytest.mark.asyncio
-    async def test_verify_connectivity_success(self):
+    async def test_verify_connectivity_success(self) -> None:
         """Test successful connectivity verification."""
         client = Neo4jClient()
 
@@ -88,7 +90,7 @@ class TestNeo4jClient:
             assert result is True
 
     @pytest.mark.asyncio
-    async def test_verify_connectivity_failure(self):
+    async def test_verify_connectivity_failure(self) -> None:
         """Test connectivity verification failure."""
         client = Neo4jClient()
 
@@ -105,7 +107,7 @@ class TestNeo4jClient:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_verify_connectivity_no_driver(self):
+    async def test_verify_connectivity_no_driver(self) -> None:
         """Test connectivity verification with no driver."""
         client = Neo4jClient()
 
@@ -113,7 +115,7 @@ class TestNeo4jClient:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_close_connection(self):
+    async def test_close_connection(self) -> None:
         """Test closing the Neo4j connection."""
         client = Neo4jClient()
 
@@ -129,7 +131,7 @@ class TestNeo4jClient:
         assert client._is_connected is False
 
     @pytest.mark.asyncio
-    async def test_session_context_manager(self):
+    async def test_session_context_manager(self) -> None:
         """Test session context manager functionality."""
         client = Neo4jClient()
 
@@ -144,7 +146,7 @@ class TestNeo4jClient:
                 assert session is mock_session
 
     @pytest.mark.asyncio
-    async def test_session_auto_connect(self):
+    async def test_session_auto_connect(self) -> None:
         """Test that session auto-connects when needed."""
         client = Neo4jClient()
 
@@ -162,7 +164,7 @@ class TestNeo4jClient:
                         assert session is mock_session
 
     @pytest.mark.asyncio
-    async def test_execute_query_success(self):
+    async def test_execute_query_success(self) -> None:
         """Test successful query execution."""
         client = Neo4jClient()
 
@@ -184,7 +186,7 @@ class TestNeo4jClient:
             mock_session.run.assert_called_once_with("MATCH (n) RETURN n", None)
 
     @pytest.mark.asyncio
-    async def test_execute_query_with_parameters(self):
+    async def test_execute_query_with_parameters(self) -> None:
         """Test query execution with parameters."""
         client = Neo4jClient()
         params = {"name": "test"}
@@ -206,7 +208,7 @@ class TestNeo4jClient:
             mock_session.run.assert_called_once_with("MATCH (n {name: $name}) RETURN n", params)
 
     @pytest.mark.asyncio
-    async def test_execute_query_error_handling(self):
+    async def test_execute_query_error_handling(self) -> None:
         """Test query execution error handling."""
         client = Neo4jClient()
 
@@ -220,7 +222,7 @@ class TestNeo4jClient:
             with pytest.raises(Exception, match="Query failed"):
                 await client.execute_query("INVALID QUERY")
 
-    def test_is_connected_property(self):
+    def test_is_connected_property(self) -> None:
         """Test the is_connected property."""
         client = Neo4jClient()
 
@@ -240,14 +242,14 @@ class TestNeo4jClient:
 class TestModuleFunctions:
     """Test cases for module-level functions."""
 
-    def test_graph_url_for_tests_with_override(self):
+    def test_graph_url_for_tests_with_override(self) -> None:
         """Test _graph_url_for_tests with explicit override."""
         test_uri = "bolt://test:7687"
         with patch.dict(os.environ, {"NEO4J_TEST_URI": test_uri}):
             result = _graph_url_for_tests()
             assert result == test_uri
 
-    def test_graph_url_for_tests_with_integration_enabled(self):
+    def test_graph_url_for_tests_with_integration_enabled(self) -> None:
         """Test _graph_url_for_tests with integration enabled."""
         with (
             patch.dict(os.environ, {"ENABLE_GRAPH_INTEGRATION": "1"}),
@@ -257,13 +259,13 @@ class TestModuleFunctions:
             result = _graph_url_for_tests()
             assert result == "bolt://integration:7687"
 
-    def test_graph_url_for_tests_default(self):
+    def test_graph_url_for_tests_default(self) -> None:
         """Test _graph_url_for_tests default behavior."""
         with patch.dict(os.environ, {}, clear=True):
             result = _graph_url_for_tests()
             assert result == "bolt://localhost:7687"
 
-    def test_get_neo4j_client_caching(self):
+    def test_get_neo4j_client_caching(self) -> None:
         """Test that get_neo4j_client returns cached instance."""
         # Clear cache first
         get_neo4j_client.cache_clear()
@@ -273,7 +275,7 @@ class TestModuleFunctions:
 
         assert client1 is client2
 
-    def test_get_neo4j_client_test_mode_no_cache(self):
+    def test_get_neo4j_client_test_mode_no_cache(self) -> None:
         """Test that get_neo4j_client doesn't cache in test mode."""
         with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "test"}):
             get_neo4j_client.cache_clear()
@@ -287,7 +289,7 @@ class TestModuleFunctions:
             assert isinstance(client2, Neo4jClient)
 
     @pytest.mark.asyncio
-    async def test_get_async_neo4j_dependency(self):
+    async def test_get_async_neo4j_dependency(self) -> None:
         """Test get_async_neo4j FastAPI dependency."""
         with patch("src.graph.base.get_settings") as mock_settings:
             mock_settings.return_value.ENABLE_GRAPH_INTEGRATION = False
@@ -303,7 +305,7 @@ class TestModuleFunctions:
                 pass
 
     @pytest.mark.asyncio
-    async def test_get_async_neo4j_with_integration_enabled(self):
+    async def test_get_async_neo4j_with_integration_enabled(self) -> None:
         """Test get_async_neo4j with graph integration enabled."""
         with patch("src.graph.base.get_settings") as mock_settings:
             mock_settings.return_value.ENABLE_GRAPH_INTEGRATION = True
@@ -326,7 +328,7 @@ class TestModuleFunctions:
                     pass
 
     @pytest.mark.asyncio
-    async def test_close_neo4j_connections(self):
+    async def test_close_neo4j_connections(self) -> None:
         """Test closing all Neo4j connections."""
         # Mock cache with connections
         mock_client = AsyncMock()
@@ -344,7 +346,7 @@ class TestModuleFunctions:
             mock_get_client.cache_clear.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_close_neo4j_connections_error_handling(self):
+    async def test_close_neo4j_connections_error_handling(self) -> None:
         """Test error handling in close_neo4j_connections."""
         with patch("src.graph.base.get_neo4j_client") as mock_get_client:
             mock_get_client.cache_info.side_effect = Exception("Cache error")
@@ -356,12 +358,12 @@ class TestModuleFunctions:
 class TestDriverConfiguration:
     """Test cases for driver configuration and detection."""
 
-    def test_rust_driver_flag(self):
+    def test_rust_driver_flag(self) -> None:
         """Test that USING_RUST_DRIVER flag is set correctly."""
         # This test validates that the flag is a boolean
         assert isinstance(USING_RUST_DRIVER, bool)
 
-    def test_driver_import_logic(self):
+    def test_driver_import_logic(self) -> None:
         """Test driver import fallback logic."""
         # This is more of a validation test since the import happens at module level
         # We can at least verify that one of the drivers was successfully imported
@@ -378,7 +380,7 @@ class TestNeo4jIntegration:
     """
 
     @pytest.mark.asyncio
-    async def test_real_connection(self):
+    async def test_real_connection(self) -> None:
         """Test real connection to Neo4j (integration test)."""
         if os.getenv("ENABLE_GRAPH_INTEGRATION", "0") != "1":
             pytest.skip("Graph integration tests disabled")
@@ -397,7 +399,7 @@ class TestNeo4jIntegration:
             await client.close()
 
     @pytest.mark.asyncio
-    async def test_real_query_execution(self):
+    async def test_real_query_execution(self) -> None:
         """Test real query execution (integration test)."""
         if os.getenv("ENABLE_GRAPH_INTEGRATION", "0") != "1":
             pytest.skip("Graph integration tests disabled")
@@ -416,7 +418,7 @@ class TestNeo4jIntegration:
             await client.close()
 
     @pytest.mark.asyncio
-    async def test_real_session_management(self):
+    async def test_real_session_management(self) -> None:
         """Test real session management (integration test)."""
         if os.getenv("ENABLE_GRAPH_INTEGRATION", "0") != "1":
             pytest.skip("Graph integration tests disabled")

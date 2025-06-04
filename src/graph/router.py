@@ -126,7 +126,7 @@ async def get_graph_stats(service: GraphService = Depends(get_graph_service)) ->
         stats = await service.get_graph_stats()
         return GraphStatsResponse(success=True, data=stats, message="Graph statistics retrieved successfully")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get graph stats: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to get graph stats: {e!s}") from None
 
 
 # Node endpoints
@@ -139,9 +139,9 @@ async def create_node(node_data: NodeCreate, service: GraphService = Depends(get
         )
         return NodeResponse(success=True, data=result, message=f"Created {node_data.node_type.value} node successfully")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create node: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to create node: {e!s}") from None
 
 
 @router.get("/nodes/{node_type}/{module}/{node_id}", response_model=NodeResponse)
@@ -161,7 +161,7 @@ async def get_node(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get node: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to get node: {e!s}") from None
 
 
 @router.put("/nodes/{node_type}/{module}/{node_id}", response_model=NodeResponse)
@@ -182,7 +182,7 @@ async def update_node(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update node: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to update node: {e!s}") from None
 
 
 @router.delete("/nodes/{node_type}/{module}/{node_id}", response_model=NodeResponse)
@@ -203,7 +203,7 @@ async def delete_node(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete node: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete node: {e!s}") from None
 
 
 @router.get("/nodes/{node_type}/{module}", response_model=NodesResponse)
@@ -222,7 +222,7 @@ async def get_nodes_by_property(
             success=True, data=results, count=len(results), message=f"Retrieved {len(results)} {node_type.value} nodes"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get nodes: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to get nodes: {e!s}") from None
 
 
 @router.get("/search", response_model=NodesResponse)
@@ -240,7 +240,7 @@ async def search_nodes(
             success=True, data=results, count=len(results), message=f"Found {len(results)} matching nodes"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to search nodes: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to search nodes: {e!s}") from None
 
 
 # Relationship endpoints
@@ -264,7 +264,7 @@ async def create_relationship(
             success=True, data=result, message=f"Created {rel_data.relationship_type.value} relationship successfully"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create relationship: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to create relationship: {e!s}") from None
 
 
 @router.get("/nodes/{node_type}/{module}/{node_id}/relationships", response_model=list[dict[str, Any]])
@@ -281,7 +281,7 @@ async def get_node_relationships(
         results = await service.get_node_relationships(node_id, node_type, module, direction, relationship_type)
         return results
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get relationships: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to get relationships: {e!s}") from None
 
 
 # Schema information endpoints

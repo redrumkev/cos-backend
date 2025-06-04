@@ -4,6 +4,8 @@ Tests the ScratchNote model including TTL management, expiration logic,
 and proper schema configuration.
 """
 
+from __future__ import annotations
+
 import os
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch

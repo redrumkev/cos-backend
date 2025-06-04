@@ -4,6 +4,8 @@ This file contains tests for business logic services, ensuring that
 service functions work correctly with various scenarios and error conditions.
 """
 
+from __future__ import annotations
+
 from uuid import uuid4
 
 import pytest

@@ -4,6 +4,8 @@ This file contains tests for SQLAlchemy models that were missing coverage,
 focusing on custom types, table args, and model behavior.
 """
 
+from __future__ import annotations
+
 import os
 from datetime import UTC, datetime
 from typing import Any

@@ -4,6 +4,8 @@ These tests validate our dual mandate: 100% Quality + 100% Efficiency.
 Tests demonstrate proper async patterns, transaction performance, and reliability.
 """
 
+from __future__ import annotations
+
 import asyncio
 import time
 from typing import Any

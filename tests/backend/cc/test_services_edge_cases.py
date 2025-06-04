@@ -3,6 +3,8 @@
 This file targets specific missing lines in services.py to achieve 95%+ coverage.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -27,7 +29,7 @@ class TestGetStatusFunction:
     """Test get_status function - covers lines 35-41."""
 
     @patch("src.backend.cc.services.log_event")
-    def test_get_status_returns_correct_format(self, mock_log):
+    def test_get_status_returns_correct_format(self, mock_log) -> None:
         """Test get_status function returns correct format - covers lines 35-41."""
         result = get_status()
 
@@ -47,7 +49,7 @@ class TestReadSystemHealthFunction:
     """Test read_system_health function - covers line 62."""
 
     @patch("src.backend.cc.services.get_system_health")
-    async def test_read_system_health_returns_health_record(self, mock_get_health):
+    async def test_read_system_health_returns_health_record(self, mock_get_health) -> None:
         """Test read_system_health returns health record - covers line 62."""
         # Mock database session
         mock_db = MagicMock()
@@ -69,7 +71,7 @@ class TestReadSystemHealthFunction:
         mock_get_health.assert_called_once_with(mock_db)
 
     @patch("src.backend.cc.services.get_system_health")
-    async def test_read_system_health_returns_none(self, mock_get_health):
+    async def test_read_system_health_returns_none(self, mock_get_health) -> None:
         """Test read_system_health returns None when no record - covers line 62."""
         mock_db = MagicMock()
         mock_get_health.return_value = None
@@ -85,7 +87,7 @@ class TestCheckSystemHealthFunction:
 
     @patch("src.backend.cc.services.get_system_health")
     @patch("src.backend.cc.services.log_event")
-    async def test_check_system_health_with_healthy_status(self, mock_log, mock_get_health):
+    async def test_check_system_health_with_healthy_status(self, mock_log, mock_get_health) -> None:
         """Test check_system_health with healthy status - covers lines 83-105."""
         mock_db = MagicMock()
 
@@ -114,7 +116,7 @@ class TestCheckSystemHealthFunction:
 
     @patch("src.backend.cc.services.get_system_health")
     @patch("src.backend.cc.services.log_event")
-    async def test_check_system_health_with_degraded_status(self, mock_log, mock_get_health):
+    async def test_check_system_health_with_degraded_status(self, mock_log, mock_get_health) -> None:
         """Test check_system_health with degraded status - covers lines 83-105."""
         mock_db = MagicMock()
 
@@ -133,7 +135,7 @@ class TestCheckSystemHealthFunction:
 
     @patch("src.backend.cc.services.get_system_health")
     @patch("src.backend.cc.services.log_event")
-    async def test_check_system_health_with_no_health_record(self, mock_log, mock_get_health):
+    async def test_check_system_health_with_no_health_record(self, mock_log, mock_get_health) -> None:
         """Test check_system_health with no health record - covers lines 83-105."""
         mock_db = MagicMock()
         mock_get_health.return_value = None
@@ -151,7 +153,7 @@ class TestGetCcConfigurationFunction:
 
     @patch("src.backend.cc.services.get_active_modules")
     @patch("src.backend.cc.services.log_event")
-    async def test_get_cc_configuration_returns_config(self, mock_log, mock_get_active):
+    async def test_get_cc_configuration_returns_config(self, mock_log, mock_get_active) -> None:
         """Test get_cc_configuration returns correct config - covers lines 131-142."""
         mock_db = MagicMock()
         mock_active_modules = ["cc", "mem0"]
@@ -177,7 +179,7 @@ class TestGetCcConfigurationFunction:
 
     @patch("src.backend.cc.services.get_active_modules")
     @patch("src.backend.cc.services.log_event")
-    async def test_get_cc_configuration_with_empty_modules(self, mock_log, mock_get_active):
+    async def test_get_cc_configuration_with_empty_modules(self, mock_log, mock_get_active) -> None:
         """Test get_cc_configuration with empty modules list - covers lines 131-142."""
         mock_db = MagicMock()
         mock_get_active.return_value = []
@@ -192,7 +194,7 @@ class TestPingModuleFunction:
 
     @patch("src.backend.cc.services.update_module_status")
     @patch("src.backend.cc.services.log_event")
-    async def test_ping_module_known_cc_module(self, mock_log, mock_update_status):
+    async def test_ping_module_known_cc_module(self, mock_log, mock_update_status) -> None:
         """Test ping_module with cc module - covers lines 168-183."""
         mock_db = MagicMock()
 
@@ -216,7 +218,7 @@ class TestPingModuleFunction:
 
     @patch("src.backend.cc.services.update_module_status")
     @patch("src.backend.cc.services.log_event")
-    async def test_ping_module_known_mem0_module(self, mock_log, mock_update_status):
+    async def test_ping_module_known_mem0_module(self, mock_log, mock_update_status) -> None:
         """Test ping_module with mem0 module - covers lines 168-183."""
         mock_db = MagicMock()
 
@@ -228,7 +230,7 @@ class TestPingModuleFunction:
 
     @patch("src.backend.cc.services.update_module_status")
     @patch("src.backend.cc.services.log_event")
-    async def test_ping_module_unknown_module(self, mock_log, mock_update_status):
+    async def test_ping_module_unknown_module(self, mock_log, mock_update_status) -> None:
         """Test ping_module with unknown module - covers lines 168-183."""
         mock_db = MagicMock()
 
@@ -249,7 +251,7 @@ class TestCreateModuleFunction:
     @patch("src.backend.cc.services.crud_create_module")
     @patch("src.backend.cc.services.crud_get_module_by_name")
     @patch("src.backend.cc.services.log_event")
-    async def test_create_module_success(self, mock_log, mock_get_by_name, mock_create):
+    async def test_create_module_success(self, mock_log, mock_get_by_name, mock_create) -> None:
         """Test create_module success path."""
         mock_db = MagicMock()
         mock_get_by_name.return_value = None  # No existing module
@@ -265,7 +267,7 @@ class TestCreateModuleFunction:
 
     @patch("src.backend.cc.services.crud_get_module_by_name")
     @patch("src.backend.cc.services.log_event")
-    async def test_create_module_duplicate_name_raises_error(self, mock_log, mock_get_by_name):
+    async def test_create_module_duplicate_name_raises_error(self, mock_log, mock_get_by_name) -> None:
         """Test create_module raises ValueError for duplicate names."""
         mock_db = MagicMock()
         mock_existing_module = MagicMock()
@@ -281,7 +283,7 @@ class TestUpdateModuleFunction:
     @patch("src.backend.cc.services.crud_update_module")
     @patch("src.backend.cc.services.crud_get_module_by_name")
     @patch("src.backend.cc.services.log_event")
-    async def test_update_module_name_conflict_raises_error(self, mock_log, mock_get_by_name, mock_update):
+    async def test_update_module_name_conflict_raises_error(self, mock_log, mock_get_by_name, mock_update) -> None:
         """Test update_module raises ValueError for name conflicts."""
         mock_db = MagicMock()
         module_id = "test-id-1"
@@ -297,7 +299,7 @@ class TestUpdateModuleFunction:
     @patch("src.backend.cc.services.crud_update_module")
     @patch("src.backend.cc.services.crud_get_module_by_name")
     @patch("src.backend.cc.services.log_event")
-    async def test_update_module_name_same_module_allowed(self, mock_log, mock_get_by_name, mock_update):
+    async def test_update_module_name_same_module_allowed(self, mock_log, mock_get_by_name, mock_update) -> None:
         """Test update_module allows updating name to same module's name."""
         mock_db = MagicMock()
         module_id = "test-id-1"
@@ -317,7 +319,7 @@ class TestUpdateModuleFunction:
 
     @patch("src.backend.cc.services.crud_update_module")
     @patch("src.backend.cc.services.log_event")
-    async def test_update_module_no_name_field(self, mock_log, mock_update):
+    async def test_update_module_no_name_field(self, mock_log, mock_update) -> None:
         """Test update_module without name field (no conflict check)."""
         mock_db = MagicMock()
         module_id = "test-id-1"
@@ -336,7 +338,7 @@ class TestServiceLoggingCalls:
 
     @patch("src.backend.cc.services.crud_get_module")
     @patch("src.backend.cc.services.log_event")
-    async def test_get_module_logs_properly(self, mock_log, mock_crud_get):
+    async def test_get_module_logs_properly(self, mock_log, mock_crud_get) -> None:
         """Test get_module logs properly."""
         mock_db = MagicMock()
         mock_crud_get.return_value = None
@@ -352,7 +354,7 @@ class TestServiceLoggingCalls:
 
     @patch("src.backend.cc.services.crud_get_module_by_name")
     @patch("src.backend.cc.services.log_event")
-    async def test_get_module_by_name_logs_properly(self, mock_log, mock_crud_get):
+    async def test_get_module_by_name_logs_properly(self, mock_log, mock_crud_get) -> None:
         """Test get_module_by_name logs properly."""
         mock_db = MagicMock()
         mock_crud_get.return_value = None
@@ -368,7 +370,7 @@ class TestServiceLoggingCalls:
 
     @patch("src.backend.cc.services.crud_get_modules")
     @patch("src.backend.cc.services.log_event")
-    async def test_get_modules_logs_properly(self, mock_log, mock_crud_get):
+    async def test_get_modules_logs_properly(self, mock_log, mock_crud_get) -> None:
         """Test get_modules logs properly."""
         mock_db = MagicMock()
         mock_crud_get.return_value = []
@@ -384,7 +386,7 @@ class TestServiceLoggingCalls:
 
     @patch("src.backend.cc.services.crud_delete_module")
     @patch("src.backend.cc.services.log_event")
-    async def test_delete_module_logs_properly(self, mock_log, mock_crud_delete):
+    async def test_delete_module_logs_properly(self, mock_log, mock_crud_delete) -> None:
         """Test delete_module logs properly."""
         mock_db = MagicMock()
         mock_crud_delete.return_value = None

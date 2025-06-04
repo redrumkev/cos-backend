@@ -3,6 +3,8 @@
 These tests target specific uncovered lines and branches identified in the coverage report.
 """
 
+from __future__ import annotations
+
 import os
 from typing import Any
 from unittest.mock import patch

@@ -3,6 +3,8 @@
 This file targets specific missing lines in crud.py to achieve 95%+ coverage.
 """
 
+from __future__ import annotations
+
 from unittest.mock import patch
 
 from src.backend.cc.crud import get_active_modules, update_module_status
@@ -12,7 +14,7 @@ class TestUpdateModuleStatusFunction:
     """Test update_module_status function - covers lines 68-87."""
 
     @patch("src.backend.cc.crud.log_event")
-    async def test_update_module_status_covers_logging_and_return(self, mock_log):
+    async def test_update_module_status_covers_logging_and_return(self, mock_log) -> None:
         """Test update_module_status function logs and returns mock data - covers lines 68-87."""
         # Mock database session
         mock_db = None  # Not used since function is placeholder
@@ -35,7 +37,7 @@ class TestUpdateModuleStatusFunction:
         assert result["last_updated"] == "2025-04-02T10:10:00Z"
 
     @patch("src.backend.cc.crud.log_event")
-    async def test_update_module_status_different_module(self, mock_log):
+    async def test_update_module_status_different_module(self, mock_log) -> None:
         """Test update_module_status with different module name."""
         mock_db = None
 
@@ -55,7 +57,7 @@ class TestUpdateModuleStatusFunction:
         assert result["last_updated"] == "2025-04-02T10:10:00Z"
 
     @patch("src.backend.cc.crud.log_event")
-    async def test_update_module_status_offline_status(self, mock_log):
+    async def test_update_module_status_offline_status(self, mock_log) -> None:
         """Test update_module_status with offline status."""
         mock_db = None
 
@@ -78,7 +80,7 @@ class TestGetActiveModulesFunction:
     """Test get_active_modules function - covers lines 112-121."""
 
     @patch("src.backend.cc.crud.log_event")
-    async def test_get_active_modules_covers_logging_and_query(self, mock_log):
+    async def test_get_active_modules_covers_logging_and_query(self, mock_log) -> None:
         """Test get_active_modules function logs and queries correctly - covers lines 112-121."""
         from unittest.mock import AsyncMock, MagicMock
 
@@ -109,7 +111,7 @@ class TestGetActiveModulesFunction:
         assert isinstance(result, list)
 
     @patch("src.backend.cc.crud.log_event")
-    async def test_get_active_modules_empty_result(self, mock_log):
+    async def test_get_active_modules_empty_result(self, mock_log) -> None:
         """Test get_active_modules with empty result."""
         from unittest.mock import AsyncMock, MagicMock
 
@@ -132,7 +134,7 @@ class TestGetActiveModulesFunction:
         assert isinstance(result, list)
 
     @patch("src.backend.cc.crud.log_event")
-    async def test_get_active_modules_single_module(self, mock_log):
+    async def test_get_active_modules_single_module(self, mock_log) -> None:
         """Test get_active_modules with single module result."""
         from unittest.mock import AsyncMock, MagicMock
 
@@ -163,7 +165,7 @@ class TestGetActiveModulesFunction:
 class TestCRUDQueryStructure:
     """Test that CRUD queries use correct SQLAlchemy structure."""
 
-    def test_get_active_modules_query_structure(self):
+    def test_get_active_modules_query_structure(self) -> None:
         """Test that get_active_modules uses correct query structure."""
         from sqlalchemy import select
 

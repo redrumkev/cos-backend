@@ -1,5 +1,7 @@
 """Verify Alembic migrations are idempotent and schema-safe."""
 
+from __future__ import annotations
+
 import os
 from collections.abc import AsyncGenerator
 

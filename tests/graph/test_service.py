@@ -1,5 +1,7 @@
 """Tests for graph service layer."""
 
+from __future__ import annotations
+
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -12,13 +14,13 @@ from src.graph.service import GraphService
 class TestGraphService:
     """Test cases for GraphService class."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_client = AsyncMock(spec=Neo4jClient)
         self.service = GraphService(self.mock_client)
 
     @pytest.mark.asyncio
-    async def test_get_graph_stats_success(self):
+    async def test_get_graph_stats_success(self) -> None:
         """Test successful stats retrieval."""
         # Mock query results - the service calls execute_query 4 times for different stats
         self.mock_client.execute_query.side_effect = [
@@ -40,7 +42,7 @@ class TestGraphService:
         assert stats["node_types"][0]["count"] == 10
 
     @pytest.mark.asyncio
-    async def test_create_node_success(self):
+    async def test_create_node_success(self) -> None:
         """Test successful node creation."""
         # Mock successful validation and creation
         with (
@@ -55,7 +57,7 @@ class TestGraphService:
             assert result["name"] == "test-node"
 
     @pytest.mark.asyncio
-    async def test_create_node_validation_error(self):
+    async def test_create_node_validation_error(self) -> None:
         """Test node creation with validation error."""
         # Mock validation failure
         with (
@@ -65,7 +67,7 @@ class TestGraphService:
             await self.service.create_node(NodeType.MODULE, ModuleLabel.TECH_CC, {})
 
     @pytest.mark.asyncio
-    async def test_get_node_success(self):
+    async def test_get_node_success(self) -> None:
         """Test successful node retrieval by ID."""
         # Mock node found
         with patch("src.graph.service.GraphRegistry.match_node_query", return_value="MATCH (n) RETURN n"):
@@ -77,7 +79,7 @@ class TestGraphService:
             assert result["name"] == "test-node"
 
     @pytest.mark.asyncio
-    async def test_get_node_not_found(self):
+    async def test_get_node_not_found(self) -> None:
         """Test node retrieval when node not found."""
         # Mock no results
         with patch("src.graph.service.GraphRegistry.match_node_query", return_value="MATCH (n) RETURN n"):
@@ -88,7 +90,7 @@ class TestGraphService:
             assert result is None
 
     @pytest.mark.asyncio
-    async def test_update_node_success(self):
+    async def test_update_node_success(self) -> None:
         """Test successful node update."""
         # Mock successful update
         self.mock_client.execute_query.return_value = [{"n": {"id": "test-id", "name": "updated-name"}}]
@@ -101,7 +103,7 @@ class TestGraphService:
         assert result["name"] == "updated-name"
 
     @pytest.mark.asyncio
-    async def test_delete_node_success(self):
+    async def test_delete_node_success(self) -> None:
         """Test successful node deletion."""
         # Mock successful deletion
         self.mock_client.execute_query.return_value = [{"deleted_count": 1}]
@@ -111,7 +113,7 @@ class TestGraphService:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_delete_node_not_found(self):
+    async def test_delete_node_not_found(self) -> None:
         """Test node deletion when node not found."""
         # Mock no deletion (node not found)
         self.mock_client.execute_query.return_value = [{"deleted_count": 0}]
@@ -121,7 +123,7 @@ class TestGraphService:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_create_relationship_success(self):
+    async def test_create_relationship_success(self) -> None:
         """Test successful relationship creation."""
         # Mock successful relationship creation
         self.mock_client.execute_query.return_value = [{"r": {"type": "CONTAINS", "created_at": "2023-01-01"}}]
@@ -140,7 +142,7 @@ class TestGraphService:
         assert result["type"] == "CONTAINS"
 
     @pytest.mark.asyncio
-    async def test_get_node_relationships_success(self):
+    async def test_get_node_relationships_success(self) -> None:
         """Test successful node relationships retrieval."""
         # Mock relationship results - service expects records with 'r' key
         self.mock_client.execute_query.return_value = [{"r": {"type": "CONTAINS", "id": "rel-1"}}]
@@ -153,7 +155,7 @@ class TestGraphService:
         assert results[0]["type"] == "CONTAINS"
 
     @pytest.mark.asyncio
-    async def test_get_node_relationships_all_directions(self):
+    async def test_get_node_relationships_all_directions(self) -> None:
         """Test node relationships retrieval for all directions."""
         # Mock relationship results
         self.mock_client.execute_query.return_value = []
@@ -164,7 +166,7 @@ class TestGraphService:
         assert self.mock_client.execute_query.called
 
     @pytest.mark.asyncio
-    async def test_search_nodes_success(self):
+    async def test_search_nodes_success(self) -> None:
         """Test successful node search."""
         # Mock search results
         self.mock_client.execute_query.return_value = [{"n": {"id": "1", "name": "test-node"}}]
@@ -175,7 +177,7 @@ class TestGraphService:
         assert results[0]["id"] == "1"
 
     @pytest.mark.asyncio
-    async def test_get_nodes_by_property_success(self):
+    async def test_get_nodes_by_property_success(self) -> None:
         """Test successful node retrieval by property."""
         # Mock property search results
         with patch("src.graph.service.GraphRegistry.match_node_query", return_value="MATCH (n) RETURN n"):
@@ -192,7 +194,7 @@ class TestGraphService:
             assert results[0]["status"] == "active"
 
     @pytest.mark.asyncio
-    async def test_empty_results_handling(self):
+    async def test_empty_results_handling(self) -> None:
         """Test handling of empty results from database."""
         # Mock empty results
         self.mock_client.execute_query.return_value = []
@@ -206,7 +208,7 @@ class TestGraphService:
         assert search_results == []
 
     @pytest.mark.asyncio
-    async def test_query_parameter_passing(self):
+    async def test_query_parameter_passing(self) -> None:
         """Test that query parameters are properly passed to the client."""
         # Mock successful query
         with patch(
@@ -222,7 +224,7 @@ class TestGraphService:
             )
 
     @pytest.mark.asyncio
-    async def test_relationship_direction_handling(self):
+    async def test_relationship_direction_handling(self) -> None:
         """Test proper handling of relationship directions."""
         self.mock_client.execute_query.return_value = []
 

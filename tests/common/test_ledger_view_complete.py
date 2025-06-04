@@ -3,6 +3,8 @@
 These tests focus on edge cases and conditions not covered in the main test suite.
 """
 
+from __future__ import annotations
+
 from unittest.mock import Mock, patch
 
 from src.common.ledger_view import (

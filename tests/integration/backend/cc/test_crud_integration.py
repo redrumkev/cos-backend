@@ -4,6 +4,8 @@ These tests use real PostgreSQL database with transaction isolation
 to test CRUD operations, constraints, and database-specific behavior.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from uuid import uuid4
 

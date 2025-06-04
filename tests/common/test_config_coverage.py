@@ -4,6 +4,8 @@ This file contains tests for configuration loading that were missing coverage,
 focusing on environment file loading and URL conversion paths.
 """
 
+from __future__ import annotations
+
 import os
 from unittest.mock import MagicMock, patch
 

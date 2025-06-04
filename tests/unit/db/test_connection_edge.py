@@ -3,6 +3,8 @@
 This file tests error paths and edge cases to achieve 95%+ coverage.
 """
 
+from __future__ import annotations
+
 import os
 from unittest.mock import MagicMock, patch
 
@@ -19,26 +21,26 @@ class TestDatabaseURLValidation:
     """Test database URL validation and error handling."""
 
     @patch.dict(os.environ, {"DATABASE_URL": "invalid://bad-url"})
-    def test_invalid_db_url_handled_correctly(self):
+    def test_invalid_db_url_handled_correctly(self) -> None:
         """Test that invalid database URL is handled by SQLAlchemy."""
         # This will test the URL handling logic
         url = _database_url_for_tests()
         assert url == "invalid://bad-url"
 
     @patch.dict(os.environ, {"DATABASE_URL": ""})
-    def test_empty_db_url_fallback(self):
+    def test_empty_db_url_fallback(self) -> None:
         """Test that empty database URL falls back to SQLite."""
         url = _database_url_for_tests()
         assert "sqlite" in url
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_missing_db_url_defaults_to_sqlite(self):
+    def test_missing_db_url_defaults_to_sqlite(self) -> None:
         """Test that missing DATABASE_URL defaults to SQLite."""
         url = _database_url_for_tests()
         assert url == "sqlite+aiosqlite:///:memory:"
 
     @patch.dict(os.environ, {"DATABASE_URL": "postgresql://user@host/db"})
-    def test_postgresql_url_transformation(self):
+    def test_postgresql_url_transformation(self) -> None:
         """Test that PostgreSQL URL gets transformed to asyncpg."""
         engine = _create_engine_impl("postgresql://user@host/db")
         assert engine is not None
@@ -46,7 +48,7 @@ class TestDatabaseURLValidation:
         assert "asyncpg" in str(engine.url) or "postgresql" in str(engine.url)
 
     @patch.dict(os.environ, {"DATABASE_URL": "sqlite:///test.db"})
-    def test_sqlite_url_handling(self):
+    def test_sqlite_url_handling(self) -> None:
         """Test that SQLite URL is handled correctly."""
         engine = _create_engine_impl("sqlite:///test.db")
         assert engine is not None
@@ -56,7 +58,7 @@ class TestEngineCaching:
     """Test engine caching behavior."""
 
     @patch.dict(os.environ, {"DATABASE_URL": "sqlite+aiosqlite:///:memory:"})
-    def test_engine_caching_returns_same_instance(self):
+    def test_engine_caching_returns_same_instance(self) -> None:
         """Test that engine caching returns the same instance - covers caching branch."""
         # Clear any existing cached engine
         get_async_engine.cache_clear()
@@ -69,7 +71,7 @@ class TestEngineCaching:
         assert engine1 is engine2
 
     @patch.dict(os.environ, {"DATABASE_URL": "sqlite+aiosqlite:///:memory:"})
-    def test_cached_engine_info_accessible(self):
+    def test_cached_engine_info_accessible(self) -> None:
         """Test that cached engine info is accessible."""
         # Clear cache first
         get_async_engine.cache_clear()
@@ -92,7 +94,7 @@ class TestEngineCaching:
         assert cache_info2.hits >= 1
 
     @patch.dict(os.environ, {"DATABASE_URL": "sqlite+aiosqlite:///:memory:"})
-    def test_cache_clear_functionality(self):
+    def test_cache_clear_functionality(self) -> None:
         """Test that cache can be cleared."""
         # Get an engine to populate cache
         get_async_engine()
@@ -113,7 +115,7 @@ class TestSessionMakerCaching:
     """Test session maker caching behavior."""
 
     @patch.dict(os.environ, {"DATABASE_URL": "sqlite+aiosqlite:///:memory:"})
-    def test_session_maker_caching(self):
+    def test_session_maker_caching(self) -> None:
         """Test that session maker is cached properly."""
         # Clear cache first
         get_async_session_maker.cache_clear()
@@ -134,7 +136,7 @@ class TestAsyncDBSession:
     """Test async database session handling."""
 
     @patch("src.db.connection.get_async_session_maker")
-    async def test_get_async_db_yields_session(self, mock_get_session_maker):
+    async def test_get_async_db_yields_session(self, mock_get_session_maker) -> None:
         """Test that get_async_db yields an async session."""
         # Mock session maker and session
         mock_session_maker = MagicMock()
@@ -172,7 +174,7 @@ class TestDatabaseConfiguration:
 
     @patch.dict(os.environ, {"ENABLE_DB_INTEGRATION": "1", "PYTEST_CURRENT_TEST": "test_something"})
     @patch("src.db.connection.get_settings")
-    def test_postgres_test_url_in_test_mode(self, mock_get_settings):
+    def test_postgres_test_url_in_test_mode(self, mock_get_settings) -> None:
         """Test that test mode uses PostgreSQL test URL."""
         # Mock settings
         mock_settings = MagicMock()
@@ -184,7 +186,7 @@ class TestDatabaseConfiguration:
 
     @patch.dict(os.environ, {"ENABLE_DB_INTEGRATION": "1"})
     @patch("src.db.connection.get_settings")
-    def test_postgres_dev_url_in_dev_mode(self, mock_get_settings):
+    def test_postgres_dev_url_in_dev_mode(self, mock_get_settings) -> None:
         """Test that dev mode uses PostgreSQL dev URL."""
         # Mock settings
         mock_settings = MagicMock()
@@ -195,7 +197,7 @@ class TestDatabaseConfiguration:
         assert url == "postgresql://dev:pass@localhost:5432/dev_db"
 
     @patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "test_something"})
-    def test_test_mode_disables_caching(self):
+    def test_test_mode_disables_caching(self) -> None:
         """Test that test mode bypasses engine caching."""
         # This tests the test mode branch in get_async_engine
         engine1 = get_async_engine()
@@ -210,7 +212,7 @@ class TestDatabaseConfiguration:
 class TestEngineImplementation:
     """Test engine implementation edge cases."""
 
-    def test_postgresql_engine_configuration(self):
+    def test_postgresql_engine_configuration(self) -> None:
         """Test PostgreSQL engine gets proper configuration."""
         engine = _create_engine_impl("postgresql+asyncpg://user:pass@localhost/db")
 
@@ -220,7 +222,7 @@ class TestEngineImplementation:
         # Should have pool configuration for PostgreSQL
         assert hasattr(engine, "pool")
 
-    def test_sqlite_engine_configuration(self):
+    def test_sqlite_engine_configuration(self) -> None:
         """Test SQLite engine gets proper configuration."""
         engine = _create_engine_impl("sqlite+aiosqlite:///test.db")
 
@@ -230,7 +232,7 @@ class TestEngineImplementation:
         # Verify it's configured for SQLite
         assert "sqlite" in str(engine.url)
 
-    def test_url_transformation_postgresql_to_asyncpg(self):
+    def test_url_transformation_postgresql_to_asyncpg(self) -> None:
         """Test that postgresql:// URLs get transformed to asyncpg."""
         # This tests the URL replacement logic
         engine = _create_engine_impl("postgresql://user:pass@localhost/db")
@@ -242,7 +244,7 @@ class TestEngineImplementation:
         url_str = str(engine.url)
         assert "asyncpg" in url_str or "postgresql" in url_str
 
-    def test_sqlite_connect_args_coverage(self):
+    def test_sqlite_connect_args_coverage(self) -> None:
         """Test SQLite connect_args configuration - covers lines 52-55."""
         # Test with a sqlite URL to trigger the connect_args branch
         engine = _create_engine_impl("sqlite+aiosqlite:///test.db")
@@ -254,7 +256,7 @@ class TestEngineImplementation:
         # We can't directly access connect_args, but we know it was set
         assert "sqlite" in str(engine.url)
 
-    def test_non_sqlite_no_connect_args(self):
+    def test_non_sqlite_no_connect_args(self) -> None:
         """Test that non-SQLite URLs don't get connect_args."""
         # Test with PostgreSQL URL
         engine = _create_engine_impl("postgresql+asyncpg://user:pass@localhost/db")
@@ -263,7 +265,7 @@ class TestEngineImplementation:
         assert engine is not None
         assert "postgresql" in str(engine.url)
 
-    def test_aiosqlite_specific_connect_args(self):
+    def test_aiosqlite_specific_connect_args(self) -> None:
         """Test aiosqlite specific connect_args handling."""
         # This specifically tests the sqlite detection and connect_args setting
         engine = _create_engine_impl("sqlite+aiosqlite:///:memory:")
@@ -276,7 +278,7 @@ class TestEngineImplementation:
 class TestAsyncSessionMakerReturnType:
     """Test session maker return type - covers line 71-72."""
 
-    def test_session_maker_return_type_annotation(self):
+    def test_session_maker_return_type_annotation(self) -> None:
         """Test that get_async_session_maker returns properly typed sessionmaker."""
         session_maker = get_async_session_maker()
 
@@ -294,7 +296,7 @@ class TestAsyncSessionMakerReturnType:
         assert session_maker.bind is engine
 
     @patch.dict(os.environ, {"DATABASE_URL": "sqlite+aiosqlite:///:memory:"})
-    def test_session_maker_with_async_session_class(self):
+    def test_session_maker_with_async_session_class(self) -> None:
         """Test that session maker uses AsyncSession class."""
         session_maker = get_async_session_maker()
 

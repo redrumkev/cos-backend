@@ -3,6 +3,8 @@
 This file tests Alembic migration environment functions to achieve 95%+ coverage.
 """
 
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -14,7 +16,7 @@ class TestAlembicEnvironmentSysPath:
     """Test sys.path manipulation in env.py - covers lines 14."""
 
     @patch("sys.path")
-    def test_sys_path_modification(self, mock_sys_path):
+    def test_sys_path_modification(self, mock_sys_path) -> None:
         """Test that sys.path is modified correctly in env.py."""
         # Mock sys.path to simulate it not containing the src path
         mock_sys_path.__contains__ = MagicMock(return_value=False)
@@ -44,7 +46,7 @@ class TestDotenvLoading:
 
     @patch("src.db.migrations.env.load_dotenv")
     @patch("src.db.migrations.env.DOTENV_PATH")
-    def test_dotenv_loading_success(self, mock_dotenv_path, mock_load_dotenv):
+    def test_dotenv_loading_success(self, mock_dotenv_path, mock_load_dotenv) -> None:
         """Test successful dotenv loading."""
         # Mock the dotenv path
         mock_dotenv_path.resolve.return_value = Path("/test/.env")
@@ -64,7 +66,7 @@ class TestDotenvLoading:
         # (Hard to test directly due to import-time execution)
 
     @patch("src.db.migrations.env.load_dotenv", side_effect=ImportError("dotenv not available"))
-    def test_dotenv_loading_import_error(self, mock_load_dotenv):
+    def test_dotenv_loading_import_error(self, mock_load_dotenv) -> None:
         """Test graceful handling when dotenv is not available."""
         # Should not raise an exception even if dotenv is not available
         try:
@@ -82,7 +84,7 @@ class TestDatabaseURLLogic:
     """Test database URL configuration logic - covers lines 37-44."""
 
     @patch.dict(os.environ, {"POSTGRES_MIGRATE_URL": "postgresql://migrate:pass@localhost/db"})
-    def test_migrate_url_direct(self):
+    def test_migrate_url_direct(self) -> None:
         """Test using POSTGRES_MIGRATE_URL directly."""
         # Import env to test the URL logic
         try:
@@ -99,7 +101,7 @@ class TestDatabaseURLLogic:
             pass
 
     @patch.dict(os.environ, {"POSTGRES_DEV_URL": "postgresql+asyncpg://dev:pass@localhost/db"}, clear=True)
-    def test_dev_url_transformation(self):
+    def test_dev_url_transformation(self) -> None:
         """Test transformation of POSTGRES_DEV_URL."""
         # Remove POSTGRES_MIGRATE_URL to test fallback
         if "POSTGRES_MIGRATE_URL" in os.environ:
@@ -112,7 +114,7 @@ class TestDatabaseURLLogic:
             assert migrate_url == "postgresql+psycopg://dev:pass@localhost/db"
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_no_database_url_error(self):
+    def test_no_database_url_error(self) -> None:
         """Test RuntimeError when no database URL is found."""
         # Clear all database URL environment variables
         for key in ["POSTGRES_MIGRATE_URL", "POSTGRES_DEV_URL"]:
@@ -131,7 +133,7 @@ class TestDatabaseURLLogic:
 class TestIncludeObjectFunction:
     """Test include_object function - covers lines 45-50."""
 
-    def test_include_object_table_in_watched_schemas(self):
+    def test_include_object_table_in_watched_schemas(self) -> None:
         """Test include_object for tables in watched schemas."""
         from src.db.migrations.env import include_object
 
@@ -142,7 +144,7 @@ class TestIncludeObjectFunction:
         result = include_object(mock_table, "test_table", "table", False, None)
         assert result is True
 
-    def test_include_object_table_not_in_watched_schemas(self):
+    def test_include_object_table_not_in_watched_schemas(self) -> None:
         """Test include_object for tables not in watched schemas."""
         from src.db.migrations.env import include_object
 
@@ -153,7 +155,7 @@ class TestIncludeObjectFunction:
         result = include_object(mock_table, "test_table", "table", False, None)
         assert result is False
 
-    def test_include_object_non_table_type(self):
+    def test_include_object_non_table_type(self) -> None:
         """Test include_object for non-table objects."""
         from src.db.migrations.env import include_object
 
@@ -170,7 +172,7 @@ class TestAlembicEnvironment:
 
     @patch("alembic.context")
     @patch("sqlalchemy.engine_from_config")
-    def test_run_migrations_online_executes_without_error(self, mock_engine_from_config, mock_context):
+    def test_run_migrations_online_executes_without_error(self, mock_engine_from_config, mock_context) -> None:
         """Test that run_migrations_online executes without error."""
         # Mock the engine and connection
         mock_engine = MagicMock()
@@ -201,7 +203,7 @@ class TestAlembicEnvironment:
             pytest.fail(f"run_migrations_online raised an exception: {e}")
 
     @patch("alembic.context")
-    def test_run_migrations_offline_executes_without_error(self, mock_context):
+    def test_run_migrations_offline_executes_without_error(self, mock_context) -> None:
         """Test that run_migrations_offline executes without error."""
         # Mock context methods for offline mode
         mock_context.is_offline_mode.return_value = True
@@ -214,11 +216,10 @@ class TestAlembicEnvironment:
 
         try:
             # Import and run the function
-            import os
             import sys
 
             # Add migrations directory to path
-            migrations_path = os.path.join(os.path.dirname(__file__), "../../../src/db/migrations")
+            migrations_path = str(Path(__file__).parent / "../../../src/db/migrations")
             sys.path.insert(0, migrations_path)
 
             # Mock the context to be offline mode
@@ -241,7 +242,7 @@ class TestAlembicEnvironment:
 
     @patch("alembic.context")
     @patch("src.db.connection.get_engine")
-    def test_alembic_env_main_logic_online_mode(self, mock_get_engine, mock_context):
+    def test_alembic_env_main_logic_online_mode(self, mock_get_engine, mock_context) -> None:
         """Test the main Alembic env logic chooses online mode correctly."""
         # Mock engine
         mock_engine = MagicMock()
@@ -268,7 +269,7 @@ class TestAlembicEnvironment:
             pytest.fail(f"Alembic env main logic failed: {e}")
 
     @patch("alembic.context")
-    def test_alembic_env_main_logic_offline_mode(self, mock_context):
+    def test_alembic_env_main_logic_offline_mode(self, mock_context) -> None:
         """Test the main Alembic env logic chooses offline mode correctly."""
         # Mock context for offline mode
         mock_context.is_offline_mode.return_value = True
@@ -288,7 +289,7 @@ class TestAlembicEnvironment:
 
     @patch("alembic.context")
     @patch("src.common.config.Config")
-    def test_alembic_env_target_metadata_setup(self, mock_config, mock_context):
+    def test_alembic_env_target_metadata_setup(self, mock_config, mock_context) -> None:
         """Test that Alembic env sets up target metadata correctly."""
         # Mock the config
         mock_config_instance = MagicMock()
@@ -313,7 +314,7 @@ class TestAlembicEnvironment:
 
     @patch("alembic.context")
     @patch("logging.getLogger")
-    def test_alembic_env_logging_setup(self, mock_get_logger, mock_context):
+    def test_alembic_env_logging_setup(self, mock_get_logger, mock_context) -> None:
         """Test that Alembic env sets up logging correctly."""
         # Mock logger
         mock_logger = MagicMock()

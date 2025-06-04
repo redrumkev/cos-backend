@@ -3,6 +3,8 @@
 These tests verify service layer functionality with real database operations.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from uuid import uuid4
 

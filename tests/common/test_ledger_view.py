@@ -4,6 +4,8 @@ These tests validate the functionality of the ledger view module,
 which is used to display and filter memory items from the filesystem.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 from pathlib import Path

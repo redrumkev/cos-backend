@@ -4,6 +4,8 @@ Tests all API endpoints including CRUD operations, error handling,
 background tasks, and proper HTTP status codes.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
