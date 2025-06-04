@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from src.common.logger import log_event
 
 from .deps import DBSession, ModuleConfig, get_module_config
+from .mem0_router import router as mem0_router
 from .schemas import (
     CCConfig,
     HealthStatusResponse,
@@ -31,6 +32,9 @@ from .services import read_system_health
 from .services import update_module as service_update_module
 
 router = APIRouter()
+
+# Mount mem0 scratch data router
+router.include_router(mem0_router, prefix="/mem0", tags=["mem0"])
 
 
 @router.get(

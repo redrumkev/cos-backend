@@ -6,7 +6,7 @@ and response formatting, ensuring type safety and data integrity.
 
 # MDC: cc_module
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
@@ -187,3 +187,93 @@ class Module(ModuleBase):
             }
         },
     )
+
+
+# Scratch Note Schemas (Task 10)
+class ScratchNoteCreate(BaseModel):
+    """Schema for creating a new scratch note."""
+
+    key: str = Field(..., description="Unique key for the scratch note.", min_length=1, max_length=255)
+    content: str | None = Field(None, description="Optional content for the scratch note.")
+    ttl_days: int | None = Field(None, description="Time-to-live in days (null = never expires).", ge=1, le=365)
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {"key": "user_session_123", "content": "Temporary user session data", "ttl_days": 7}
+        }
+    )
+
+
+class ScratchNoteUpdate(BaseModel):
+    """Schema for updating an existing scratch note."""
+
+    content: str | None = Field(None, description="Updated content for the scratch note.")
+    ttl_days: int | None = Field(None, description="Updated TTL in days (null = never expires).", ge=1, le=365)
+
+    model_config = ConfigDict(json_schema_extra={"example": {"content": "Updated session data", "ttl_days": 14}})
+
+
+class ScratchNoteResponse(BaseModel):
+    """Schema for scratch note response."""
+
+    id: int = Field(..., description="Unique identifier for the scratch note.")
+    key: str = Field(..., description="Unique key for the scratch note.")
+    content: str | None = Field(None, description="Content of the scratch note.")
+    created_at: datetime = Field(..., description="Timestamp when the note was created.")
+    expires_at: datetime | None = Field(None, description="Timestamp when the note expires (null = never).")
+    is_expired: bool = Field(..., description="Whether the note has expired.")
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, value: datetime) -> str:
+        """Serialize datetime to ISO-8601 string."""
+        return value.isoformat()
+
+    @field_serializer("expires_at")
+    def serialize_expires_at(self, value: datetime | None) -> str | None:
+        """Serialize datetime to ISO-8601 string."""
+        return value.isoformat() if value else None
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": 1,
+                "key": "user_session_123",
+                "content": "Temporary user session data",
+                "created_at": "2025-04-02T10:00:00Z",
+                "expires_at": "2025-04-09T10:00:00Z",
+                "is_expired": False,
+            }
+        },
+    )
+
+
+class ScratchStatsResponse(BaseModel):
+    """Schema for scratch notes statistics response."""
+
+    total_notes: int = Field(..., description="Total number of scratch notes.")
+    active_notes: int = Field(..., description="Number of active (non-expired) notes.")
+    expired_notes: int = Field(..., description="Number of expired notes.")
+    timestamp: str = Field(..., description="ISO-8601 timestamp when stats were generated.")
+    ttl_settings: dict[str, Any] = Field(..., description="Current TTL configuration settings.")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "total_notes": 150,
+                "active_notes": 120,
+                "expired_notes": 30,
+                "timestamp": "2025-04-02T10:00:00Z",
+                "ttl_settings": {"default_ttl_days": 7, "cleanup_enabled": True, "cleanup_batch_size": 1000},
+            }
+        }
+    )
+
+
+class CleanupResponse(BaseModel):
+    """Schema for cleanup operation response."""
+
+    status: str = Field(..., description="Status of the cleanup operation.")
+    deleted: int = Field(..., description="Number of records deleted.")
+
+    model_config = ConfigDict(json_schema_extra={"example": {"status": "completed", "deleted": 25}})

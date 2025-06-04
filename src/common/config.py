@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str | None = Field(default="test_password", validation_alias="REDIS_PASSWORD")
     MEM0_SCHEMA: str = Field(default="mem0_cc", validation_alias="MEM0_SCHEMA")
 
+    # Scratch Data Configuration (Task 10)
+    SCRATCH_DEFAULT_TTL_DAYS: int = Field(default=7, ge=1, le=365)
+    SCRATCH_CLEANUP_BATCH_SIZE: int = Field(default=1000, ge=100, le=10000)
+    SCRATCH_ENABLE_AUTO_CLEANUP: bool = Field(default=True)
+
     model_config = SettingsConfigDict(env_file=None)  # dotenv loaded manually
 
     @property

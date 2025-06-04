@@ -25,6 +25,8 @@ except ImportError:
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from src.backend.cc import mem0_models as mem0_models
+
 # --- Local application imports (after sys.path patch) ---
 from src.backend.cc import models as cc_models  # noqa: F401
 from src.db.base import Base
