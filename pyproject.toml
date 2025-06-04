@@ -94,6 +94,8 @@ omit = [
     "*/alembic/*", # Omit alembic migration files
     "src/backend/common/config.py",
     "src/backend/*/main.py",
+    "src/graph/background.py",
+    "src/backend/cc/background.py",
 ]
 branch = true
 

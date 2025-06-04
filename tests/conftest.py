@@ -154,6 +154,20 @@ def test_client(client: TestClient | None) -> TestClient:
     return client
 
 
+@pytest_asyncio.fixture(scope="function")
+async def async_client(override_get_db: Any) -> AsyncGenerator[Any, None]:
+    """Async HTTP client for testing async endpoints."""
+    try:
+        from httpx import ASGITransport, AsyncClient
+
+        from src.cos_main import app
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            yield ac
+    except ImportError as err:
+        raise ValueError("FastAPI app or httpx is not available") from err
+
+
 @pytest.fixture(scope="session")
 def app() -> FastAPI | None:
     """Create main FastAPI application instance for testing or None if not available."""
