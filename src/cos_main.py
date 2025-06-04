@@ -5,10 +5,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI
-
 from backend.cc.router import router
 from common.logger import log_event
+from fastapi import FastAPI
 
 src_path = Path(__file__).parent
 if str(src_path) not in sys.path:

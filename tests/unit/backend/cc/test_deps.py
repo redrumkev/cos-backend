@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import pytest
+from backend.cc.deps import get_cc_db
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from backend.cc.deps import get_cc_db
 
 
 @pytest.mark.asyncio
