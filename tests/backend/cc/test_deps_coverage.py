@@ -5,6 +5,7 @@ This file targets specific missing lines in deps.py to achieve 100% coverage.
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import patch
 
 from src.backend.cc.deps import get_module_config
@@ -14,7 +15,7 @@ class TestGetModuleConfigFunction:
     """Test get_module_config function - covers lines 38-44."""
 
     @patch("src.backend.cc.deps.log_event")
-    async def test_get_module_config_covers_logging_and_return(self, mock_log) -> None:
+    async def test_get_module_config_covers_logging_and_return(self, mock_log: Any) -> None:
         """Test get_module_config function logs and returns config - covers lines 38-44."""
         # Call the async function
         result = await get_module_config()
@@ -33,7 +34,7 @@ class TestGetModuleConfigFunction:
         assert isinstance(result, dict)
 
     @patch("src.backend.cc.deps.log_event")
-    async def test_get_module_config_logs_on_every_call(self, mock_log) -> None:
+    async def test_get_module_config_logs_on_every_call(self, mock_log: Any) -> None:
         """Test that get_module_config logs on every call."""
         # Call the function multiple times
         await get_module_config()
@@ -53,7 +54,7 @@ class TestGetModuleConfigFunction:
                 assert kwargs["memo"] == "Module configuration requested."
 
     @patch("src.backend.cc.deps.log_event")
-    async def test_get_module_config_return_consistency(self, mock_log) -> None:
+    async def test_get_module_config_return_consistency(self, mock_log: Any) -> None:
         """Test that get_module_config returns consistent data."""
         # Call multiple times and verify consistency
         result1 = await get_module_config()
@@ -83,7 +84,7 @@ class TestGetModuleConfigFunction:
         assert len(result) == 2
 
     @patch("src.backend.cc.deps.log_event")
-    async def test_get_module_config_log_parameters_coverage(self, mock_log) -> None:
+    async def test_get_module_config_log_parameters_coverage(self, mock_log: Any) -> None:
         """Test that all log_event parameters are covered."""
         # Call the function
         await get_module_config()

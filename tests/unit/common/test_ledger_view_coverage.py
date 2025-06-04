@@ -209,13 +209,15 @@ class TestMainExecutionBlock:
         # This is the call inside the if __name__ == "__main__": block
 
         # Test with minimal mocking to ensure main() executes
-        with patch("src.common.ledger_view.load_memories", return_value=[]):
-            with patch("src.common.ledger_view.render_rich_table"):
-                with patch("argparse.ArgumentParser.parse_args") as mock_args:
-                    mock_args.return_value = MagicMock(plain=False, limit=50, source=None, tag=None)
+        with (
+            patch("src.common.ledger_view.load_memories", return_value=[]),
+            patch("src.common.ledger_view.render_rich_table"),
+            patch("argparse.ArgumentParser.parse_args") as mock_args,
+        ):
+            mock_args.return_value = MagicMock(plain=False, limit=50, source=None, tag=None)
 
-                    # This directly tests line 98 - the main() call
-                    main()
+            # This directly tests line 98 - the main() call
+            main()
 
     def test_if_name_main_condition_coverage(self) -> None:
         """Test that we can trigger the if __name__ == '__main__' condition."""
@@ -224,12 +226,14 @@ class TestMainExecutionBlock:
         assert module_name == "__main__"
 
         # The actual line 98 is just main() - test it works
-        with patch("src.common.ledger_view.load_memories", return_value=[]):
-            with patch("src.common.ledger_view.render_rich_table"):
-                with patch("argparse.ArgumentParser.parse_args") as mock_args:
-                    mock_args.return_value = MagicMock(plain=False, limit=50, source=None, tag=None)
-                    # This covers the main() call on line 98
-                    main()
+        with (
+            patch("src.common.ledger_view.load_memories", return_value=[]),
+            patch("src.common.ledger_view.render_rich_table"),
+            patch("argparse.ArgumentParser.parse_args") as mock_args,
+        ):
+            mock_args.return_value = MagicMock(plain=False, limit=50, source=None, tag=None)
+            # This covers the main() call on line 98
+            main()
 
 
 class TestMemoryListSorting:

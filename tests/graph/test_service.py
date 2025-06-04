@@ -75,6 +75,7 @@ class TestGraphService:
 
             result = await self.service.get_node(NodeType.MODULE, ModuleLabel.TECH_CC, "test-id")
 
+            assert result is not None  # Ensure result is not None before indexing
             assert result["id"] == "test-id"
             assert result["name"] == "test-node"
 
@@ -99,6 +100,7 @@ class TestGraphService:
             NodeType.MODULE, ModuleLabel.TECH_CC, "test-id", {"name": "updated-name"}
         )
 
+        assert result is not None  # Ensure result is not None before indexing
         assert result["id"] == "test-id"
         assert result["name"] == "updated-name"
 

@@ -198,7 +198,7 @@ class TestLedgerView:
         # Arrange - include a non-dict item that should be filtered out
         memories: MemoryList = [
             ("key1", {"source": "pem", "tags": ["tag1"]}),
-            ("key2", "not a dict"),  # type: ignore# type: ignore  # TODO: temp ignore — remove after refactor
+            ("key2", "not a dict"),  # type: ignore[list-item]
         ]
 
         # Act

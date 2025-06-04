@@ -164,4 +164,3 @@ validation:
 notes: |
   Adhering to these rules ensures nearly all Ruff and mypy issues are prevented at file creation. Copy this file into `.cursor/rules/python-best-practices.mdc.yaml`.
   Consider modularizing by directory in the future: e.g., `.cursor/rules/backend/fastapi.mdc.yaml` for deeper patterns.
----

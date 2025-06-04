@@ -6,6 +6,7 @@ with both integration and unit testing approaches.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -157,11 +158,10 @@ class TestNeo4jClient:
             mock_driver.session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_driver.session.return_value.__aexit__ = AsyncMock(return_value=None)
 
-            with patch.object(client, "_driver", mock_driver):
-                with patch.object(client, "is_connected", False):
-                    async with client.session() as session:
-                        mock_connect.assert_called_once()
-                        assert session is mock_session
+            with patch.object(client, "_driver", mock_driver), patch.object(client, "is_connected", False):
+                async with client.session() as session:
+                    mock_connect.assert_called_once()
+                    assert session is mock_session
 
     @pytest.mark.asyncio
     async def test_execute_query_success(self) -> None:
@@ -299,10 +299,8 @@ class TestModuleFunctions:
             client = await dependency.__anext__()
             assert isinstance(client, Neo4jClient)
             # Clean up
-            try:
+            with contextlib.suppress(StopAsyncIteration):
                 await dependency.__anext__()
-            except StopAsyncIteration:
-                pass
 
     @pytest.mark.asyncio
     async def test_get_async_neo4j_with_integration_enabled(self) -> None:
@@ -322,10 +320,8 @@ class TestModuleFunctions:
                 assert client is mock_client
                 mock_client.connect.assert_called_once()
                 # Clean up
-                try:
+                with contextlib.suppress(StopAsyncIteration):
                     await dependency.__anext__()
-                except StopAsyncIteration:
-                    pass
 
     @pytest.mark.asyncio
     async def test_close_neo4j_connections(self) -> None:

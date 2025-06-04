@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 
@@ -14,7 +15,7 @@ class TestCosMainSysPath:
     """Test sys.path manipulation in cos_main.py - covers line 12."""
 
     @patch("sys.path")
-    def test_sys_path_insert_when_not_in_path(self, mock_sys_path) -> None:
+    def test_sys_path_insert_when_not_in_path(self, mock_sys_path: Any) -> None:
         """Test that sys.path.insert is called when src path is not in sys.path - covers line 12."""
         # Mock sys.path to not contain the src path
         mock_sys_path.__contains__ = MagicMock(return_value=False)
@@ -50,7 +51,7 @@ class TestCosMainSysPath:
         assert src_path.name == "src"
 
     @patch("src.cos_main.sys.path")
-    def test_sys_path_already_contains_src_path(self, mock_sys_path) -> None:
+    def test_sys_path_already_contains_src_path(self, mock_sys_path: Any) -> None:
         """Test behavior when sys.path already contains the src path."""
         # Mock sys.path to already contain the src path
         mock_sys_path.__contains__ = MagicMock(return_value=True)
@@ -134,7 +135,7 @@ class TestCosMainLogEvent:
     """Test the log_event call in cos_main.py."""
 
     @patch("src.cos_main.log_event")
-    def test_startup_log_event_called(self, mock_log_event) -> None:
+    def test_startup_log_event_called(self, mock_log_event: Any) -> None:
         """Test that log_event is called for startup."""
         # Re-import to trigger the log_event call
         import importlib

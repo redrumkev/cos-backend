@@ -121,7 +121,7 @@ async def graph_maintenance() -> dict[str, Any]:
         if not client.is_connected:
             await client.connect()
 
-        maintenance_tasks = []
+        maintenance_tasks: list[dict[str, Any]] = []
 
         # Task 1: Remove orphaned nodes (nodes with no relationships)
         try:
@@ -174,11 +174,11 @@ async def graph_maintenance() -> dict[str, Any]:
                 """,
             }
 
-            stats_results = {}
+            stats_results: dict[str, Any] = {}
             for stat_name, query in stats_queries.items():
                 try:
-                    result = await client.execute_query(query)
-                    stats_results[stat_name] = result
+                    query_result = await client.execute_query(query)
+                    stats_results[stat_name] = query_result
                 except Exception as e:
                     stats_results[stat_name] = {"error": str(e)}
 
@@ -200,11 +200,10 @@ async def graph_maintenance() -> dict[str, Any]:
             )
 
         end_time = datetime.now(UTC)
-        result = {
+        result: dict[str, Any] = {
             "status": "completed",
             "tasks_completed": len([t for t in maintenance_tasks if t["status"] == "completed"]),
             "tasks_failed": len([t for t in maintenance_tasks if t["status"] == "failed"]),
-            "tasks": maintenance_tasks,
             "duration_seconds": (end_time - start_time).total_seconds(),
             "started_at": start_time.isoformat(),
             "completed_at": end_time.isoformat(),
@@ -212,7 +211,12 @@ async def graph_maintenance() -> dict[str, Any]:
 
         log_event(
             source="graph_background",
-            data=result,
+            data={
+                "status": result["status"],
+                "tasks_completed": result["tasks_completed"],
+                "tasks_failed": result["tasks_failed"],
+                "duration_seconds": result["duration_seconds"],
+            },
             tags=["background", "maintenance", "success"],
             memo="Graph maintenance tasks completed",
         )
@@ -261,7 +265,7 @@ async def connection_pool_monitoring() -> dict[str, Any]:
             }
 
         # Basic connection status
-        pool_metrics = {
+        pool_metrics: dict[str, Any] = {
             "driver_exists": client.driver is not None,
             "client_connected": client.is_connected,
         }

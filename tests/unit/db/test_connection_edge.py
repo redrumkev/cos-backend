@@ -5,7 +5,9 @@ This file tests error paths and edge cases to achieve 95%+ coverage.
 
 from __future__ import annotations
 
+import contextlib
 import os
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from src.db.connection import (
@@ -136,7 +138,7 @@ class TestAsyncDBSession:
     """Test async database session handling."""
 
     @patch("src.db.connection.get_async_session_maker")
-    async def test_get_async_db_yields_session(self, mock_get_session_maker) -> None:
+    async def test_get_async_db_yields_session(self, mock_get_session_maker: Any) -> None:
         """Test that get_async_db yields an async session."""
         # Mock session maker and session
         mock_session_maker = MagicMock()
@@ -160,10 +162,8 @@ class TestAsyncDBSession:
         assert session is mock_session
 
         # Test cleanup
-        try:
+        with contextlib.suppress(StopAsyncIteration):
             await session_gen.__anext__()
-        except StopAsyncIteration:
-            pass
 
         # Verify rollback was called during cleanup
         mock_session.rollback.assert_called()
@@ -174,7 +174,7 @@ class TestDatabaseConfiguration:
 
     @patch.dict(os.environ, {"ENABLE_DB_INTEGRATION": "1", "PYTEST_CURRENT_TEST": "test_something"})
     @patch("src.db.connection.get_settings")
-    def test_postgres_test_url_in_test_mode(self, mock_get_settings) -> None:
+    def test_postgres_test_url_in_test_mode(self, mock_get_settings: Any) -> None:
         """Test that test mode uses PostgreSQL test URL."""
         # Mock settings
         mock_settings = MagicMock()
@@ -186,7 +186,7 @@ class TestDatabaseConfiguration:
 
     @patch.dict(os.environ, {"ENABLE_DB_INTEGRATION": "1"})
     @patch("src.db.connection.get_settings")
-    def test_postgres_dev_url_in_dev_mode(self, mock_get_settings) -> None:
+    def test_postgres_dev_url_in_dev_mode(self, mock_get_settings: Any) -> None:
         """Test that dev mode uses PostgreSQL dev URL."""
         # Mock settings
         mock_settings = MagicMock()
@@ -293,7 +293,7 @@ class TestAsyncSessionMakerReturnType:
 
         # The session maker should be bound to the engine
         # This tests the typing and configuration on lines 71-72
-        assert session_maker.bind is engine
+        assert session_maker.bind is engine  # type: ignore[attr-defined]
 
     @patch.dict(os.environ, {"DATABASE_URL": "sqlite+aiosqlite:///:memory:"})
     def test_session_maker_with_async_session_class(self) -> None:
@@ -303,7 +303,7 @@ class TestAsyncSessionMakerReturnType:
         # Verify the class is AsyncSession
         from sqlalchemy.ext.asyncio import AsyncSession
 
-        assert session_maker.class_ is AsyncSession
+        assert session_maker.class_ is AsyncSession  # type: ignore[comparison-overlap]
 
         # Verify expire_on_commit is False
-        assert session_maker.expire_on_commit is False
+        assert session_maker.expire_on_commit is False  # type: ignore[attr-defined]

@@ -15,6 +15,15 @@ from typing import Any
 from src.common.config import get_settings
 from src.common.logger import log_event
 
+__all__ = [
+    "USING_RUST_DRIVER",
+    "GraphDatabase",
+    "Neo4jClient",
+    "close_neo4j_connections",
+    "get_async_neo4j",
+    "get_neo4j_client",
+]
+
 # Attempt to import the Rust-enhanced Neo4j driver, fallback to standard driver
 try:
     from neo4j_rust_ext import AsyncDriver, AsyncSession, GraphDatabase
@@ -28,7 +37,7 @@ try:
     )
 except ImportError:
     try:
-        from neo4j import AsyncDriver, AsyncSession, GraphDatabase  # type: ignore
+        from neo4j import AsyncDriver, AsyncSession, GraphDatabase
 
         USING_RUST_DRIVER = False
         warnings.warn(
@@ -239,7 +248,7 @@ async def close_neo4j_connections() -> None:
     """Close all Neo4j connections. Call this on application shutdown."""
     try:
         # Clear the cache and close any open connections
-        if get_neo4j_client.cache_info().currsize > 0:  # type: ignore
+        if get_neo4j_client.cache_info().currsize > 0:
             client = get_neo4j_client()
             await client.close()
             get_neo4j_client.cache_clear()

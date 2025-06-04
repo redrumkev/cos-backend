@@ -52,7 +52,7 @@ class GraphService:
             result = await self.client.execute_query(query, {"props": properties})
 
         if result:
-            node_data = result[0]["n"]
+            node_data: dict[str, Any] = result[0]["n"]
             log_event(
                 source="graph",
                 data={
@@ -88,7 +88,8 @@ class GraphService:
         result = await self.client.execute_query(query, {"node_id": node_id})
 
         if result:
-            return result[0]["n"]
+            node_data: dict[str, Any] = result[0]["n"]
+            return node_data
         return None
 
     async def get_nodes_by_property(
@@ -161,7 +162,8 @@ class GraphService:
                 tags=["service", "update", "success"],
                 memo=f"Updated {node_type.value} node {node_id}",
             )
-            return result[0]["n"]
+            updated_node: dict[str, Any] = result[0]["n"]
+            return updated_node
 
         return None
 
@@ -252,7 +254,7 @@ class GraphService:
             from_node_type, from_module, to_node_type, to_module, relationship_type, from_where, to_where, properties
         )
 
-        params = {
+        params: dict[str, Any] = {
             "from_id": from_node_id,
             "to_id": to_node_id,
         }
@@ -262,7 +264,7 @@ class GraphService:
         result = await self.client.execute_query(query, params)
 
         if result:
-            relationship_data = result[0]["r"]
+            relationship_data: dict[str, Any] = result[0]["r"]
             log_event(
                 source="graph",
                 data={

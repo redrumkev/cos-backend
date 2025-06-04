@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import pytest
 from alembic import command
@@ -153,7 +154,7 @@ def test_schema_isolation() -> None:
     # Define the function locally for testing
     watch_schemas = {"cc", "mem0_cc"}
 
-    def include_object(obj: object, name: str, type_: str, reflected: bool, compare_to: object) -> bool:
+    def include_object(obj: object, name: str, type_: str, reflected: bool, compare_to: Any) -> bool:
         if type_ == "table":
             return obj.schema in watch_schemas  # type: ignore[attr-defined]
         return True

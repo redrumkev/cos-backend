@@ -5,8 +5,10 @@ This file tests Alembic migration environment functions to achieve 95%+ coverage
 
 from __future__ import annotations
 
+import contextlib
 import os
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,22 +18,20 @@ class TestAlembicEnvironmentSysPath:
     """Test sys.path manipulation in env.py - covers lines 14."""
 
     @patch("sys.path")
-    def test_sys_path_modification(self, mock_sys_path) -> None:
+    def test_sys_path_modification(self, mock_sys_path: Any) -> None:
         """Test that sys.path is modified correctly in env.py."""
         # Mock sys.path to simulate it not containing the src path
         mock_sys_path.__contains__ = MagicMock(return_value=False)
         mock_sys_path.insert = MagicMock()
 
         # Import env which should trigger the sys.path logic
-        try:
+        # Expected to fail due to Alembic dependencies in test environment
+        with contextlib.suppress(Exception):
             import importlib
 
             import src.db.migrations.env
 
             importlib.reload(src.db.migrations.env)
-        except Exception:
-            # Expected due to Alembic dependencies
-            pass
 
         # Test the path calculation logic
         from pathlib import Path
@@ -46,27 +46,24 @@ class TestDotenvLoading:
 
     @patch("src.db.migrations.env.load_dotenv")
     @patch("src.db.migrations.env.DOTENV_PATH")
-    def test_dotenv_loading_success(self, mock_dotenv_path, mock_load_dotenv) -> None:
+    def test_dotenv_loading_success(self, mock_dotenv_path: Any, mock_load_dotenv: Any) -> None:
         """Test successful dotenv loading."""
         # Mock the dotenv path
         mock_dotenv_path.resolve.return_value = Path("/test/.env")
 
-        # Re-import to trigger dotenv loading
-        try:
+        # Re-import to trigger dotenv loading - expected to fail in test environment
+        with contextlib.suppress(Exception):
             import importlib
 
             import src.db.migrations.env
 
             importlib.reload(src.db.migrations.env)
-        except Exception:
-            # Expected due to missing dependencies in test
-            pass
 
         # The logic should attempt to load dotenv
         # (Hard to test directly due to import-time execution)
 
     @patch("src.db.migrations.env.load_dotenv", side_effect=ImportError("dotenv not available"))
-    def test_dotenv_loading_import_error(self, mock_load_dotenv) -> None:
+    def test_dotenv_loading_import_error(self, mock_load_dotenv: Any) -> None:
         """Test graceful handling when dotenv is not available."""
         # Should not raise an exception even if dotenv is not available
         try:
@@ -86,8 +83,8 @@ class TestDatabaseURLLogic:
     @patch.dict(os.environ, {"POSTGRES_MIGRATE_URL": "postgresql://migrate:pass@localhost/db"})
     def test_migrate_url_direct(self) -> None:
         """Test using POSTGRES_MIGRATE_URL directly."""
-        # Import env to test the URL logic
-        try:
+        # Import env to test the URL logic - expected to fail in test environment
+        with contextlib.suppress(Exception):
             import importlib
 
             import src.db.migrations.env
@@ -96,9 +93,6 @@ class TestDatabaseURLLogic:
 
             # Verify the URL was set
             assert os.getenv("POSTGRES_MIGRATE_URL") == "postgresql://migrate:pass@localhost/db"
-        except Exception:
-            # Expected due to Alembic config dependencies
-            pass
 
     @patch.dict(os.environ, {"POSTGRES_DEV_URL": "postgresql+asyncpg://dev:pass@localhost/db"}, clear=True)
     def test_dev_url_transformation(self) -> None:
@@ -172,7 +166,9 @@ class TestAlembicEnvironment:
 
     @patch("alembic.context")
     @patch("sqlalchemy.engine_from_config")
-    def test_run_migrations_online_executes_without_error(self, mock_engine_from_config, mock_context) -> None:
+    def test_run_migrations_online_executes_without_error(
+        self, mock_engine_from_config: Any, mock_context: Any
+    ) -> None:
         """Test that run_migrations_online executes without error."""
         # Mock the engine and connection
         mock_engine = MagicMock()
@@ -203,7 +199,7 @@ class TestAlembicEnvironment:
             pytest.fail(f"run_migrations_online raised an exception: {e}")
 
     @patch("alembic.context")
-    def test_run_migrations_offline_executes_without_error(self, mock_context) -> None:
+    def test_run_migrations_offline_executes_without_error(self, mock_context: Any) -> None:
         """Test that run_migrations_offline executes without error."""
         # Mock context methods for offline mode
         mock_context.is_offline_mode.return_value = True
@@ -242,7 +238,7 @@ class TestAlembicEnvironment:
 
     @patch("alembic.context")
     @patch("src.db.connection.get_engine")
-    def test_alembic_env_main_logic_online_mode(self, mock_get_engine, mock_context) -> None:
+    def test_alembic_env_main_logic_online_mode(self, mock_get_engine: Any, mock_context: Any) -> None:
         """Test the main Alembic env logic chooses online mode correctly."""
         # Mock engine
         mock_engine = MagicMock()
@@ -269,7 +265,7 @@ class TestAlembicEnvironment:
             pytest.fail(f"Alembic env main logic failed: {e}")
 
     @patch("alembic.context")
-    def test_alembic_env_main_logic_offline_mode(self, mock_context) -> None:
+    def test_alembic_env_main_logic_offline_mode(self, mock_context: Any) -> None:
         """Test the main Alembic env logic chooses offline mode correctly."""
         # Mock context for offline mode
         mock_context.is_offline_mode.return_value = True
@@ -289,7 +285,7 @@ class TestAlembicEnvironment:
 
     @patch("alembic.context")
     @patch("src.common.config.Config")
-    def test_alembic_env_target_metadata_setup(self, mock_config, mock_context) -> None:
+    def test_alembic_env_target_metadata_setup(self, mock_config: Any, mock_context: Any) -> None:
         """Test that Alembic env sets up target metadata correctly."""
         # Mock the config
         mock_config_instance = MagicMock()
@@ -314,7 +310,7 @@ class TestAlembicEnvironment:
 
     @patch("alembic.context")
     @patch("logging.getLogger")
-    def test_alembic_env_logging_setup(self, mock_get_logger, mock_context) -> None:
+    def test_alembic_env_logging_setup(self, mock_get_logger: Any, mock_context: Any) -> None:
         """Test that Alembic env sets up logging correctly."""
         # Mock logger
         mock_logger = MagicMock()

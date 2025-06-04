@@ -25,7 +25,7 @@ class TestCCMain:
         """Test that cc_router is properly configured."""
         assert cc_router is not None
         # Check that the router includes the cc prefix
-        route_paths = [route.path for route in cc_router.routes]
+        route_paths = [getattr(route, "path", str(route)) for route in cc_router.routes]
         assert any("/cc" in path for path in route_paths)
 
     @patch("src.backend.cc.cc_main.log_event")
@@ -66,7 +66,7 @@ class TestCCMain:
         assert len(cc_app.routes) > 1  # Should have at least the router routes plus OpenAPI
 
         # Check for cc-prefixed routes
-        route_paths = [route.path for route in cc_app.routes]
+        route_paths = [getattr(route, "path", str(route)) for route in cc_app.routes]
         cc_routes = [path for path in route_paths if path.startswith("/cc")]
         assert len(cc_routes) > 0
 
