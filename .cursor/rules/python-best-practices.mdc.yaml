@@ -164,3 +164,14 @@ validation:
 notes: |
   Adhering to these rules ensures nearly all Ruff and mypy issues are prevented at file creation. Copy this file into `.cursor/rules/python-best-practices.mdc.yaml`.
   Consider modularizing by directory in the future: e.g., `.cursor/rules/backend/fastapi.mdc.yaml` for deeper patterns.
+
+updates:
+  - description: >
+      Enforce Ruff modern-typing, whitespace and docstring rules for all new
+      files.  Violations should fail the ruff hook rather than be auto-fixed.
+    pattern: "^from __future__ import annotations$"
+    requirements:
+      - "Built-in generics only (list, dict, set)"
+      - "Use | unions, never typing.Union"
+      - "No trailing whitespace or blank-line spaces"
+      - "Exactly one blank line after module or class docstrings"
