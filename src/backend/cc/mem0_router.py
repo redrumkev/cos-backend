@@ -11,7 +11,6 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from . import mem0_service
-from .background import create_cleanup_task, create_stats_task
 from .deps import DBSession
 from .schemas import CleanupResponse, ScratchNoteCreate, ScratchNoteResponse, ScratchNoteUpdate, ScratchStatsResponse
 
@@ -97,12 +96,16 @@ async def trigger_cleanup(background_tasks: BackgroundTasks, db: DBSession) -> C
 @router.post("/cleanup/background")
 async def trigger_cleanup_background(background_tasks: BackgroundTasks) -> dict[str, str]:
     """Trigger cleanup as a background task (fire and forget)."""
-    background_tasks.add_task(create_cleanup_task)
+    from .background import periodic_cleanup
+
+    background_tasks.add_task(periodic_cleanup)
     return {"message": "Cleanup scheduled in background"}
 
 
 @router.post("/stats/background")
 async def collect_stats_background(background_tasks: BackgroundTasks) -> dict[str, str]:
-    """Collect statistics as a background task."""
-    background_tasks.add_task(create_stats_task)
+    """Collect stats as a background task (fire and forget)."""
+    from .background import get_scratch_stats
+
+    background_tasks.add_task(get_scratch_stats)
     return {"message": "Stats collection scheduled in background"}

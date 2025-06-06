@@ -321,19 +321,19 @@ async def connection_pool_monitoring() -> dict[str, Any]:
 
 
 # FastAPI background task helpers
-def create_health_check_task() -> asyncio.Task[dict[str, Any]]:
-    """Create background task for Neo4j health check."""
-    return asyncio.create_task(periodic_health_check())
+async def create_health_check_task() -> dict[str, Any]:
+    """Create background task for Neo4j health check - returns result directly."""
+    return await periodic_health_check()
 
 
-def create_maintenance_task() -> asyncio.Task[dict[str, Any]]:
-    """Create background task for graph maintenance."""
-    return asyncio.create_task(graph_maintenance())
+async def create_maintenance_task() -> dict[str, Any]:
+    """Create background task for graph maintenance - returns result directly."""
+    return await graph_maintenance()
 
 
-def create_pool_monitoring_task() -> asyncio.Task[dict[str, Any]]:
-    """Create background task for connection pool monitoring."""
-    return asyncio.create_task(connection_pool_monitoring())
+async def create_pool_monitoring_task() -> dict[str, Any]:
+    """Create background task for connection pool monitoring - returns result directly."""
+    return await connection_pool_monitoring()
 
 
 # Scheduled task runner (for future cron-like functionality)

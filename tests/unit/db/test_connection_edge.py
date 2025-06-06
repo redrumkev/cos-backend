@@ -8,7 +8,7 @@ from __future__ import annotations
 import contextlib
 import os
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.db.connection import (
     _create_engine_impl,
@@ -142,12 +142,12 @@ class TestAsyncDBSession:
         """Test that get_async_db yields an async session."""
         # Mock session maker and session
         mock_session_maker = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
 
-        # Configure the mock to return the session
-        mock_session.__aenter__ = MagicMock(return_value=mock_session)
-        mock_session.__aexit__ = MagicMock(return_value=None)
-        mock_session.rollback = MagicMock()
+        # Configure the async context manager properly
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session.rollback = AsyncMock()
 
         mock_session_maker.return_value = mock_session
         mock_get_session_maker.return_value = mock_session_maker
@@ -184,13 +184,14 @@ class TestDatabaseConfiguration:
         url = _database_url_for_tests()
         assert url == "postgresql://test:pass@localhost:5432/test_db"
 
-    @patch.dict(os.environ, {"ENABLE_DB_INTEGRATION": "1"})
+    @patch.dict(os.environ, {"ENABLE_DB_INTEGRATION": "1"}, clear=True)
     @patch("src.db.connection.get_settings")
     def test_postgres_dev_url_in_dev_mode(self, mock_get_settings: Any) -> None:
         """Test that dev mode uses PostgreSQL dev URL."""
         # Mock settings
         mock_settings = MagicMock()
         mock_settings.POSTGRES_DEV_URL = "postgresql://dev:pass@localhost:5432/dev_db"
+        mock_settings.POSTGRES_TEST_URL = "postgresql://test:pass@localhost:5432/test_db"
         mock_get_settings.return_value = mock_settings
 
         url = _database_url_for_tests()

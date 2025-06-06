@@ -254,7 +254,6 @@ class TestMem0Router:
         assert "deleted_count" in result
         assert result["deleted_count"] >= 2
 
-    @pytest.mark.xfail(reason="background task event loop issues - Sprint 2")
     async def test_trigger_cleanup_background_endpoint(self, async_client: AsyncClient) -> None:
         """Test POST /scratch/cleanup/background endpoint."""
         response = await async_client.post("/cc/mem0/scratch/cleanup/background")
@@ -263,7 +262,6 @@ class TestMem0Router:
         result = response.json()
         assert "Cleanup scheduled in background" in result["message"]
 
-    @pytest.mark.xfail(reason="background task event loop issues - Sprint 2")
     async def test_collect_stats_background_endpoint(self, async_client: AsyncClient) -> None:
         """Test POST /scratch/stats/background endpoint."""
         response = await async_client.post("/cc/mem0/scratch/stats/background")

@@ -169,14 +169,14 @@ async def get_scratch_stats() -> dict[str, Any]:
 
 
 # FastAPI background task helpers
-def create_cleanup_task() -> asyncio.Task[dict[str, Any]]:
-    """Create background task for FastAPI cleanup."""
-    return asyncio.create_task(periodic_cleanup())
+async def create_cleanup_task() -> dict[str, Any]:
+    """Create background task for FastAPI cleanup - returns result directly."""
+    return await periodic_cleanup()
 
 
-def create_stats_task() -> asyncio.Task[dict[str, Any]]:
-    """Create background task for FastAPI stats collection."""
-    return asyncio.create_task(get_scratch_stats())
+async def create_stats_task() -> dict[str, Any]:
+    """Create background task for FastAPI stats collection - returns result directly."""
+    return await get_scratch_stats()
 
 
 # Scheduled task runner (for future cron-like functionality)

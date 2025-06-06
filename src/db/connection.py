@@ -17,18 +17,23 @@ from src.common.config import get_settings
 def _database_url_for_tests() -> str:
     """Return DB url based on env.
 
-    - Check DATABASE_URL override first (set by conftest.py)
-    - With ENABLE_DB_INTEGRATION=1 -> real Postgres
-    - Else -> in-memory SQLite (aiosqlite driver)
+    Priority order:
+    1. Explicit DATABASE_URL (highest priority - used by CI and conftest.py)
+    2. With ENABLE_DB_INTEGRATION=1 -> use POSTGRES_TEST_URL or POSTGRES_DEV_URL
+    3. Fallback -> in-memory SQLite (aiosqlite driver)
     """
-    # First check for explicit DATABASE_URL override (used by conftest.py)
-    if "DATABASE_URL" in os.environ:
-        return os.environ["DATABASE_URL"]
+    # First check for explicit DATABASE_URL override (used by CI and conftest.py)
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return database_url
 
+    # Second check for DB integration with specific PostgreSQL URLs
     if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
         s = get_settings()
-        in_test_mode = "PYTEST_CURRENT_TEST" in os.environ
+        in_test_mode = "PYTEST_CURRENT_TEST" in os.environ or "TESTING" in os.environ
         return s.POSTGRES_TEST_URL if in_test_mode else s.POSTGRES_DEV_URL
+
+    # Default fallback to SQLite
     return "sqlite+aiosqlite:///:memory:"
 
 
