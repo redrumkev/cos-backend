@@ -47,12 +47,13 @@ def upgrade() -> None:
         """
     )
 
-    # Create conditional index for active data queries
+    # Create composite index for efficient active data queries
+    # Note: Avoiding time-based functions in index predicates due to immutability requirements
+    # This composite index supports queries on both key and expires_at efficiently
     op.execute(
         """
-        CREATE INDEX IF NOT EXISTS ix_scratch_key_active
-        ON mem0_cc.scratch_note (key)
-        WHERE expires_at IS NULL OR expires_at > NOW()
+        CREATE INDEX IF NOT EXISTS ix_scratch_key_expires
+        ON mem0_cc.scratch_note (key, expires_at)
         """
     )
 
@@ -60,7 +61,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     # Drop indexes first
-    op.execute("DROP INDEX IF EXISTS mem0_cc.ix_scratch_key_active")
+    op.execute("DROP INDEX IF EXISTS mem0_cc.ix_scratch_key_expires")
     op.execute("DROP INDEX IF EXISTS mem0_cc.ix_scratch_expires_created")
     op.execute("DROP INDEX IF EXISTS mem0_cc.ix_scratch_note_key")
 
