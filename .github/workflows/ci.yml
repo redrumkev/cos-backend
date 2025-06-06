@@ -152,9 +152,9 @@ jobs:
       run: |
         PYTHONPATH=. pytest -v --cov=src --cov=scripts --cov-report=xml --cov-report=term --cov-fail-under=75
       env:
-        DATABASE_URL: ${{ env.DATABASE_URL_TEST }}
-        POSTGRES_DEV_URL: ${{ env.DATABASE_URL_DEV }}
-        POSTGRES_TEST_URL: ${{ env.DATABASE_URL_TEST }}
+        DATABASE_URL: ${{ env.DATABASE_URL }}
+        POSTGRES_DEV_URL: ${{ env.POSTGRES_DEV_URL }}
+        POSTGRES_TEST_URL: ${{ env.POSTGRES_TEST_URL }}
         POSTGRES_MIGRATE_URL: ${{ env.POSTGRES_MIGRATE_URL }}
         NEO4J_URI: ${{ env.NEO4J_URI }}
         NEO4J_USER: ${{ env.NEO4J_USER }}
