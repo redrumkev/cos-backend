@@ -17,9 +17,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 os.environ.setdefault("ENV_FILE", str(Path(__file__).parents[1] / "infrastructure" / ".env.ci"))
 
 # Add src to Python path
-project_root = Path(__file__).parent.parent  # Should be g:\cos
-src_path = project_root / "src"  # Should be g:\cos\src
-
+project_root = Path(__file__).parent.parent
+src_path = project_root / "src"
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
 if str(project_root) not in sys.path:
@@ -40,16 +39,13 @@ DATABASE_URL = os.getenv(
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
-# Type helpers
 T = TypeVar("T", bound=Callable[..., Any])
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_database() -> AsyncGenerator[None, None]:
     """Create all tables once at session start."""
-    # Import all models to ensure they're registered with Base.metadata
     from src.backend.cc import models  # noqa: F401
-    # Note: mem0_models.py doesn't exist yet, so we skip importing it
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -59,96 +55,92 @@ async def setup_database() -> AsyncGenerator[None, None]:
 
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[Any, None]:
-    """Provide a transactional session for each test."""
-    async with engine.begin() as conn:
-        # Start a savepoint
-        trans = await conn.begin_nested()
+    """Provide a fresh transaction per test on its own connection.
 
-        # Create session bound to this connection
-        async with AsyncSessionLocal(bind=conn) as session:
-            yield session
-
-        # Rollback to savepoint after test
+    We open a transaction at the start, bind a session to it,
+    then roll it back (and close) at teardown.
+    """
+    # 1) open a dedicated connection
+    conn = await engine.connect()
+    # 2) begin a transaction
+    trans = await conn.begin()
+    # 3) bind a session to that transaction
+    session = AsyncSessionLocal(bind=conn)
+    try:
+        yield session
+    finally:
+        # ensure session is closed, then rollback & close connection
+        await session.close()
         await trans.rollback()
+        await conn.close()
 
 
 @pytest_asyncio.fixture(scope="function")
-async def postgres_session() -> AsyncGenerator[Any, None]:
-    """Provide a session factory for concurrent tests."""
-    async with engine.begin() as conn:
-        # Start a savepoint for the entire test
-        trans = await conn.begin_nested()
+async def postgres_session() -> AsyncGenerator[Callable[[], Any], None]:
+    """Session-factory fixture for concurrent tests.
 
-        # Create a session factory bound to this connection
-        test_session_local = async_sessionmaker(bind=conn, expire_on_commit=False)
+    Each call to the factory returns a new AsyncSession bound to the same
+    transaction/connection, which is rolled back at teardown.
+    """
+    conn = await engine.connect()
+    trans = await conn.begin()
+    test_session_local = async_sessionmaker(bind=conn, expire_on_commit=False)
 
-        def session_factory() -> Any:
-            """Create a new session bound to the test connection."""
-            return test_session_local()
+    def session_factory() -> Any:
+        return test_session_local()
 
+    try:
         yield session_factory
-
-        # Rollback to savepoint after test
+    finally:
+        await conn.close()
         await trans.rollback()
 
 
 @pytest.fixture(scope="function")
 def override_get_db(db_session: Any) -> Generator[None, None, None]:
-    """Override FastAPI dependency."""
+    """Override FastAPI dependency to use our per-test session."""
 
     async def _get_db() -> AsyncGenerator[Any, None]:
         yield db_session
 
-    # Import the FastAPI app if available
     try:
         from src.backend.cc.deps import get_cc_db
         from src.cos_main import app
-
-        # Import all possible db dependencies
         from src.db.connection import get_async_db
 
-        # Override them all
         app.dependency_overrides[get_async_db] = _get_db
         app.dependency_overrides[get_cc_db] = _get_db
-
         yield
-
-        # Clean up
         app.dependency_overrides.clear()
     except ImportError:
-        # No app available, yield anyway for tests that don't need it
         yield
 
 
 @pytest.fixture(scope="function")
 def client(override_get_db: Any) -> Generator[TestClient | None, None, None]:
-    """Test client with overridden db."""
+    """TestClient with overridden dependencies."""
     try:
         from src.cos_main import app
 
         with TestClient(app) as c:
             yield c
     except ImportError:
-        # No app available, yield None for pure unit tests
         yield None
 
 
-# Legacy aliases for backward compatibility
+# Legacy aliases
 @pytest_asyncio.fixture(scope="function")
 async def test_db_session(db_session: Any) -> AsyncGenerator[Any, None]:
-    """Legacy alias for db_session."""
     yield db_session
 
 
 @pytest_asyncio.fixture(scope="function")
 async def mem0_db_session(db_session: Any) -> AsyncGenerator[Any, None]:
-    """Legacy alias for db_session."""
     yield db_session
 
 
 @pytest.fixture(scope="function")
 def test_client(client: TestClient | None) -> TestClient:
-    """Legacy alias for client."""
     if client is None:
         raise ValueError("FastAPI app is not available")
     return client
@@ -156,7 +148,6 @@ def test_client(client: TestClient | None) -> TestClient:
 
 @pytest_asyncio.fixture(scope="function")
 async def async_client(override_get_db: Any) -> AsyncGenerator[Any, None]:
-    """Async HTTP client for testing async endpoints."""
     try:
         from httpx import ASGITransport, AsyncClient
 
@@ -170,7 +161,6 @@ async def async_client(override_get_db: Any) -> AsyncGenerator[Any, None]:
 
 @pytest.fixture(scope="session")
 def app() -> FastAPI | None:
-    """Create main FastAPI application instance for testing or None if not available."""
     try:
         from src.cos_main import app as cos_app
 
@@ -181,7 +171,6 @@ def app() -> FastAPI | None:
 
 @pytest.fixture(scope="function")
 def unique_test_id() -> str:
-    """Generate a unique ID for this test to avoid data conflicts."""
     import uuid
 
     return str(uuid.uuid4())[:8]
@@ -190,7 +179,6 @@ def unique_test_id() -> str:
 # Session-scoped environment setup fixtures
 @pytest.fixture(scope="session")
 def mock_env_settings() -> Generator[None, None, None]:
-    """Fixture to set required environment variables for tests using Settings."""
     os.environ["POSTGRES_DEV_URL"] = "postgresql://test:test@localhost/test_db"
     os.environ["POSTGRES_TEST_URL"] = "postgresql://test:test@localhost/test_test_db"
     os.environ["REDIS_HOST"] = "localhost"
@@ -209,7 +197,6 @@ def mock_env_settings() -> Generator[None, None, None]:
 
 @pytest.fixture(scope="session")
 def current_test_env() -> Generator[None, None, None]:
-    """Mark that we're in test mode."""
     os.environ["PYTEST_CURRENT_TEST"] = "1"
     yield
     os.environ.pop("PYTEST_CURRENT_TEST", None)
