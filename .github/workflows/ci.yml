@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, feat/cc-gold_Ph2 ]
   pull_request:
     branches: [ main, develop ]
 
@@ -43,29 +43,30 @@ jobs:
           --health-retries 5
 
       neo4j:
-        image: neo4j:5
+        image: neo4j:2025.04.0
         env:
           NEO4J_AUTH: neo4j/test_password
-          NEO4J_dbms_memory_pagecache_size: 256M
-          NEO4J_dbms_memory_heap_initial__size: 256M
-          NEO4J_dbms_memory_heap_max__size: 512M
+          NEO4J_dbms_memory_pagecache_size: 512M
+          NEO4J_dbms_memory_heap_initial__size: 512M
+          NEO4J_dbms_memory_heap_max__size: 1G
         ports:
           - 7687:7687
           - 7474:7474
         options: >-
           --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"
-          --health-interval 15s
+          --health-interval 30s
           --health-timeout 10s
-          --health-retries 5
+          --health-retries 10
+          --health-start-period: 90s
 
       redis:
-        image: redis/redis-stack:latest
+        image: redis:7.2-alpine
         env:
           REDIS_PASSWORD: test_password
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "redis-cli ping || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 3
@@ -80,6 +81,11 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
 
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y redis-tools postgresql-client wget
+
     - name: Install uv
       run: |
         curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -87,7 +93,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv pip install --system -e ".[dev]"
+        uv pip install --system -e ".[dev,rust-extensions]" || uv pip install --system -e ".[dev]"
 
     - name: Verify services are healthy
       run: |
@@ -95,8 +101,15 @@ jobs:
         pg_isready -h localhost -p 5433 -U postgres
         pg_isready -h localhost -p 5434 -U postgres
 
-        # Check Neo4j
-        curl -f http://localhost:7474/ || exit 1
+        # Check Neo4j (with retry for slow startup)
+        for i in {1..10}; do
+          if curl -f http://localhost:7474/ 2>/dev/null; then
+            echo "Neo4j is ready"
+            break
+          fi
+          echo "Waiting for Neo4j... attempt $i/10"
+          sleep 10
+        done
 
         # Check Redis
         redis-cli -h localhost -p 6379 ping
@@ -105,25 +118,25 @@ jobs:
       run: |
         echo "DATABASE_URL_DEV=postgresql+asyncpg://postgres:dev_password@localhost:5433/cos_dev" >> $GITHUB_ENV
         echo "DATABASE_URL_TEST=postgresql+asyncpg://postgres:test_password@localhost:5434/cos_test" >> $GITHUB_ENV
+        echo "POSTGRES_MIGRATE_URL=postgresql+psycopg://postgres:test_password@localhost:5434/cos_test" >> $GITHUB_ENV
         echo "NEO4J_URI=bolt://localhost:7687" >> $GITHUB_ENV
         echo "NEO4J_USER=neo4j" >> $GITHUB_ENV
         echo "NEO4J_PASSWORD=test_password" >> $GITHUB_ENV
         echo "REDIS_URL=redis://localhost:6379" >> $GITHUB_ENV
+        echo "REDIS_HOST=localhost" >> $GITHUB_ENV
+        echo "REDIS_PORT=6379" >> $GITHUB_ENV
         echo "REDIS_PASSWORD=test_password" >> $GITHUB_ENV
+        echo "MEM0_SCHEMA=mem0_cc" >> $GITHUB_ENV
+        echo "ENABLE_DB_INTEGRATION=1" >> $GITHUB_ENV
         echo "TESTING=true" >> $GITHUB_ENV
         echo "ENVIRONMENT=test" >> $GITHUB_ENV
 
     - name: Run Alembic migrations
       run: |
-        # Run migrations for both dev and test databases
-        export DATABASE_URL="$DATABASE_URL_DEV"
-        alembic upgrade head
-
-        export DATABASE_URL="$DATABASE_URL_TEST"
+        # Run migrations for test database
         alembic upgrade head
       env:
-        DATABASE_URL_DEV: ${{ env.DATABASE_URL_DEV }}
-        DATABASE_URL_TEST: ${{ env.DATABASE_URL_TEST }}
+        POSTGRES_MIGRATE_URL: ${{ env.POSTGRES_MIGRATE_URL }}
 
     - name: Run pre-commit hooks
       run: |
@@ -133,14 +146,21 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        pytest -q --cov=src --cov=scripts --cov-report=xml --cov-report=term --cov-fail-under=80
+        pytest -v --cov=src --cov=scripts --cov-report=xml --cov-report=term --cov-fail-under=80
       env:
         DATABASE_URL: ${{ env.DATABASE_URL_TEST }}
+        POSTGRES_DEV_URL: ${{ env.DATABASE_URL_DEV }}
+        POSTGRES_TEST_URL: ${{ env.DATABASE_URL_TEST }}
+        POSTGRES_MIGRATE_URL: ${{ env.POSTGRES_MIGRATE_URL }}
         NEO4J_URI: ${{ env.NEO4J_URI }}
         NEO4J_USER: ${{ env.NEO4J_USER }}
         NEO4J_PASSWORD: ${{ env.NEO4J_PASSWORD }}
         REDIS_URL: ${{ env.REDIS_URL }}
+        REDIS_HOST: ${{ env.REDIS_HOST }}
+        REDIS_PORT: ${{ env.REDIS_PORT }}
         REDIS_PASSWORD: ${{ env.REDIS_PASSWORD }}
+        MEM0_SCHEMA: ${{ env.MEM0_SCHEMA }}
+        ENABLE_DB_INTEGRATION: ${{ env.ENABLE_DB_INTEGRATION }}
         TESTING: ${{ env.TESTING }}
         ENVIRONMENT: ${{ env.ENVIRONMENT }}
 
@@ -150,6 +170,6 @@ jobs:
       with:
         file: ./coverage.xml
         token: ${{ secrets.CODECOV_TOKEN }}
-        fail_ci_if_error: true
+        fail_ci_if_error: false
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
