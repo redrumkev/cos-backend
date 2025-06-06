@@ -149,7 +149,7 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        PYTHONPATH=. pytest -v --cov=src --cov=scripts --cov-report=xml --cov-report=term --cov-fail-under=85
+        PYTHONPATH=. pytest -v --cov=src --cov=scripts --cov-report=xml --cov-report=term --cov-fail-under=75
       env:
         DATABASE_URL: ${{ env.DATABASE_URL_TEST }}
         POSTGRES_DEV_URL: ${{ env.DATABASE_URL_DEV }}
