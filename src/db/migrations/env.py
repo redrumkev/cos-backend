@@ -8,32 +8,61 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
-# --- Patch sys.path for robust module resolution ---
-src_path = Path(__file__).parent.parent.parent
-if str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
+# --- More robust sys.path patching ---
+# Get the absolute path to the project root (4 levels up from this file)
+current_file = Path(__file__).resolve()
+project_root = current_file.parent.parent.parent.parent
+src_path = project_root / "src"
+
+# Debug path resolution
+print(f"Current file: {current_file}")  # noqa: T201
+print(f"Project root: {project_root}")  # noqa: T201
+print(f"Src path: {src_path}")  # noqa: T201
+print(f"Src exists: {src_path.exists()}")  # noqa: T201
+
+# Add both project root and src to path
+for path_to_add in [str(project_root), str(src_path)]:
+    if path_to_add not in sys.path:
+        sys.path.insert(0, path_to_add)
+        print(f"Added to sys.path: {path_to_add}")  # noqa: T201
 
 # --- Third-party imports ---
 try:
     from dotenv import load_dotenv
 
-    DOTENV_PATH = (src_path / ".env").resolve()
-    load_dotenv(str(DOTENV_PATH), override=False)
+    # Try multiple .env locations
+    env_candidates = [project_root / ".env", project_root / "infrastructure" / ".env", src_path / ".env"]
+
+    for env_file in env_candidates:
+        if env_file.exists():
+            load_dotenv(str(env_file), override=False)
+            print(f"Loaded .env from: {env_file}")  # noqa: T201
+            break
+    else:
+        print("No .env file found in candidate locations")  # noqa: T201
+
 except ImportError:
-    pass
+    print("dotenv not available, skipping .env loading")  # noqa: T201
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from src.backend.cc import mem0_models as mem0_models
-
 # --- Local application imports (after sys.path patch) ---
-from src.backend.cc import models as cc_models  # noqa: F401
-from src.db.base import Base
+try:
+    from src.backend.cc import mem0_models as mem0_models
+    from src.backend.cc import models as cc_models  # noqa: F401
+    from src.db.base import Base
+
+    print("Successfully imported COS modules")  # noqa: T201
+except ImportError as e:
+    print(f"Import error: {e}")  # noqa: T201
+    print(f"Current sys.path: {sys.path}")  # noqa: T201
+    raise
 
 # --- Alembic config and logging ---
 config = context.config
-fileConfig(config.config_file_name)
+if config.config_file_name:
+    fileConfig(config.config_file_name)
 
 # --- Database URL logic (sync for migrations) ---
 migrate_url = os.getenv("POSTGRES_MIGRATE_URL")
@@ -41,7 +70,16 @@ if not migrate_url:
     dev_url = os.getenv("POSTGRES_DEV_URL")
     migrate_url = dev_url.replace("+asyncpg", "+psycopg") if dev_url and "+asyncpg" in dev_url else dev_url
 if not migrate_url:
-    raise RuntimeError("No database URL found for Alembic migrations.")
+    # Fallback for CI environment
+    migrate_url = os.getenv("DATABASE_URL_TEST", "").replace("+asyncpg", "+psycopg")
+
+if not migrate_url:
+    raise RuntimeError(
+        "No database URL found for Alembic migrations. "
+        "Checked: POSTGRES_MIGRATE_URL, POSTGRES_DEV_URL, DATABASE_URL_TEST"
+    )
+
+print(f"Using migration URL: {migrate_url}")  # noqa: T201
 config.set_main_option("sqlalchemy.url", migrate_url)
 
 # --- Target metadata for autogenerate ---

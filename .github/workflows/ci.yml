@@ -133,20 +133,23 @@ jobs:
 
     - name: Run Alembic migrations
       run: |
-        # Run migrations for test database
-        alembic upgrade head
+        # Ensure we're in the project root and src is accessible
+        pwd
+        ls -la src/
+        # Run migrations with explicit PYTHONPATH to fix module imports
+        PYTHONPATH=. alembic upgrade head
       env:
         POSTGRES_MIGRATE_URL: ${{ env.POSTGRES_MIGRATE_URL }}
 
     - name: Run pre-commit hooks
       run: |
-        pre-commit run --all-files
+        PYTHONPATH=. pre-commit run --all-files
       env:
         SKIP: no-commit-to-branch  # Skip branch protection in CI
 
     - name: Run tests with coverage
       run: |
-        pytest -v --cov=src --cov=scripts --cov-report=xml --cov-report=term --cov-fail-under=80
+        PYTHONPATH=. pytest -v --cov=src --cov=scripts --cov-report=xml --cov-report=term --cov-fail-under=85
       env:
         DATABASE_URL: ${{ env.DATABASE_URL_TEST }}
         POSTGRES_DEV_URL: ${{ env.DATABASE_URL_DEV }}
