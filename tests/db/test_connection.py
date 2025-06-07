@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import patch
+from collections.abc import AsyncGenerator
+from unittest.mock import Mock, patch
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.db.connection as db_conn
+from src.db.connection import get_db_session
 
 
 class DummySettings:
@@ -105,3 +108,45 @@ def test_database_url_for_tests_with_integration(monkeypatch: pytest.MonkeyPatch
     with patch("src.db.connection.get_settings", return_value=DummySettings()):
         url = db_conn._database_url_for_tests()
         assert url == "postgresql://user:pass@localhost:5432/test_db"
+
+
+# Test without PostgreSQL integration
+@pytest.mark.unit
+class TestDatabaseConnectionUnit:
+    """Test database connection logic without actual DB integration."""
+
+    @patch("src.db.connection.get_db_url")
+    def test_get_db_session_returns_async_session(self, mock_get_db_url: Mock) -> None:
+        """Test that get_db_session returns an AsyncSession."""
+        mock_get_db_url.return_value = os.getenv("DATABASE_URL_TEST")
+        session_gen = get_db_session()
+        assert isinstance(session_gen, AsyncGenerator)
+
+
+# Test with PostgreSQL integration
+@pytest.mark.integration
+class TestDatabaseConnectionIntegration:
+    """Test database connection with a real PostgreSQL database."""
+
+    async def test_real_db_connection_and_session(self, db_session: AsyncSession) -> None:
+        """Test a real connection and session to the database."""
+        assert isinstance(db_session, AsyncSession)
+        result = await db_session.execute(text("SELECT 1"))
+        assert result.scalar() == 1
+
+    async def test_multiple_sessions_work_independently(self, db_session: AsyncSession) -> None:
+        """Test that multiple sessions can be created and work independently."""
+        # Use the provided session first
+        await db_session.execute(text("CREATE TEMP TABLE test_table (id INT)"))
+        await db_session.execute(text("INSERT INTO test_table (id) VALUES (1)"))
+
+        # Create a new session
+        new_session_gen = get_db_session()
+        new_session = await anext(new_session_gen)
+
+        # The new session should not see the temp table from the first session
+        with pytest.raises(OperationalError):
+            await new_session.execute(text("SELECT * FROM test_table"))
+
+        await new_session.close()
+        await db_session.rollback()  # Clean up temp table

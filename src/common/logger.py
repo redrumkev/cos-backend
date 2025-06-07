@@ -12,6 +12,21 @@ logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers
 logger = logging.getLogger("cos")
 
 
+def get_logger(name: str) -> logging.Logger:
+    """Get a logger instance for the given module name.
+
+    Args:
+    ----
+        name (str): The module name (typically __name__)
+
+    Returns:
+    -------
+        logging.Logger: A logger instance configured for COS
+
+    """
+    return logging.getLogger(f"cos.{name}")
+
+
 def log_event(
     source: str,
     data: str | dict[str, Any],

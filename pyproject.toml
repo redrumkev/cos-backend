@@ -22,12 +22,14 @@ dependencies = [
     # Rust-powered high-performance dependencies
     "orjson>=3.10.16", # Fast JSON processing with Python 3.13 support
     "neo4j-rust-ext>=5.27.0.0", # Up to 10x faster Neo4j driver
-    "aiosqlite>=0.21.0",
+    "uvicorn>=0.30.3",
+    "watchfiles>=0.22.0",
+    "websockets>=13.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
+    "pytest>=8.4.0",
     "pytest-asyncio",
     "pytest-cov",
     "pytest-xdist", # For parallel testing

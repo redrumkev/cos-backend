@@ -3,7 +3,9 @@
 import os
 from collections.abc import AsyncGenerator
 from functools import lru_cache
+from typing import Any
 
+import orjson
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -11,57 +13,67 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import Session, sessionmaker
 
-from src.common.config import get_settings
+from src.common.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+def get_db_url(testing: bool = False, dev: bool = False) -> str:
+    """Get the appropriate database URL based on the environment.
+
+    Priority:
+    1. TESTING=true -> DATABASE_URL_TEST
+    2. DEV=true -> DATABASE_URL_DEV
+    3. Production -> DATABASE_URL.
+    """
+    if testing:
+        db_url = os.getenv("DATABASE_URL_TEST")
+        if not db_url:
+            logger.error("DATABASE_URL_TEST is not set in a testing environment!")
+            raise ValueError("DATABASE_URL_TEST must be set for testing.")
+        return db_url
+
+    env_url = os.getenv("DATABASE_URL_DEV") if dev else os.getenv("DATABASE_URL")
+    if not env_url:
+        logger.error("Database URL (DATABASE_URL or DATABASE_URL_DEV) is not set!")
+        raise ValueError("A database URL must be configured.")
+    return env_url
 
 
 def _database_url_for_tests() -> str:
-    """Return DB url based on env.
+    """Get database URL specifically for test environments.
 
-    Priority order:
-    1. Explicit DATABASE_URL (highest priority - used by CI and conftest.py)
-    2. With ENABLE_DB_INTEGRATION=1 -> use POSTGRES_TEST_URL or POSTGRES_DEV_URL
-    3. Fallback -> in-memory SQLite (aiosqlite driver)
+    This function is used by test files to get the appropriate test database URL.
+    It follows the PostgreSQL-only approach and uses the DATABASE_URL_TEST environment variable.
     """
-    # First check for explicit DATABASE_URL override (used by CI and conftest.py)
-    database_url = os.getenv("DATABASE_URL")
-    if database_url:
-        return database_url
+    # Always use PostgreSQL for tests in the new architecture
+    test_url = os.getenv("DATABASE_URL_TEST")
+    if test_url:
+        return test_url
 
-    # Second check for DB integration with specific PostgreSQL URLs
-    if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
-        s = get_settings()
-        in_test_mode = "PYTEST_CURRENT_TEST" in os.environ or "TESTING" in os.environ
-        return s.POSTGRES_TEST_URL if in_test_mode else s.POSTGRES_DEV_URL
-
-    # Default fallback to SQLite
-    return "sqlite+aiosqlite:///:memory:"
+    # Fallback to a default PostgreSQL test URL if not set
+    logger.warning("DATABASE_URL_TEST not set, using default PostgreSQL test URL")
+    return "postgresql+asyncpg://postgres:test_password@localhost:5434/cos_test"
 
 
 def _create_engine_impl(db_url: str) -> AsyncEngine:
-    """Create the actual engine without caching."""
-    if db_url.startswith("postgresql://"):
-        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    """Actual engine creation logic."""
+    engine_options: dict[str, Any] = {
+        "json_serializer": orjson.dumps,
+        "json_deserializer": orjson.loads,
+    }
 
-    if "postgresql" in db_url:
-        # PostgreSQL configuration
-        return create_async_engine(
-            db_url,
-            pool_size=5,
-            max_overflow=10,
-            pool_timeout=30,
-            echo=False,
-        )
-    else:
-        # SQLite configuration (including aiosqlite)
-        connect_args = {}
-        if "sqlite" in db_url:
-            connect_args = {"check_same_thread": False}
+    # Use connection pooling for PostgreSQL
+    engine_options.update(
+        {
+            "pool_size": 10,
+            "max_overflow": 20,
+            "pool_recycle": 3600,
+            "pool_pre_ping": True,
+        }
+    )
 
-        return create_async_engine(
-            db_url,
-            connect_args=connect_args,
-            echo=False,
-        )
+    return create_async_engine(db_url, **engine_options)
 
 
 @lru_cache
@@ -69,11 +81,11 @@ def get_async_engine() -> AsyncEngine:
     """Get async engine, with caching disabled in test mode."""
     # In test mode, don't use cache to ensure fresh engines
     if "PYTEST_CURRENT_TEST" in os.environ:
-        db_url = _database_url_for_tests()
+        db_url = get_db_url(testing=True)
         return _create_engine_impl(db_url)
 
     # Use cached version for production
-    db_url = _database_url_for_tests()
+    db_url = get_db_url()
     return _create_engine_impl(db_url)
 
 
@@ -91,3 +103,13 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
             yield session
         finally:
             await session.rollback()
+
+
+# Backward compatibility function for tests
+def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Backward compatibility function for get_async_db.
+
+    Some tests expect this function to exist in connection.py.
+    This is an alias to get_async_db for compatibility.
+    """
+    return get_async_db()

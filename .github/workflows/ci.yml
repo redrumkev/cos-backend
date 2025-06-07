@@ -116,19 +116,13 @@ jobs:
 
     - name: Set up environment variables
       run: |
-        echo "DATABASE_URL=postgresql+asyncpg://postgres:test_password@localhost:5434/cos_test" >> $GITHUB_ENV
-        echo "POSTGRES_DEV_URL=postgresql+asyncpg://postgres:dev_password@localhost:5433/cos_dev" >> $GITHUB_ENV
-        echo "POSTGRES_TEST_URL=postgresql+asyncpg://postgres:test_password@localhost:5434/cos_test" >> $GITHUB_ENV
-        echo "POSTGRES_MIGRATE_URL=postgresql+psycopg://postgres:test_password@localhost:5434/cos_test" >> $GITHUB_ENV
+        echo "DATABASE_URL_DEV=postgresql+asyncpg://postgres:dev_password@localhost:5433/cos_dev" >> $GITHUB_ENV
+        echo "DATABASE_URL_TEST=postgresql+asyncpg://postgres:test_password@localhost:5434/cos_test" >> $GITHUB_ENV
         echo "NEO4J_URI=bolt://localhost:7687" >> $GITHUB_ENV
         echo "NEO4J_USER=neo4j" >> $GITHUB_ENV
         echo "NEO4J_PASSWORD=test_password" >> $GITHUB_ENV
         echo "REDIS_URL=redis://localhost:6379" >> $GITHUB_ENV
-        echo "REDIS_HOST=localhost" >> $GITHUB_ENV
-        echo "REDIS_PORT=6379" >> $GITHUB_ENV
         echo "REDIS_PASSWORD=test_password" >> $GITHUB_ENV
-        echo "MEM0_SCHEMA=mem0_cc" >> $GITHUB_ENV
-        echo "ENABLE_DB_INTEGRATION=1" >> $GITHUB_ENV
         echo "TESTING=true" >> $GITHUB_ENV
         echo "ENVIRONMENT=test" >> $GITHUB_ENV
 
