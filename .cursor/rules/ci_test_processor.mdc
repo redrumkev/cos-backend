@@ -3,3 +3,198 @@ description:
 globs:
 alwaysApply: false
 ---
+# CI Test Processor - Automated Test Triage System
+
+**Version**: 2.0
+**Applies To**: `tests/**/*.py`, `.github/workflows/*.yml`, `tests/TODO/*.md`
+**Trigger**: Manual activation, test failures detected
+**Priority**: Critical
+
+## Summary
+Automated CI Test Triage System that analyzes, categorizes, skips, and tracks failing tests systematically to maintain both development velocity and test quality.
+
+## Dual Mandate
+- **Velocity**: Get CI green immediately via systematic skipping with clear rationale
+- **Quality**: Maintain complete failure visibility through structured TODO tracking and systematic re-enablement
+
+## Description
+Strategic test failure triage system that mirrors CI locally, categorizes all test outcomes, and implements systematic skipping with detailed tracking. This ensures development velocity while maintaining complete test integrity and providing clear paths to resolution.
+
+---
+
+## Phase 1: CI Mirror & Test Analysis
+
+### Step 1: Parse CI Configuration
+1. Extract test commands from `.github/workflows/ci.yml`
+2. Identify environment variables and service dependencies
+3. Create local mirror environment (`.env.test`)
+4. Document CI command for local execution
+
+### Step 2: Execute Local CI Mirror
+```bash
+# Mirror CI test execution exactly
+Get-Content .env.test | ForEach-Object {
+  if ($_ -match '^([^=]+)=(.*)$') {
+    [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
+  }
+}
+pytest -v --tb=short --no-cov > tests/TODO/_ci_output.log 2>&1
+```
+
+### Step 3: Systematic Test Categorization
+
+**Analysis Categories:**
+- **failing_tests**: Tests that error, fail, or crash completely → Add `@pytest.mark.skip` decorators → Track in `tests/TODO/failing_tests.md`
+- **needs_improvement**: Tests that pass but show warnings, flaky behavior, or deprecated patterns → Document for cleanup → Track in `tests/TODO/needs_improvement.md`
+- **todo_coverage**: Missing test coverage or planned implementations → Plan expansion → Track in `tests/TODO/todo_list.md`
+
+---
+
+## Phase 2: Automated Skip Decorator Implementation
+
+### Skip Decorator Templates
+```python
+# Infrastructure-dependent tests
+@pytest.mark.skip(reason="Infrastructure: PostgreSQL services not available locally. Re-enable in Sprint 2 when docker-compose setup is complete.")
+
+# Service-specific tests
+@pytest.mark.skip(reason="Service: Neo4j not configured locally. Re-enable in Sprint 3 after graph service setup.")
+
+# Integration tests
+@pytest.mark.skip(reason="Integration: Redis pub/sub not available locally. Re-enable when message bus is configured.")
+```
+
+### Systematic Application Rules
+- **Database Tests** (`**/test_*crud*.py`, `**/test_*models*.py`, `**/test_*deps*.py`): "Infrastructure: PostgreSQL services not available locally" → Sprint 2
+- **Graph Tests** (`tests/graph/**/*.py`): "Service: Neo4j not configured locally" → Sprint 3
+- **Integration Tests** (`tests/integration/**/*.py`): "Integration: Multiple services required" → Sprint 2-3
+
+---
+
+## Phase 3: TODO Management System
+
+### File Maintenance Rules
+- **failing_tests.md**: Update every test run with counts, new failures, resolved issues
+- **needs_improvement.md**: Weekly review of warnings, flaky tests, performance issues
+- **todo_list.md**: Sprint planning for coverage gaps, planned implementations, infrastructure needs
+
+### Automated Content Updates
+```python
+def update_failing_tests_count():
+    """Parse test output and update failing test counts in TODO files"""
+
+def update_sprint_progress():
+    """Mark completed items and update sprint status"""
+
+def generate_reenable_commands():
+    """Create systematic commands for re-enabling tests as infrastructure becomes available"""
+```
+
+---
+
+## Implementation Workflows
+
+### Workflow A: Test Failure Triage
+**Trigger**: Test failures detected
+**Steps**:
+1. Run CI mirror locally
+2. Parse test output for failure categorization
+3. Update `failing_tests.md` with new failures
+4. Apply skip decorators to failing test files
+5. Verify CI goes green
+6. Commit with descriptive message
+
+### Workflow B: Infrastructure Progress
+**Trigger**: Infrastructure service becomes available
+**Steps**:
+1. Identify tests blocked by this service
+2. Remove skip decorators for relevant tests
+3. Run focused test subset
+4. Update TODO files with resolution status
+5. Mark sprint progress complete
+
+### Workflow C: Weekly Review
+**Trigger**: Weekly maintenance cycle
+**Steps**:
+1. Review `needs_improvement.md` for actionable items
+2. Update `todo_list.md` with new coverage plans
+3. Assess sprint progress and adjust targets
+4. Update re-enablement criteria based on progress
+
+---
+
+## Cursor Automation Hooks
+
+### File Change Triggers
+- **Test file change**: Check infrastructure dependencies, suggest skip decorators, update TODO files
+- **Infrastructure change**: Identify re-enablement opportunities, suggest decorator removal, update progress
+- **CI YAML change**: Re-parse configuration, update local mirror, validate consistency
+
+### Code Suggestions
+- **Skip decorator suggestions**: When adding tests requiring infrastructure, suggest appropriate skip pattern
+- **Infrastructure detection**: When tests import database/graph/service clients, consider dependency patterns
+- **TODO updates**: When resolving infrastructure issues, suggest TODO file updates and decorator removal
+
+---
+
+## Success Metrics & Validation
+
+### Phase 1 Success Criteria
+- ✅ All test failures categorized and documented in TODO files
+- ✅ CI pipeline shows 0 failing tests (systematic skipping)
+- ✅ Clear roadmap for re-enablement with sprint targets
+- ✅ Code changes can be tested without infrastructure noise
+
+### Phase 2 Success Criteria
+- 🎯 Infrastructure services available locally
+- 🎯 Systematic re-enablement of 400+ tests
+- 🎯 TODO files reflect actual progress status
+- 🎯 CI matches local development environment
+
+### Automation Quality Metrics
+- **Accuracy**: 95%+ correct categorization of test failures
+- **Coverage**: 100% of failing tests have skip decorators with reasons
+- **Tracking**: All skipped tests documented in TODO files
+- **Velocity**: <5min from test failure to categorized skip
+
+---
+
+## Advanced Features (Phase 3)
+
+### Intelligent Re-enablement
+```python
+def check_infrastructure_readiness():
+    """Automatically detect when services come online and suggest test re-enablement"""
+
+def create_service_dashboard():
+    """Visual dashboard of infrastructure status and test re-enablement progress"""
+```
+
+### Integration with Development Workflow
+- **Pre-commit hooks**: Validate skip decorators have sprint targets, check TODO consistency
+- **Pull request automation**: Generate test status reports, highlight re-enabled tests, show progress metrics
+
+---
+
+## Rule Activation
+
+### Manual Commands
+```bash
+# Trigger full triage cycle
+cursor-rules activate ci_test_processor --mode=full_triage
+
+# Update TODO files only
+cursor-rules activate ci_test_processor --mode=todo_update
+
+# Check re-enablement opportunities
+cursor-rules activate ci_test_processor --mode=reenable_check
+```
+
+### Continuous Monitoring
+- `tests/**/*.py` → suggest skip patterns for new infrastructure-dependent tests
+- `tests/TODO/*.md` → validate consistency and suggest updates
+- `.github/workflows/ci.yml` → re-parse CI configuration changes
+
+---
+
+*This rule implements Kevin's vision of systematic test triage that maintains both velocity and quality through intelligent automation and clear tracking.*
