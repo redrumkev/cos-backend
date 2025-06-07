@@ -29,16 +29,40 @@
 
 ## Failing Tests Registry
 
-| Test Category | Test Count | File Pattern | Root Cause | Sprint Target | Re-enable Criteria | Priority |
-|---------------|------------|--------------|------------|---------------|-------------------|----------|
-| CC Module Tests | ~200 | `tests/backend/cc/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | HIGH |
-| Unit Tests | ~150 | `tests/unit/backend/cc/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | HIGH |
-| Integration Tests | ~50 | `tests/integration/backend/cc/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | HIGH |
-| Database Tests | ~20 | `tests/db/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | HIGH |
-| Common Tests | ~30 | `tests/common/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | MEDIUM |
-| Graph Tests | ~40 | `tests/graph/test_*.py` | DB + Neo4j | Sprint 2-3 | All services ready | MEDIUM |
-| Script Tests | ~20 | `tests/scripts/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | LOW |
-| COS Main Tests | ~50 | `tests/unit/test_cos_main_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | HIGH |
+| 🆔 | Test Category | Test Count | File Pattern | Root Cause | Sprint Target | Re-enable Criteria | Re-enablement Trigger | Priority |
+|----|---------------|------------|--------------|------------|---------------|-------------------|----------------------|----------|
+| CC-001 | CC Module Tests | ~200 | `tests/backend/cc/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | `docker-compose up -d postgres_dev postgres_test` | HIGH |
+| UT-001 | Unit Tests | ~150 | `tests/unit/backend/cc/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | `DATABASE_URL_TEST` resolvable | HIGH |
+| IT-001 | Integration Tests | ~50 | `tests/integration/backend/cc/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | `pg_isready -h localhost -p 5434` | HIGH |
+| DB-001 | Database Tests | ~20 | `tests/db/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | `alembic upgrade head` success | HIGH |
+| CM-001 | Common Tests | ~30 | `tests/common/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | Logger connection established | MEDIUM |
+| GR-001 | Graph Tests | ~40 | `tests/graph/test_*.py` | DB + Neo4j | Sprint 2-3 | All services ready | `NEO4J_URI` connection + DB ready | MEDIUM |
+| SC-001 | Script Tests | ~20 | `tests/scripts/test_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | Services + script permissions | LOW |
+| CM-002 | COS Main Tests | ~50 | `tests/unit/test_cos_main_*.py` | DB Connection | Sprint 2 | PostgreSQL services ready | App startup without DB errors | HIGH |
+
+### 🧠 **Re-enablement Triggers**
+
+Each test category has specific trigger conditions for automated re-enablement:
+
+```bash
+# CC-001: CC Module Tests
+🧠 Re-enable when: `pg_isready -h localhost -p 5434` returns 0 AND `DATABASE_URL_TEST` env var is set
+
+# UT-001: Unit Tests
+🧠 Re-enable when: `asyncpg.connect(DATABASE_URL_TEST)` succeeds AND `pytest.env.has_test_db` is True
+
+# IT-001: Integration Tests
+🧠 Re-enable when: `docker ps | grep postgres_test` shows running AND all migrations applied
+
+# DB-001: Database Tests
+🧠 Re-enable when: `alembic current` shows head revision AND test schema exists
+
+# GR-001: Graph Tests
+🧠 Re-enable when: `NEO4J_URI` is resolvable AND `test_env.neo4j.is_mock` is False AND database ready
+
+# All Tests Global Trigger
+🧠 Re-enable when: `scripts/ci_triage.py --check-infrastructure` returns `all_services_ready=True`
+```
 
 ---
 
@@ -94,7 +118,7 @@
 # Add to all DB-dependent test files:
 import pytest
 
-@pytest.mark.skip(reason="Infrastructure: PostgreSQL services not available locally. Re-enable in Sprint 2 when docker-compose setup is complete.")
+@pytest.mark.skip(reason="Infrastructure: PostgreSQL services not available locally. Re-enable in Sprint 2 when docker-compose setup is complete. Trigger: CC-001")
 class TestDatabaseDependent:
     # All existing test methods...
 ```

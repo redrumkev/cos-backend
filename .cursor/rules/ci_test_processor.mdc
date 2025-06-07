@@ -5,196 +5,277 @@ alwaysApply: false
 ---
 # CI Test Processor - Automated Test Triage System
 
-**Version**: 2.0
-**Applies To**: `tests/**/*.py`, `.github/workflows/*.yml`, `tests/TODO/*.md`
-**Trigger**: Manual activation, test failures detected
+**Version**: 3.0
+**Applies To**: `tests/**/*.py`, `.github/workflows/*.yml`, `tests/TODO/*.md`, `scripts/ci_triage.py`
+**Trigger**: Manual activation, test failures detected, infrastructure changes
 **Priority**: Critical
 
 ## Summary
-Automated CI Test Triage System that analyzes, categorizes, skips, and tracks failing tests systematically to maintain both development velocity and test quality.
+Fully automated CI Test Triage System that analyzes, categorizes, skips, and tracks failing tests systematically through `scripts/ci_triage.py` to maintain both development velocity and test quality with enhanced automation.
 
 ## Dual Mandate
 - **Velocity**: Get CI green immediately via systematic skipping with clear rationale
 - **Quality**: Maintain complete failure visibility through structured TODO tracking and systematic re-enablement
 
 ## Description
-Strategic test failure triage system that mirrors CI locally, categorizes all test outcomes, and implements systematic skipping with detailed tracking. This ensures development velocity while maintaining complete test integrity and providing clear paths to resolution.
+Strategic test failure triage system that mirrors CI locally, categorizes all test outcomes, and implements systematic skipping with detailed tracking. Enhanced with `scripts/ci_triage.py` automation for infrastructure detection, test log parsing, markdown updates, and skip decorator management.
 
 ---
 
-## Phase 1: CI Mirror & Test Analysis
+## Phase 1: Automated CI Mirror & Analysis
 
-### Step 1: Parse CI Configuration
-1. Extract test commands from `.github/workflows/ci.yml`
-2. Identify environment variables and service dependencies
-3. Create local mirror environment (`.env.test`)
-4. Document CI command for local execution
+### Automation via scripts/ci_triage.py
 
-### Step 2: Execute Local CI Mirror
+#### Full Triage Process
 ```bash
-# Mirror CI test execution exactly
-Get-Content .env.test | ForEach-Object {
-  if ($_ -match '^([^=]+)=(.*)$') {
-    [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
-  }
-}
-pytest -v --tb=short --no-cov > tests/TODO/_ci_output.log 2>&1
+# Complete automated triage
+python scripts/ci_triage.py --mode=full
+
+# Individual operations
+python scripts/ci_triage.py --check-infrastructure
+python scripts/ci_triage.py --update-markdown
+python scripts/ci_triage.py --apply-skips
 ```
 
-### Step 3: Systematic Test Categorization
+#### Infrastructure Detection
+- **PostgreSQL**: Auto-detect dev (5433) and test (5434) databases
+- **Redis**: Check connection to port 6379 with authentication
+- **Neo4j**: Validate Bolt connection on port 7687
+- **Service Status**: JSON status output with re-enablement readiness
 
-**Analysis Categories:**
-- **failing_tests**: Tests that error, fail, or crash completely → Add `@pytest.mark.skip` decorators → Track in `tests/TODO/failing_tests.md`
-- **needs_improvement**: Tests that pass but show warnings, flaky behavior, or deprecated patterns → Document for cleanup → Track in `tests/TODO/needs_improvement.md`
-- **todo_coverage**: Missing test coverage or planned implementations → Plan expansion → Track in `tests/TODO/todo_list.md`
+#### Systematic Test Categorization
+**Enhanced Analysis with Test IDs:**
+- **failing_tests**: Tests with infrastructure dependencies → `CC-001`, `UT-001`, `IT-001`, etc.
+- **needs_improvement**: Tests with warnings/flaky behavior → Track with Linked Issue/PR column
+- **todo_coverage**: Missing coverage with specific function names → Enhanced Coverage Gap details
 
 ---
 
-## Phase 2: Automated Skip Decorator Implementation
+## Phase 2: Enhanced Skip Decorator Management
 
-### Skip Decorator Templates
+### Automated Skip Decorator Templates
 ```python
-# Infrastructure-dependent tests
-@pytest.mark.skip(reason="Infrastructure: PostgreSQL services not available locally. Re-enable in Sprint 2 when docker-compose setup is complete.")
+# Infrastructure-dependent tests (Auto-applied by ci_triage.py)
+@pytest.mark.skip(reason="Infrastructure: PostgreSQL services not available locally. Re-enable in Sprint 2 when docker-compose setup is complete. Trigger: CC-001")
 
 # Service-specific tests
-@pytest.mark.skip(reason="Service: Neo4j not configured locally. Re-enable in Sprint 3 after graph service setup.")
+@pytest.mark.skip(reason="Service: Neo4j not configured locally. Re-enable in Sprint 3 after graph service setup. Trigger: GR-001")
 
 # Integration tests
-@pytest.mark.skip(reason="Integration: Redis pub/sub not available locally. Re-enable when message bus is configured.")
+@pytest.mark.skip(reason="Integration: Redis pub/sub not available locally. Re-enable when message bus is configured. Trigger: IT-001")
 ```
 
-### Systematic Application Rules
-- **Database Tests** (`**/test_*crud*.py`, `**/test_*models*.py`, `**/test_*deps*.py`): "Infrastructure: PostgreSQL services not available locally" → Sprint 2
-- **Graph Tests** (`tests/graph/**/*.py`): "Service: Neo4j not configured locally" → Sprint 3
-- **Integration Tests** (`tests/integration/**/*.py`): "Integration: Multiple services required" → Sprint 2-3
+### Intelligent Application via CITriageManager
+- **SkipDecoratorManager**: Automatically applies skips based on infrastructure availability
+- **Test File Discovery**: Scans all test directories for applicable files
+- **Smart Detection**: Only applies skips where needed, preserves existing decorators
+- **Trigger Integration**: Links skips to specific re-enablement trigger IDs
 
 ---
 
-## Phase 3: TODO Management System
+## Phase 3: Enhanced TODO Management System
 
-### File Maintenance Rules
-- **failing_tests.md**: Update every test run with counts, new failures, resolved issues
-- **needs_improvement.md**: Weekly review of warnings, flaky tests, performance issues
-- **todo_list.md**: Sprint planning for coverage gaps, planned implementations, infrastructure needs
+### Automated File Updates
+**Enhanced failing_tests.md:**
+- Test ID column: `🆔` (CC-001, UT-001, IT-001, etc.)
+- Re-enablement Trigger column: Specific commands/conditions
+- Auto-generated infrastructure status section
+- Real-time service availability dashboard
 
-### Automated Content Updates
-```python
-def update_failing_tests_count():
-    """Parse test output and update failing test counts in TODO files"""
+**Enhanced needs_improvement.md:**
+- Linked Issue/PR column for tracking test cleanup
+- Warning categorization and priority assignment
+- Integration with development workflow
 
-def update_sprint_progress():
-    """Mark completed items and update sprint status"""
+**Enhanced todo_list.md:**
+- Coverage Gap details: Specific function names and behaviors
+- Implementation planning with sprint integration
+- Detailed missing test specifications
 
-def generate_reenable_commands():
-    """Create systematic commands for re-enabling tests as infrastructure becomes available"""
+### Real-Time Infrastructure Status
+```json
+{
+  "postgres": {"dev": false, "test": false},
+  "redis": false,
+  "neo4j": false,
+  "all_services_ready": false,
+  "basic_db_ready": false,
+  "timestamp": "2024-12-19T21:35:17.123456"
+}
 ```
+
+---
+
+## Phase 4: Re-enablement Trigger System
+
+### Automated Trigger Detection
+**Service-Specific Triggers:**
+```bash
+# CC-001: CC Module Tests
+🧠 Re-enable when: `pg_isready -h localhost -p 5434` returns 0 AND `DATABASE_URL_TEST` env var is set
+
+# UT-001: Unit Tests
+🧠 Re-enable when: `asyncpg.connect(DATABASE_URL_TEST)` succeeds AND `pytest.env.has_test_db` is True
+
+# GR-001: Graph Tests
+🧠 Re-enable when: `NEO4J_URI` is resolvable AND `test_env.neo4j.is_mock` is False AND database ready
+
+# Global Trigger
+🧠 Re-enable when: `scripts/ci_triage.py --check-infrastructure` returns `all_services_ready=True`
+```
+
+### Automated Re-enablement Workflow
+1. **Infrastructure Detection**: `ci_triage.py` monitors service availability
+2. **Trigger Evaluation**: Checks specific conditions for each test category
+3. **Decorator Removal**: Automatically removes skip decorators when conditions are met
+4. **Progress Tracking**: Updates TODO files with resolution status
+5. **Validation Testing**: Runs focused test subsets to verify functionality
 
 ---
 
 ## Implementation Workflows
 
-### Workflow A: Test Failure Triage
+### Workflow A: Automated Test Failure Triage
 **Trigger**: Test failures detected
+**Command**: `python scripts/ci_triage.py --mode=full`
 **Steps**:
-1. Run CI mirror locally
-2. Parse test output for failure categorization
-3. Update `failing_tests.md` with new failures
-4. Apply skip decorators to failing test files
-5. Verify CI goes green
-6. Commit with descriptive message
+1. **Infrastructure Check**: Detect available services automatically
+2. **Test Execution**: Run pytest and parse output systematically
+3. **Failure Categorization**: Auto-categorize by error patterns
+4. **Markdown Updates**: Update all TODO files with current status
+5. **Skip Application**: Apply decorators to infrastructure-dependent tests
+6. **Validation**: Verify CI goes green with systematic skipping
 
-### Workflow B: Infrastructure Progress
+### Workflow B: Infrastructure Progress Monitoring
 **Trigger**: Infrastructure service becomes available
+**Command**: `python scripts/ci_triage.py --check-infrastructure`
 **Steps**:
-1. Identify tests blocked by this service
-2. Remove skip decorators for relevant tests
-3. Run focused test subset
-4. Update TODO files with resolution status
-5. Mark sprint progress complete
+1. **Service Detection**: Auto-detect newly available services
+2. **Trigger Evaluation**: Check re-enablement conditions
+3. **Selective Re-enablement**: Remove skips for ready test categories
+4. **Focused Testing**: Run specific test subsets
+5. **Progress Documentation**: Update TODO files with completion status
 
-### Workflow C: Weekly Review
-**Trigger**: Weekly maintenance cycle
+### Workflow C: Continuous Monitoring
+**Trigger**: Scheduled/on-demand
+**Command**: `python scripts/ci_triage.py --update-markdown`
 **Steps**:
-1. Review `needs_improvement.md` for actionable items
-2. Update `todo_list.md` with new coverage plans
-3. Assess sprint progress and adjust targets
-4. Update re-enablement criteria based on progress
+1. **Status Refresh**: Update infrastructure status in TODO files
+2. **Progress Assessment**: Evaluate sprint milestone completion
+3. **Re-enablement Opportunities**: Identify tests ready for activation
+4. **Documentation Sync**: Ensure TODO files reflect current reality
 
 ---
 
-## Cursor Automation Hooks
+## Cursor Automation Integration
 
-### File Change Triggers
-- **Test file change**: Check infrastructure dependencies, suggest skip decorators, update TODO files
-- **Infrastructure change**: Identify re-enablement opportunities, suggest decorator removal, update progress
-- **CI YAML change**: Re-parse configuration, update local mirror, validate consistency
+### Enhanced File Change Triggers
+- **Test file change**: Auto-suggest `ci_triage.py` run, check infrastructure dependencies
+- **Infrastructure change**: Auto-detect readiness, suggest decorator removal, run targeted tests
+- **CI YAML change**: Re-parse configuration, update automation parameters
+- **TODO file manual edit**: Validate consistency with actual test status
 
-### Code Suggestions
-- **Skip decorator suggestions**: When adding tests requiring infrastructure, suggest appropriate skip pattern
-- **Infrastructure detection**: When tests import database/graph/service clients, consider dependency patterns
-- **TODO updates**: When resolving infrastructure issues, suggest TODO file updates and decorator removal
+### Intelligent Code Suggestions
+- **Smart Skip Patterns**: When adding infrastructure-dependent tests, suggest appropriate trigger IDs
+- **Infrastructure Integration**: Auto-detect service dependencies in new test files
+- **Automated Validation**: Suggest `ci_triage.py` runs after infrastructure changes
+- **Progress Tracking**: Recommend TODO updates based on resolved infrastructure issues
+
+### Advanced Automation Hooks
+```bash
+# Pre-commit validation
+python scripts/ci_triage.py --check-infrastructure && echo "Infrastructure validated"
+
+# Post-infrastructure setup
+python scripts/ci_triage.py --mode=full && git add tests/TODO/*.md && git commit -m "auto: Update test triage after infrastructure changes"
+
+# Development workflow integration
+alias cos-test-status="python scripts/ci_triage.py --check-infrastructure"
+alias cos-test-triage="python scripts/ci_triage.py --mode=full"
+```
 
 ---
 
 ## Success Metrics & Validation
 
-### Phase 1 Success Criteria
-- ✅ All test failures categorized and documented in TODO files
-- ✅ CI pipeline shows 0 failing tests (systematic skipping)
-- ✅ Clear roadmap for re-enablement with sprint targets
-- ✅ Code changes can be tested without infrastructure noise
+### Phase 1 Success Criteria (COMPLETE ✅)
+- ✅ All test failures categorized with Test IDs in TODO files
+- ✅ CI pipeline shows 0 failing tests (570+ tests systematically skipped)
+- ✅ Clear roadmap with re-enablement triggers and sprint targets
+- ✅ Automated infrastructure detection and status reporting
 
-### Phase 2 Success Criteria
-- 🎯 Infrastructure services available locally
-- 🎯 Systematic re-enablement of 400+ tests
-- 🎯 TODO files reflect actual progress status
-- 🎯 CI matches local development environment
+### Phase 2 Success Criteria (TARGET)
+- 🎯 Infrastructure services automated via docker-compose
+- 🎯 Systematic re-enablement of 400+ tests through automation
+- 🎯 Real-time TODO file updates reflecting actual progress
+- 🎯 Zero manual intervention for test triage process
 
 ### Automation Quality Metrics
-- **Accuracy**: 95%+ correct categorization of test failures
-- **Coverage**: 100% of failing tests have skip decorators with reasons
-- **Tracking**: All skipped tests documented in TODO files
-- **Velocity**: <5min from test failure to categorized skip
+- **Accuracy**: 95%+ correct test failure categorization via pattern matching
+- **Coverage**: 100% of failing tests have skip decorators with trigger IDs
+- **Tracking**: All skipped tests documented with specific re-enablement conditions
+- **Velocity**: <2min from test failure detection to categorized skip application
+- **Intelligence**: Automated infrastructure detection and re-enablement suggestions
 
 ---
 
-## Advanced Features (Phase 3)
+## Advanced Automation Features
 
-### Intelligent Re-enablement
+### Intelligent Infrastructure Management
 ```python
-def check_infrastructure_readiness():
-    """Automatically detect when services come online and suggest test re-enablement"""
+class InfrastructureChecker:
+    """Auto-detect service availability and suggest actions"""
 
-def create_service_dashboard():
-    """Visual dashboard of infrastructure status and test re-enablement progress"""
+class TestLogParser:
+    """Parse pytest output and categorize failures by error patterns"""
+
+class MarkdownUpdater:
+    """Maintain TODO files with current status and infrastructure state"""
+
+class SkipDecoratorManager:
+    """Apply/remove skip decorators based on infrastructure availability"""
 ```
 
-### Integration with Development Workflow
-- **Pre-commit hooks**: Validate skip decorators have sprint targets, check TODO consistency
-- **Pull request automation**: Generate test status reports, highlight re-enabled tests, show progress metrics
+### CI/CD Integration Pipeline
+- **Pre-commit**: Validate test triage consistency
+- **Post-infrastructure**: Auto-update test status and re-enable ready tests
+- **Pull Request**: Generate test status reports and progress metrics
+- **Deployment**: Validate infrastructure requirements before release
 
----
-
-## Rule Activation
-
-### Manual Commands
+### Development Workflow Enhancements
 ```bash
-# Trigger full triage cycle
-cursor-rules activate ci_test_processor --mode=full_triage
-
-# Update TODO files only
-cursor-rules activate ci_test_processor --mode=todo_update
-
-# Check re-enablement opportunities
-cursor-rules activate ci_test_processor --mode=reenable_check
+# Daily development routine
+cos-test-status                    # Check infrastructure readiness
+cos-test-triage                    # Run full triage if needed
+pytest tests/backend/cc/           # Run ready tests only
+git add -A && git commit -m "..."  # Commit with auto-updated TODO files
 ```
-
-### Continuous Monitoring
-- `tests/**/*.py` → suggest skip patterns for new infrastructure-dependent tests
-- `tests/TODO/*.md` → validate consistency and suggest updates
-- `.github/workflows/ci.yml` → re-parse CI configuration changes
 
 ---
 
-*This rule implements Kevin's vision of systematic test triage that maintains both velocity and quality through intelligent automation and clear tracking.*
+## Rule Activation Commands
+
+### Primary Automation
+```bash
+# Full automated triage (recommended)
+python scripts/ci_triage.py --mode=full
+
+# Infrastructure monitoring
+python scripts/ci_triage.py --check-infrastructure
+
+# Selective operations
+python scripts/ci_triage.py --update-markdown
+python scripts/ci_triage.py --apply-skips
+```
+
+### Integration with Development
+```bash
+# Add to .bashrc/.zshrc for COS development
+alias tm-status="python scripts/ci_triage.py --check-infrastructure"
+alias tm-triage="python scripts/ci_triage.py --mode=full"
+alias tm-ready="python scripts/ci_triage.py --check-infrastructure | jq '.all_services_ready'"
+```
+
+---
+
+*This enhanced rule implements Kevin's vision of fully automated test triage that maintains both velocity and quality through intelligent infrastructure detection, systematic categorization, and clear re-enablement pathways.*

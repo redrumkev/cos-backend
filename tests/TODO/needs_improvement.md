@@ -17,9 +17,9 @@
 
 ## Improvement Registry
 
-| Test Name | File Path | Issue Type | Description | Priority | Sprint Target | Improvement Plan | Status |
-|-----------|-----------|------------|-------------|----------|---------------|------------------|--------|
-| *Analyzing test output...* | | | | | | | |
+| Test Name | File Path | Issue Type | Description | Priority | Sprint Target | Linked Issue/PR | Improvement Plan | Status |
+|-----------|-----------|------------|-------------|----------|---------------|-----------------|------------------|--------|
+| *Analyzing test output...* | | | | | | | | |
 
 ---
 

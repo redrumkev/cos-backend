@@ -17,8 +17,15 @@
 
 ## Missing Test Coverage Registry
 
-| Module/Function | File Path | Coverage Gap | Criticality | Sprint Target | Implementation Notes | Status |
-|-----------------|-----------|--------------|-------------|---------------|---------------------|--------|
+| Module/Function | File Path | Coverage Gap (Functions/Behaviors) | Criticality | Sprint Target | Implementation Notes | Status |
+|-----------------|-----------|-------------------------------------|-------------|---------------|---------------------|--------|
+| cc.router | src/backend/cc/router.py | `health_check()` error responses | High | Sprint 2 | Test 500 errors, timeout scenarios | Planned |
+| cc.services | src/backend/cc/services.py | `get_system_health()` service failures | High | Sprint 2 | Mock downstream failures | Planned |
+| cc.crud | src/backend/cc/crud.py | `create_log_entry()` transaction rollback | Medium | Sprint 2 | Test DB constraint violations | Planned |
+| common.logger | src/common/logger.py | `log_event()` Redis connection failure | High | Sprint 2 | Test Redis unavailable scenarios | Planned |
+| common.config | src/common/config.py | `Settings` validation edge cases | Medium | Sprint 2 | Test malformed env vars | Planned |
+| db.connection | src/db/connection.py | `get_session()` pool exhaustion | High | Sprint 2 | Test connection pool limits | Planned |
+| graph.base | src/graph/base.py | Neo4j driver reconnection logic | Medium | Sprint 3 | Test network interruption recovery | Planned |
 | *Analyzing coverage gaps...* | | | | | | |
 
 ---
