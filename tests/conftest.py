@@ -87,7 +87,36 @@ def is_infrastructure_available() -> bool:
         return False
 
 
-# Define skip markers for the test triage system
+# Import smart infrastructure checking
+try:
+    from tests.infrastructure_check import AVAILABLE_SERVICES
+
+    SERVICES_AVAILABLE = True
+except ImportError:
+    # Fallback if infrastructure checker is not available
+    AVAILABLE_SERVICES = {"postgres": False, "neo4j": False, "redis": False}
+    SERVICES_AVAILABLE = False
+
+# Smart skip decorators based on actual service availability
+requires_postgres = pytest.mark.skipif(
+    not AVAILABLE_SERVICES.get("postgres", False),
+    reason="PostgreSQL service not available - run docker-compose up postgres_test",
+)
+
+requires_neo4j = pytest.mark.skipif(
+    not AVAILABLE_SERVICES.get("neo4j", False), reason="Neo4j service not available - run docker-compose up neo4j"
+)
+
+requires_redis = pytest.mark.skipif(
+    not AVAILABLE_SERVICES.get("redis", False), reason="Redis service not available - run docker-compose up redis"
+)
+
+requires_all_services = pytest.mark.skipif(
+    not all(AVAILABLE_SERVICES.values()),
+    reason="Not all infrastructure services available - run docker-compose up for full test suite",
+)
+
+# Legacy skip markers for backwards compatibility
 skip_if_no_infrastructure = pytest.mark.skipif(
     not is_infrastructure_available(),
     reason="Infrastructure: PostgreSQL services not available locally. "
@@ -95,12 +124,12 @@ skip_if_no_infrastructure = pytest.mark.skipif(
 )
 
 skip_if_no_graph_services = pytest.mark.skipif(
-    not is_infrastructure_available(),  # Will be enhanced to check Neo4j specifically
+    not AVAILABLE_SERVICES.get("neo4j", False),
     reason="Service: Neo4j not configured locally. Re-enable in Sprint 3 after graph service setup.",
 )
 
 skip_if_no_message_bus = pytest.mark.skipif(
-    not is_infrastructure_available(),  # Will be enhanced to check Redis specifically
+    not AVAILABLE_SERVICES.get("redis", False),
     reason="Integration: Redis pub/sub not available locally. Re-enable when message bus is configured.",
 )
 
