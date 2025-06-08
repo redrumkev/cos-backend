@@ -168,48 +168,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   Critical needs: Complete testing infrastructure (97% coverage), finish stubbed health monitoring,
   standardize error handling. Ready for enterprise deployment once testing completed.
 
-  CI Resolution & Phase 2 Planning
+  Phase 2 Architecture & Development
 
-  For immediate CI fixes, see: docs/PHASE_1_CI_RESOLUTION_PLAN.md
-  For comprehensive Phase 2 vision, see: docs/PHASE_2_AGENTIC_SUBSTRATE_BLUEPRINT_v1.0.md
+  For Phase 2 agentic substrate implementation, see: docs/PHASE_2_AGENTIC_SUBSTRATE_BLUEPRINT_v1.2.md
+  For systematic test re-enablement, see: docs/PHASE_2_TECHNICAL_DEBT.md
 
-  Current Status: Phase 1 completion blocked by CI infrastructure issues. Quick fixes available for:
-  - Neo4j version compatibility (use neo4j:5.15 instead of 2025.04.0)
-  - Environment variable mapping corrections
-  - Smart test skipping implementation
+  Phase 2 MCP Architecture Foundation
 
-  Phase 2 Vision: Transform cc module into agentic substrate with:
-  - Multi-layer memory system (L1→L2→L3→L4)
-  - MCP (Model Context Protocol) for agent interfaces
-  - AlphaEvolve feedback loop for self-improvement
-  - 6-sprint roadmap to multi-century intelligence foundation
+  When you're ready for Phase 2, here's the structure to implement:
 
- Immediate Actions (This Week)
-
-  1. Apply CI fixes from the resolution plan:
-    - Change neo4j:2025.04.0 → neo4j:5.15 in .github/workflows/ci.yml
-    - Add environment variable mapping
-    - Implement smart test skipping
-  2. Merge Phase 1 once CI is green:
-    - feature/cc-gold → main
-    - Tag as v1.0-phase1-gold-standard
-
-  Phase 2 Launch (Next Week)
-
-  1. Create feat/cc-goldPh2 branch
-  2. Implement MCP architecture in cc module
-  3. Begin 6-sprint journey through the memory layers (L1→L2→L3→L4)
-
-  🏆 What You've Achieved
-
-  Your cc module is genuinely gold standard quality:
-  - ✅ Perfect architecture (Hybrid Vertical Slice + Atomic Composition)
-  - ✅ Modern Python patterns (SQLAlchemy 2.0, Pydantic v2, async-first)
-  - ✅ Comprehensive test suite (570+ tests written)
-  - ✅ FORWARD principles embodied
-  - ✅ Multi-century thinking embedded
-
-  The CI issues are pure infrastructure, not code quality problems. Once resolved, you'll have an enterprise-ready foundation for your agentic COS vision.
+  src/backend/cc/mcp/
+  ├── __init__.py
+  ├── server.py              # MCP server implementation
+  ├── client.py              # MCP client for inter-module communication
+  ├── tools/                 # Agentic tool implementations
+  │   ├── __init__.py
+  │   ├── health_tools.py    # Advanced health management
+  │   ├── module_tools.py    # Module lifecycle operations
+  │   └── coordination_tools.py  # Cross-module coordination
+  ├── resources/             # Exposed resources for other agents
+  │   ├── __init__.py
+  │   ├── system_state.py    # Current system state resource
+  │   └── config_resource.py # Live configuration resource
+  └── prompts/              # System prompts for LLM agents
+      ├── __init__.py
+      ├── system_prompts.py  # Core system interaction prompts
+      └── diagnostic_prompts.py  # System diagnostic prompts
 
   ---
 
