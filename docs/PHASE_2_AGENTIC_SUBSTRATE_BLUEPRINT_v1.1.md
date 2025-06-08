@@ -1,10 +1,33 @@
 # COS Phase 2: Agentic Substrate & MCP Integration Blueprint v1.0
 
 **Document Type**: Strategic Architecture Overview (30,000-foot view)
-**Version**: 1.0
-**Date**: January 6, 2025
+**Version**: 1.1 (Updated June 8, 2025)
+**Date**: June 6, 2025
 **Lead Visionary**: Kevin
 **Status**: Living Document - Updated Throughout Phase 2
+
+---
+
+## Mandate
+
+> **All new code and tests must be developed to **nearly 100% test coverage** from day one. Coverage must never decrease overall—each sprint must demonstrate a measurable, rapid coverage increase as we re-enable skipped tests.**
+
+---
+
+## Coverage Progression Strategy
+
+**Current State**: Phase 1 completion at 30% coverage (570+ tests systematically skipped)
+**Phase 2 Goal**: Reach 97% coverage through systematic re-enablement + new code
+**Ongoing Standard**: 97%+ coverage maintained permanently
+
+### Sprint-Based Coverage Targets:
+- **Sprint 2.1** (Database Foundation): 45% → Re-enable P2-ASYNC-001, P2-SCHEMA-001, P2-MODELS-001
+- **Sprint 2.2** (Application Layer): 65% → Re-enable P2-MEM0-001, P2-ROUTER-001, P2-SERVICE-001
+- **Sprint 2.3** (Graph Layer): 80% → Re-enable P2-GRAPH-001
+- **Sprint 2.4** (Integration): 97% → Re-enable P2-INTEGRATION-001
+- **Phase 2 Completion**: Lock CI at 97% permanently
+
+**Reference**: See `docs/PHASE_2_TECHNICAL_DEBT.md` for complete re-enablement roadmap
 
 ---
 
@@ -189,6 +212,30 @@ sequenceDiagram
 | **Sprint 4** | MCP Server | `/mcp/capabilities`, YAML tools, CI drift-checker | Agent can call `get_system_health`; spec validated |
 | **Sprint 5** | Generator v2 | Enhanced `generate_module.py` | New module boots & passes tests in < 45s |
 | **Sprint 6** | AlphaEvolve PoC | `Dockerfile.alphaevolve`, nightly GitHub Action | PR created & reviewed; safety gate passes |
+
+### Sprint Integration with Technical Debt Resolution
+
+Each sprint includes **systematic test re-enablement** alongside new development:
+
+**Sprint 2.1: Database Foundation**
+- Implement: MCP Tools + L1 Memory Layer
+- **Re-enable**: P2-ASYNC-001, P2-SCHEMA-001, P2-MODELS-001 (~105 tests)
+- **Coverage Jump**: 30% → 45%
+
+**Sprint 2.2: Application Layer**
+- Implement: MCP Resources + Service Layer
+- **Re-enable**: P2-MEM0-001, P2-ROUTER-001, P2-SERVICE-001 (~150 tests)
+- **Coverage Jump**: 45% → 65%
+
+**Sprint 2.3: Graph Layer**
+- Implement: L2 Neo4j Integration
+- **Re-enable**: P2-GRAPH-001 (~40 tests)
+- **Coverage Jump**: 65% → 80%
+
+**Sprint 2.4: Integration & Polish**
+- Implement: Full Stack Integration
+- **Re-enable**: P2-INTEGRATION-001 (~70 tests)
+- **Coverage Jump**: 80% → 97%
 
 ### Sprint Details
 
@@ -381,6 +428,22 @@ outline = synthesize_chapter_outline(zk_results, voice_results, outline_request)
 - **Data Integrity**: Zero data corruption across all memory layers
 - **Performance**: Linear scaling with knowledge base growth
 - **Evolution Safety**: 100% of AlphaEvolve suggestions pass safety gates
+
+---
+
+## CI Configuration Evolution
+
+**Phase 1**: `--cov-fail-under=30` (enables merge with systematic skips)
+**Phase 2 Progression**: Bump CI threshold each sprint as coverage increases
+**Phase 2 Completion**: `--cov-fail-under=97` (permanent high standard)
+
+Why This Works:
+
+1. Clear Integration: Links technical debt resolution to sprint delivery
+2. Measurable Progress: Specific coverage targets per sprint
+3. Quality Mandate: New code must be 95-100% covered
+4. End State Lock: 97% becomes permanent standard
+5. KISS: Simple, actionable, no complexity
 
 ---
 
