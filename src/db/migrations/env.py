@@ -67,16 +67,19 @@ if config.config_file_name:
 # --- Database URL logic (sync for migrations) ---
 migrate_url = os.getenv("POSTGRES_MIGRATE_URL")
 if not migrate_url:
-    dev_url = os.getenv("POSTGRES_DEV_URL")
-    migrate_url = dev_url.replace("+asyncpg", "+psycopg") if dev_url and "+asyncpg" in dev_url else dev_url
-if not migrate_url:
-    # Fallback for CI environment
-    migrate_url = os.getenv("DATABASE_URL_TEST", "").replace("+asyncpg", "+psycopg")
+    # Try DATABASE_URL_TEST first (CI environment)
+    test_url = os.getenv("DATABASE_URL_TEST")
+    if test_url:
+        migrate_url = test_url.replace("+asyncpg", "+psycopg") if "+asyncpg" in test_url else test_url
+    else:
+        # Fallback to dev URL
+        dev_url = os.getenv("POSTGRES_DEV_URL")
+        migrate_url = dev_url.replace("+asyncpg", "+psycopg") if dev_url and "+asyncpg" in dev_url else dev_url
 
 if not migrate_url:
     raise RuntimeError(
         "No database URL found for Alembic migrations. "
-        "Checked: POSTGRES_MIGRATE_URL, POSTGRES_DEV_URL, DATABASE_URL_TEST"
+        "Checked: POSTGRES_MIGRATE_URL, DATABASE_URL_TEST, POSTGRES_DEV_URL"
     )
 
 print(f"Using migration URL: {migrate_url}")  # noqa: T201

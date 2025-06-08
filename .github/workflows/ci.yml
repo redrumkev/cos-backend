@@ -119,7 +119,7 @@ jobs:
         echo "DATABASE_URL_TEST=postgresql+asyncpg://postgres:test_password@localhost:5434/cos_test" >> $GITHUB_ENV
         echo "POSTGRES_DEV_URL=postgresql+asyncpg://postgres:dev_password@localhost:5433/cos_dev" >> $GITHUB_ENV
         echo "POSTGRES_TEST_URL=postgresql+asyncpg://postgres:test_password@localhost:5434/cos_test" >> $GITHUB_ENV
-        echo "POSTGRES_MIGRATE_URL=postgresql+asyncpg://postgres:test_password@localhost:5434/cos_test" >> $GITHUB_ENV
+        echo "POSTGRES_MIGRATE_URL=postgresql+psycopg://postgres:test_password@localhost:5434/cos_test" >> $GITHUB_ENV
         echo "NEO4J_URI=bolt://localhost:7687" >> $GITHUB_ENV
         echo "NEO4J_USER=neo4j" >> $GITHUB_ENV
         echo "NEO4J_PASSWORD=test_password" >> $GITHUB_ENV
@@ -137,10 +137,14 @@ jobs:
         # Ensure we're in the project root and src is accessible
         pwd
         ls -la src/
+        # Debug environment variables
+        echo "DATABASE_URL_TEST=$DATABASE_URL_TEST"
+        echo "POSTGRES_MIGRATE_URL=$POSTGRES_MIGRATE_URL"
         # Run migrations with explicit PYTHONPATH to fix module imports
-        PYTHONPATH=. alembic upgrade head
+        PYTHONPATH=. python -m alembic upgrade head
       env:
         POSTGRES_MIGRATE_URL: ${{ env.POSTGRES_MIGRATE_URL }}
+        DATABASE_URL_TEST: ${{ env.DATABASE_URL_TEST }}
 
     - name: Run pre-commit hooks
       run: |
