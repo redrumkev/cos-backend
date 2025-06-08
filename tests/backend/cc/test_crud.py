@@ -25,6 +25,8 @@ from src.backend.cc.models import HealthStatus
 
 # Phase 2: Remove this skip block for Async/SQLAlchemy configuration (P2-ASYNC-001)
 pytestmark = pytest.mark.skip(reason="Phase 2: Async/SQLAlchemy event loop configuration needed. Trigger: P2-ASYNC-001")
+# pytestmark = pytest.mark.skip(reason="Phase 2: Async/SQLAlchemy event loop "
+#                               "configuration needed. Trigger: P2-ASYNC-001")
 
 
 class TestGetSystemHealth:

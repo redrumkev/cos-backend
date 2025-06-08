@@ -7,6 +7,7 @@ and response formatting, ensuring type safety and data integrity.
 # MDC: cc_module
 from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
@@ -277,3 +278,51 @@ class CleanupResponse(BaseModel):
     deleted: int = Field(..., description="Number of records deleted.")
 
     model_config = ConfigDict(json_schema_extra={"example": {"status": "completed", "deleted": 25}})
+
+
+class DebugLogRequest(BaseModel):
+    """Request model for the debug logging endpoint."""
+
+    event_type: str = Field(..., description="Type of event being logged", max_length=100)
+    payload: dict[str, Any] | None = Field(None, description="Optional JSON payload for event data")
+    prompt_data: dict[str, Any] | None = Field(None, description="Optional prompt trace data")
+    request_id: str | None = Field(None, description="Optional request ID (uses context value if omitted)")
+    trace_id: str | None = Field(None, description="Optional Logfire trace ID")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "event_type": "debug_test",
+                "payload": {"message": "Test debug log", "level": "INFO"},
+                "prompt_data": {
+                    "prompt_text": "Debug logging test",
+                    "response_text": "Successfully logged",
+                    "execution_time_ms": 150,
+                    "token_count": 25,
+                },
+            }
+        }
+    )
+
+
+class DebugLogResponse(BaseModel):
+    """Response model for the debug logging endpoint."""
+
+    success: bool = Field(..., description="Whether the logging operation succeeded")
+    message: str = Field(..., description="Human-readable status message")
+    log_ids: dict[str, UUID] = Field(..., description="UUIDs of created log records")
+    performance_ms: float = Field(..., description="Execution time in milliseconds")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "success": True,
+                "message": "Debug log created successfully",
+                "log_ids": {
+                    "base_log_id": "123e4567-e89b-12d3-a456-426614174000",
+                    "event_log_id": "987fcdeb-51a2-43d7-b456-426614174001",
+                },
+                "performance_ms": 1.26,
+            }
+        }
+    )

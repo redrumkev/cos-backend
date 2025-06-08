@@ -83,7 +83,7 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y redis-tools postgresql-client wget
+        sudo apt-get install -y redis-tools postgresql-client wget bc
 
     - name: Install uv
       run: |
@@ -146,15 +146,97 @@ jobs:
         POSTGRES_MIGRATE_URL: ${{ env.POSTGRES_MIGRATE_URL }}
         DATABASE_URL_TEST: ${{ env.DATABASE_URL_TEST }}
 
-    - name: Run pre-commit hooks
+    - name: Run MCP filename drift checker
       run: |
+        python scripts/check_mcp_filename_drift.py
+      env:
+        PYTHONPATH: .
+
+    - name: Run pre-commit hooks with strict enforcement for new files
+      run: |
+        # Enhanced pre-commit with strict checks for new files
         PYTHONPATH=. pre-commit run --all-files
+
+        # Additional strict checks for Phase 2 quality gates
+        echo "Running strict quality enforcement for new files..."
+
+        # Get list of modified files in this PR/commit
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          NEW_FILES=$(git diff --name-only --diff-filter=A origin/${{ github.base_ref }}...HEAD | grep '\.py$' || true)
+          MODIFIED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.py$' || true)
+        else
+          # For push events, check files changed in last commit
+          NEW_FILES=$(git diff --name-only --diff-filter=A HEAD~1..HEAD | grep '\.py$' || true)
+          MODIFIED_FILES=$(git diff --name-only HEAD~1..HEAD | grep '\.py$' || true)
+        fi
+
+        # Strict linting for new files (ALL rules)
+        if [ -n "$NEW_FILES" ]; then
+          echo "New files detected - applying strict linting:"
+          echo "$NEW_FILES"
+          echo "$NEW_FILES" | xargs -r ruff check --select ALL --no-fix || {
+            echo "❌ Strict linting failed for new files. All new code must pass ALL ruff rules."
+            exit 1
+          }
+        fi
+
+        # Strict MyPy for new files
+        if [ -n "$NEW_FILES" ]; then
+          echo "New files detected - applying strict MyPy:"
+          echo "$NEW_FILES" | xargs -r mypy --strict --no-error-summary || {
+            echo "❌ Strict MyPy failed for new files. All new code must pass strict type checking."
+            exit 1
+          }
+        fi
+
+        echo "✅ Quality enforcement passed for all new files"
       env:
         SKIP: no-commit-to-branch  # Skip branch protection in CI
 
-    - name: Run tests with coverage
+    - name: Run tests with enhanced coverage gates
       run: |
-        PYTHONPATH=. pytest -v --cov=src --cov=scripts --cov-report=xml --cov-report=term --cov-fail-under=30
+        echo "🎯 Phase 2 Coverage Gates: 97% new code, 90% overall minimum"
+
+        # Generate coverage data with detailed reporting
+        PYTHONPATH=. pytest -v \
+          --cov=src \
+          --cov=scripts \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          --cov-report=json:coverage.json \
+          --cov-fail-under=90
+
+        # Enhanced coverage analysis for new code
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          echo "📊 Analyzing new code coverage..."
+
+          # Install diff-cover for new code analysis
+          pip install diff-cover
+
+          # Check coverage for new/modified lines (97% threshold)
+          diff-cover coverage.xml \
+            --compare-branch=origin/${{ github.base_ref }} \
+            --fail-under=97 \
+            --html-report=diff-coverage.html || {
+            echo "❌ New code coverage below 97% threshold"
+            echo "📈 All new code must achieve ≥97% test coverage"
+            exit 1
+          }
+
+          echo "✅ New code coverage meets 97% threshold"
+        fi
+
+        # Overall coverage validation (90% minimum)
+        COVERAGE_PERCENT=$(python -c "import json; data=json.load(open('coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}')")
+
+        echo "📊 Overall coverage: ${COVERAGE_PERCENT}%"
+
+        if (( $(echo "$COVERAGE_PERCENT < 90" | bc -l) )); then
+          echo "❌ Overall coverage ${COVERAGE_PERCENT}% below 90% minimum"
+          exit 1
+        fi
+
+        echo "✅ Coverage gates passed: ${COVERAGE_PERCENT}% overall"
       env:
         DATABASE_URL: ${{ env.DATABASE_URL }}
         POSTGRES_DEV_URL: ${{ env.POSTGRES_DEV_URL }}
@@ -172,7 +254,19 @@ jobs:
         TESTING: ${{ env.TESTING }}
         ENVIRONMENT: ${{ env.ENVIRONMENT }}
 
-    - name: Upload coverage to Codecov
+    - name: Upload enhanced coverage artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-reports
+        path: |
+          coverage.xml
+          coverage.json
+          htmlcov/
+          diff-coverage.html
+        retention-days: 30
+
+    - name: Upload coverage to Codecov (backup)
       if: env.CODECOV_TOKEN != ''
       uses: codecov/codecov-action@v4
       with:

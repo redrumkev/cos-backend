@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
-import pytest  # Phase 2: Remove for skip removal
-
 from src.common.ledger_view import (
     MemoryList,
     filter_memories,
@@ -16,8 +14,8 @@ from src.common.ledger_view import (
     main,
 )
 
-# Phase 2: Remove this skip block for common utilities testing (P2-UTILS-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Common utilities testing needed. Trigger: P2-UTILS-001")
+# Phase 2: P2-UTILS-001 skip removed - common utilities testing enabled
+# pytestmark = pytest.mark.skip(reason="Phase 2: Common utilities testing needed. Trigger: P2-UTILS-001")
 
 
 class TestLedgerViewCompleteCoverage:

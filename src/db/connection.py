@@ -2,7 +2,6 @@
 
 import os
 from collections.abc import AsyncGenerator
-from functools import lru_cache
 from typing import Any
 
 import orjson
@@ -18,48 +17,48 @@ from src.common.logger import get_logger
 logger = get_logger(__name__)
 
 
-def get_db_url(testing: bool = False, dev: bool = False) -> str:
-    """Get the appropriate database URL based on the environment.
+def get_db_url(testing: bool = False, dev: bool = True) -> str:
+    """Get database URL - ALWAYS use dev database (port 5433) during Phase 2.
 
-    Priority:
-    1. TESTING=true -> DATABASE_URL_TEST
-    2. DEV=true -> DATABASE_URL_DEV
-    3. Production -> DATABASE_URL.
+    CRITICAL: Port 5434 is FORBIDDEN. All connections go to cos_postgres_dev (port 5433).
     """
-    if testing:
-        db_url = os.getenv("DATABASE_URL_TEST")
+    # FORCE dev=True always during Phase 2 - eliminate port 5434 usage
+    if testing or dev or os.getenv("TESTING"):
+        # Even in testing mode, use dev database (port 5433)
+        db_url = os.getenv("DATABASE_URL_DEV")
         if not db_url:
-            logger.error("DATABASE_URL_TEST is not set in a testing environment!")
-            raise ValueError("DATABASE_URL_TEST must be set for testing.")
+            logger.warning("DATABASE_URL_DEV not set, using default dev URL")
+            return "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
         return db_url
 
-    env_url = os.getenv("DATABASE_URL_DEV") if dev else os.getenv("DATABASE_URL")
+    # Production URL (not used in Phase 2)
+    env_url = os.getenv("DATABASE_URL")
     if not env_url:
-        logger.error("Database URL (DATABASE_URL or DATABASE_URL_DEV) is not set!")
-        raise ValueError("A database URL must be configured.")
+        logger.error("DATABASE_URL is not set!")
+        raise ValueError("DATABASE_URL must be configured for production.")
     return env_url
 
 
 def _database_url_for_tests() -> str:
-    """Get database URL specifically for test environments.
+    """Get database URL for test environments - FORCED to dev database (port 5433).
 
-    This function is used by test files to get the appropriate test database URL.
-    It follows the PostgreSQL-only approach and uses the DATABASE_URL_TEST environment variable.
+    CRITICAL: Port 5434 is ELIMINATED. All tests use cos_postgres_dev (port 5433).
     """
-    # Always use PostgreSQL for tests in the new architecture
-    test_url = os.getenv("DATABASE_URL_TEST")
-    if test_url:
-        return test_url
+    # FORCE all tests to use dev database - NO port 5434 allowed
+    dev_url = os.getenv("DATABASE_URL_DEV")
+    if dev_url:
+        return dev_url
 
-    # Fallback to a default PostgreSQL test URL if not set
-    logger.warning("DATABASE_URL_TEST not set, using default PostgreSQL test URL")
-    return "postgresql+asyncpg://postgres:test_password@localhost:5434/cos_test"
+    # Fallback to dev database URL - NO port 5434 EVER
+    logger.warning("DATABASE_URL_DEV not set, using default dev URL for tests")
+    return "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
 
 
 def _create_engine_impl(db_url: str) -> AsyncEngine:
     """Actual engine creation logic."""
     engine_options: dict[str, Any] = {
-        "json_serializer": orjson.dumps,
+        # asyncpg JSON/JSONB codec expects *str* not *bytes*, so decode.
+        "json_serializer": lambda obj: orjson.dumps(obj).decode(),
         "json_deserializer": orjson.loads,
     }
 
@@ -76,21 +75,16 @@ def _create_engine_impl(db_url: str) -> AsyncEngine:
     return create_async_engine(db_url, **engine_options)
 
 
-@lru_cache
 def get_async_engine() -> AsyncEngine:
-    """Get async engine, with caching disabled in test mode."""
-    # In test mode, don't use cache to ensure fresh engines
-    if "PYTEST_CURRENT_TEST" in os.environ:
-        db_url = get_db_url(testing=True)
-        return _create_engine_impl(db_url)
-
-    # Use cached version for production
-    db_url = get_db_url()
+    """Get async engine - ALWAYS uses dev database (port 5433)."""
+    # FORCE dev database for all operations during Phase 2
+    # Remove @lru_cache during Phase 2 to prevent connection string caching issues
+    db_url = get_db_url(dev=True)
     return _create_engine_impl(db_url)
 
 
-@lru_cache
 def get_async_session_maker() -> sessionmaker[Session]:
+    """Get session maker - removes @lru_cache during Phase 2 to prevent caching issues."""
     engine = get_async_engine()
     maker: sessionmaker[Session] = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)  # type: ignore
     return maker
