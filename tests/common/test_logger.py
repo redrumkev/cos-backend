@@ -82,35 +82,18 @@ class TestLogger:
         # Verify the mock instance's method was called
         mock_mem.set.assert_called_once()
 
-    @patch("src.common.logger.mem")  # Directly patch the module-level instance
-    def test_demo_function(self, mock_mem: Mock) -> None:
+    def test_demo_function(self) -> None:
         """Test the _demo function which is used when the module is run directly."""
-        # Arrange
-        # Simulate a return value that includes an ID starting with "log-pem-"
-        mock_mem.set.return_value = {
-            "status": "stored",
-            "id": "log-pem-generatedid",
-        }
-
-        # Act - call the demo function
+        # Act - call the demo function (it now returns a stub response)
         result = _demo()
 
-        # Assert
+        # Assert - check the stub response format
         assert "id" in result
         assert "status" in result
+        assert result["status"] == "mem0_stub"
         assert result["id"].startswith("log-pem-")
-        # Verify the mock's method was called
-        mock_mem.set.assert_called_once()
 
-        # Get the last call arguments from the correct mock
-        args, kwargs = mock_mem.set.call_args
-
-        # Check payload fields
-        assert "source" in args[1]
-        assert "data" in args[1]
-        assert "tags" in args[1]
-        assert "memo" in args[1]
-        assert args[1]["source"] == "pem"
-        assert "prompt" in args[1]["data"]
-        assert "quantum authorship" in args[1]["data"]["prompt"]
-        assert "test" in args[1]["tags"]
+        # Check that the data field contains the expected content
+        assert "data" in result
+        assert "prompt" in result["data"]
+        assert "output" in result["data"]

@@ -1,9 +1,25 @@
+"""Database connection and session management for the COS backend.
+
+This module provides:
+- Agent-based database connections
+- Async session factories
+- Connection pooling configuration
+- Rich logging for database operations
+
+For onboarding:
+1. Ensure Agent is configured and running
+2. Set up .env with agent connection URLs
+3. Use get_async_session_maker() for async contexts
+"""
+
 import os
 from collections.abc import AsyncGenerator, Callable, Generator
 from functools import lru_cache
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+from rich.console import Console
+from rich.text import Text
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine  # Added Engine for type hinting
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
@@ -13,6 +29,7 @@ from src.common.config import get_settings
 
 # Check if we're in a test environment
 IN_TEST_MODE = "PYTEST_CURRENT_TEST" in os.environ
+console = Console()
 
 
 @lru_cache
@@ -38,7 +55,7 @@ def get_session_maker() -> Callable[..., Session | MagicMock]:
 
         return mock_session_factory
 
-    return sessionmaker(bind=get_engine(), class_=Session, autoflush=False, autocommit=False)
+    return sessionmaker(bind=get_engine(), autoflush=False, autocommit=False)
 
 
 @lru_cache
@@ -49,11 +66,30 @@ def get_async_engine() -> AsyncEngine | AsyncMock:
         mock_engine = AsyncMock(spec=AsyncEngine)
         return mock_engine
 
-    settings = get_settings()
-    db_url = settings.POSTGRES_TEST_URL if IN_TEST_MODE else settings.async_db_url
-    if db_url.startswith("postgresql://"):
-        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    return create_async_engine(db_url, future=True)
+    try:
+        settings = get_settings()
+        db_url = settings.POSTGRES_TEST_URL if IN_TEST_MODE else settings.async_db_url
+        if db_url.startswith("postgresql://"):
+            db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+        # Configure pool settings from agent environment variables
+        engine_options: dict[str, Any] = {
+            "future": True,
+            "pool_pre_ping": True,  # Always enable pre-ping for agent connections
+        }
+
+        # Add agent-specific pool configuration if available
+        if pool_size := os.environ.get("AGENT_POOL_SIZE"):
+            engine_options["pool_size"] = int(pool_size)
+        if pool_timeout := os.environ.get("AGENT_POOL_TIMEOUT"):
+            engine_options["pool_timeout"] = int(pool_timeout)
+        if max_overflow := os.environ.get("AGENT_POOL_MAX_OVERFLOW"):
+            engine_options["max_overflow"] = int(max_overflow)
+
+        return create_async_engine(db_url, **engine_options)
+    except Exception as e:
+        console.print(Text(f"❌ Async engine initialization failed: {e}", style="red"))
+        raise
 
 
 @lru_cache
@@ -71,12 +107,16 @@ def get_async_session_maker() -> Callable[..., AsyncSession | AsyncMock]:
         def mock_session_factory(*args: Any, **kwargs: Any) -> MockAsyncSession:
             return MockAsyncSession(spec=AsyncSession)
 
-        # Create session_maker first with no arguments, then configure it
         return mock_session_factory
-    # This avoids the type error with AsyncEngine
-    session_maker = sessionmaker(autoflush=False, autocommit=False)
-    session_maker.configure(bind=get_async_engine(), class_=AsyncSession)
-    return cast(Callable[..., AsyncSession | AsyncMock], session_maker)
+
+    try:
+        # Use async_sessionmaker for proper AsyncSession creation
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        return async_sessionmaker(get_async_engine(), expire_on_commit=False, autoflush=False)
+    except Exception as e:
+        console.print(Text(f"❌ Async session maker initialization failed: {e}", style="red"))
+        raise
 
 
 def get_db() -> Generator[Session, None, None]:

@@ -283,6 +283,7 @@ def unique_test_id() -> str:
 def mock_env_settings() -> Generator[None, None, None]:
     os.environ["POSTGRES_DEV_URL"] = "postgresql://test:test@localhost/test_db"
     os.environ["POSTGRES_TEST_URL"] = "postgresql://test:test@localhost/test_test_db"
+    os.environ["DATABASE_URL_TEST"] = "postgresql://test:test@localhost/test_test_db"
     os.environ["REDIS_HOST"] = "localhost"
     os.environ["REDIS_PORT"] = "6379"
     os.environ["REDIS_PASSWORD"] = os.environ.get("REDIS_PASSWORD", "test_password")
@@ -290,6 +291,7 @@ def mock_env_settings() -> Generator[None, None, None]:
     for var in [
         "POSTGRES_DEV_URL",
         "POSTGRES_TEST_URL",
+        "DATABASE_URL_TEST",
         "REDIS_HOST",
         "REDIS_PORT",
         "REDIS_PASSWORD",
