@@ -1,0 +1,177 @@
+---
+name: python_best_practices
+rule_type: always
+scope: python_development
+applies_to:
+  - "**/*.py"
+summary: COS Python coding standards to eliminate Ruff/mypy issues and enforce best practices
+description: |
+  Clean, modern, frictionless Python conventions for COS. These rules prevent the most common Ruff and mypy errors, enforce clarity, and ensure every .py file is professional and maintainable—no exceptions, no tech debt.
+
+pattern:
+
+  type_annotations:
+    description: "Always use built-in generics and modern union syntax (Python 3.10+)"
+    rules:
+      - "Never import List, Dict, Set, Optional, Union from typing—use list, dict, set, and X | Y instead"
+      - "Prefer explicit types—use list[str], dict[str, int], set[str], not just 'list', 'dict', or 'set'"
+      - "Use X | Y for unions (not Union[X, Y]), and X | None for optionals (not Optional[X])"
+    examples:
+      correct: |
+        def process(items: list[str], opts: dict[str, int]) -> str | None:
+            ...
+      incorrect: |
+        from typing import List, Dict, Union, Optional
+        def process(items: List[str], opts: Dict[str, int]) -> Union[str, None]:
+            ...
+
+  import_organization:
+    description: "Group imports: standard lib, third-party, local—separated by blank lines"
+    rules:
+      - "Do not import list, dict, set—these shadow built-ins and trigger Ruff A004"
+      - "Order: standard library first, then third-party, then local/project imports"
+    examples:
+      correct: |
+        import os
+        import sys
+
+        from fastapi import FastAPI
+        from pydantic import BaseModel
+
+        from src.backend.cc.models import HealthStatus
+
+  whitespace_and_blanklines:
+    description: "Enforce blank line and whitespace conventions (W291, W292, W293, D204, D413)"
+    rules:
+      - "No trailing whitespace or whitespace-only lines (ruff format . fixes this)"
+      - "Always end each .py file with a single newline"
+      - "Exactly one blank line after a class docstring, two blank lines before top-level defs/classes"
+      - "Single blank line between methods"
+      - "Blank line after 'Returns:' in docstrings"
+    examples:
+      correct: |
+        class Foo:
+            """Example class.
+
+            Details here.
+            """
+
+            def bar(self):
+                pass
+
+        def baz():
+            pass
+
+  docstrings:
+    description: "Consistent docstring format for all public APIs"
+    rules:
+      - "First line: short summary, then blank line, then details/params/returns"
+      - "Always add a blank line after the last section ('Returns', etc.)"
+      - "No docstring enforcement for tests (D100-D107 are ignored in config)"
+    examples:
+      correct: |
+        def add(x: int, y: int) -> int:
+            """Add two numbers.
+
+            Args:
+                x: The first number.
+                y: The second number.
+
+            Returns:
+                The sum.
+            """
+
+  fastapi_patterns:
+    description: "Preferred FastAPI route, model, and service structure"
+    examples:
+      correct: |
+        from fastapi import APIRouter, HTTPException
+        from pydantic import BaseModel
+
+        router = APIRouter()
+
+        class ItemCreate(BaseModel):
+            name: str
+            tags: list[str] = []
+
+        @router.post("/items")
+        async def create_item(request: ItemCreate) -> dict[str, str]:
+            """Create a new item."""
+            return {"status": "created"}
+
+  error_handling:
+    description: "Only handle specific exceptions, always chain with 'from exc'"
+    rules:
+      - "Never use bare 'except Exception' unless logging+re-raising"
+      - "Chain root cause: raise NewError(...) from exc"
+    examples:
+      correct: |
+        try:
+            result = do_work()
+        except ValueError as exc:
+            raise ProcessingError("Invalid value") from exc
+
+  async_and_tests:
+    description: "Use async for all I/O; always structure tests for clarity"
+    rules:
+      - "Database/HTTP operations must use async def and await"
+      - "Use pytest fixtures and pytest.mark.asyncio for async tests"
+    examples:
+      async_db: |
+        async def get_user(user_id: int) -> User | None:
+            async with get_db_session() as session:
+                stmt = select(User).where(User.id == user_id)
+                result = await session.execute(stmt)
+                return result.scalar_one_or_none()
+      test: |
+        import pytest
+        from httpx import AsyncClient
+
+        @pytest.mark.asyncio
+        async def test_create_item():
+            # Arrange
+            payload = {"name": "test", "tags": []}
+            # Act
+            async with AsyncClient(app=app, base_url="http://test") as client:
+                resp = await client.post("/api/items", json=payload)
+            # Assert
+            assert resp.status_code == 200
+
+validation:
+  required_elements:
+    - "No typing.List, Dict, Set, Union, Optional—always use built-ins and X | Y"
+    - "Imports: stdlib, blank, third-party, blank, local"
+    - "Whitespace: no trailing, no blank-line whitespace, single newline at EOF"
+    - "Docstrings: summary, blank, details, blank after last section"
+    - "Exceptions: specific only, always 'from exc'"
+    - "Async/await for I/O, pytest/async for tests"
+
+  formatting_commands:
+    pre_commit: |
+      ruff check --fix .
+      ruff format .
+
+  key_rules_summary:
+    - "Never import List, Dict, Set, Union, Optional from typing"
+    - "Use built-in generics (list, dict, set) and X | Y union syntax"
+    - "Always organize imports: stdlib, third-party, local"
+    - "No trailing whitespace or missing final newlines"
+    - "Follow docstring and blank line rules"
+    - "Handle only specific exceptions and chain with 'from exc'"
+    - "Async/await for all I/O"
+    - "Run 'ruff check --fix' and 'ruff format .' before every commit"
+
+notes: |
+  Adhering to these rules ensures nearly all Ruff and mypy issues are prevented at file creation. Copy this file into `.cursor/rules/python-best-practices.mdc.yaml`.
+  Consider modularizing by directory in the future: e.g., `.cursor/rules/backend/fastapi.mdc.yaml` for deeper patterns.
+
+updates:
+  - description: >
+      Enforce Ruff modern-typing, whitespace and docstring rules for all new
+      files.  Violations should fail the ruff hook rather than be auto-fixed.
+    pattern: "^from __future__ import annotations$"
+    requirements:
+      - "Built-in generics only (list, dict, set)"
+      - "Use | unions, never typing.Union"
+      - "No trailing whitespace or blank-line spaces"
+      - "Exactly one blank line after module or class docstrings"

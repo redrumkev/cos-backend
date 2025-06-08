@@ -30,9 +30,7 @@ def load_memories() -> MemoryList:
     return memories
 
 
-def filter_memories(
-    memories: MemoryList, source: str | None = None, tag: str | None = None
-) -> MemoryList:
+def filter_memories(memories: MemoryList, source: str | None = None, tag: str | None = None) -> MemoryList:
     filtered: MemoryList = []
     for key, data in memories:
         if not isinstance(data, dict):
@@ -67,9 +65,7 @@ def render_plain(memories: MemoryList) -> None:
     for key, data in memories:
         if not isinstance(data, dict):
             continue
-        console.print(
-            f"[cyan][{key}][/] {data.get('source')} @ {data.get('timestamp')}"
-        )
+        console.print(f"[cyan][{key}][/] {data.get('source')} @ {data.get('timestamp')}")
         console.print(f"[yellow]Tags:[/yellow] {data.get('tags', [])}")
         console.print(f"[white]Memo:[/white] {data.get('memo', '')}")
         console.print("---")
@@ -78,15 +74,9 @@ def render_plain(memories: MemoryList) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="COS Memory Ledger Viewer")
     parser.add_argument("--plain", action="store_true", help="Plain text output")
-    parser.add_argument(
-        "--limit", type=int, default=50, help="Number of recent entries to show"
-    )
-    parser.add_argument(
-        "--source", type=str, help="Filter by source (e.g. pem, cursor, cc)"
-    )
-    parser.add_argument(
-        "--tag", type=str, help="Filter by tag (e.g. prompt, log, summary)"
-    )
+    parser.add_argument("--limit", type=int, default=50, help="Number of recent entries to show")
+    parser.add_argument("--source", type=str, help="Filter by source (e.g. pem, cursor, cc)")
+    parser.add_argument("--tag", type=str, help="Filter by tag (e.g. prompt, log, summary)")
     args = parser.parse_args()
 
     memories = load_memories()

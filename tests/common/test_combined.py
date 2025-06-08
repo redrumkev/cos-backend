@@ -73,9 +73,7 @@ class TestMem0Client:
         result = client.set("test-key", data)
 
         # Verify
-        mock_post.assert_called_once_with(
-            "http://localhost:7790/memory/test-key", json=data
-        )
+        mock_post.assert_called_once_with("http://localhost:7790/memory/test-key", json=data)
         mock_response.raise_for_status.assert_called_once()
         assert result == {"status": "success"}
 

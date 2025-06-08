@@ -1,5 +1,7 @@
 # ruff.toml
-line-length = 88
+# Harmonise with black's (PEP 8) *or* project style – we raise it a bit
+# so docstrings & URLs fit without ugly wrapping.
+line-length = 120
 target-version = "py312"
 
 [lint]
@@ -11,6 +13,11 @@ ignore = [
     "D213", # disable second-line summary rule so that our summary (D212) works as desired
     "D203", # Explicitly ignore one-blank-line-before-class in favor of D211
 ]
+
+[lint.per-file-ignores]
+# FastAPI routers use dependency injection patterns that trigger B008
+"**/router.py" = ["B008"]
+"**/routers/*.py" = ["B008"]
 
 [format]
 # No specific format settings needed if defaults are fine

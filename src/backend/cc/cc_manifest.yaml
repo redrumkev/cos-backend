@@ -1,17 +1,18 @@
 ---
-# Control Center (CC) Module Manifest
-# Purpose: Defines the core identity and alignment of the CC (Control Center) module
+# Control Center (CC) Module Manifest — v1.1
+# Purpose: Enhanced identity and alignment of the CC module within COS under the Dual Mandate
 
 module:
   name: "cc"
   title: "Control Center"
   purpose: |
     Acts as the central hub of COS. All agent modules (PEM, AIC, VN, etc.) are
-    initiated or coordinated from here. Contains health checks, top-level routing,
-    and orchestrated commands. Provides system-wide monitoring and coordination
-    capabilities to ensure the entire Creative Operating System functions harmoniously.
+    initiated or coordinated from here. It provides API endpoints, high-integrity CRUD operations,
+    orchestrated routing, and system-wide monitoring. `cc` operates as the operational gateway
+    between frontend/editor surfaces and the system’s memory and logic layers.
 
   metadata:
+    version: "1.1"
     status: "active"
     owned_by: "kevin"
     dependencies: []
@@ -20,14 +21,28 @@ module:
   alignment:
     mantra: "Central intelligence that orchestrates the heartbeat of the system."
     principles:
-      - "clarity_over_complexity"
-      - "stability_over_features"
-      - "service_over_utility"
-      - "interconnectedness_over_isolation"
+      - clarity_over_complexity
+      - stability_over_features
+      - service_over_utility
+      - interconnectedness_over_isolation
     resonance_questions:
       - "Does this provide clear insight into system health and function?"
-      - "Will this remain a stable foundation across 100 books?"
+      - "Will this remain a stable foundation across 100 books and 1000 workflows?"
       - "Does this simplify system orchestration rather than complicate it?"
+
+  responsibilities:
+    - Expose typed RESTful API endpoints for structured operations
+    - Act as the entry point for UI modules like Milkdown and tldraw
+    - Interface with mem0, Postgres, Neo4j as backend truth layers
+    - Publish real-time updates to Redis pub/sub
+    - Normalize, persist, and broadcast system state updates
+    - Provide a gold standard template for future COS modules
+
+  non_responsibilities:
+    - Prompt engineering (delegated to PEM)
+    - Agentic decision-making (delegated to AIC)
+    - Graph clustering/insight logic (delegated to Graphiti)
+    - Voice intake, transcription, or Slack classification
 
   capabilities:
     - name: "Health Monitoring"
@@ -38,14 +53,59 @@ module:
       description: "Inter-module communication and event orchestration"
     - name: "System Status Reporting"
       description: "Comprehensive reports on system operation"
+    - name: "CRUD Gateway"
+      description: "Accepts structured create/update requests from editors and modules"
+    - name: "Event Sync"
+      description: "Publishes Redis notifications for downstream agentic subscribers"
 
   integrations:
     - name: "mem0"
-      purpose: "Memory storage and retrieval"
-      interface: "HTTP API"
-    - name: "other_modules"
-      purpose: "Health checking and coordination"
-      interface: "HTTP API / Redis pub/sub"
+      purpose: "Short-term memory persistence and coordination"
+      interface: "HTTP API / pubsub"
+    - name: "Postgres"
+      purpose: "Long-term structured data storage"
+      interface: "SQLAlchemy ORM"
+    - name: "Neo4j / mem0g"
+      purpose: "Graph-based memory and connection reasoning"
+      interface: "Cypher / Graphiti layer"
+    - name: "milkdown"
+      purpose: "Frontend Markdown editor interface"
+      interface: "REST API calls to /cc endpoints"
+    - name: "tldraw"
+      purpose: "Visual layout editor and graph-mapping tool"
+      interface: "JSON sync via /cc/visual endpoints"
+
+  extensibility:
+    modules_downstream:
+      - pem:
+          role: prompt engineering and enhancement of entries, zk, outlines
+      - aic:
+          role: agentic decision support, synthesis, judgment and trajectory feedback
+      - graphiti:
+          role: graph-wide analysis, link emergence, tag harmonization, theme discovery
+      - slack:
+          role: user-input intake, classification, agentic routing, NLP feedback
+      - rituals:
+          role: apply transformation logic and resonance weighting to entries or workflows
+      - zk:
+          role: long-term structured note architecture (can extend `cc/zk/` or specialize further)
+      - publishing:
+          role: export, format, distribute final works (book, article, evergreen content, etc.)
+
+  future_extensions:
+    - /cc/log/ → transparent event auditing
+    - /cc/meta/ → cross-module metadata resolution
+    - /cc/bridge/ → cc → external system relay (Notion, Git, Drive, etc.)
+
+  alignment_with_dual_mandate:
+    quality:
+      - All exposed endpoints are typed, versioned, and scoped to minimal intention
+      - Composable route design with shared validators
+      - Avoids side effects, uses pure-state logic with pub/sub triggers
+    efficiency:
+      - Can be cloned to new module via script/template
+      - Minimal boilerplate due to re-used CRUD factory classes
+      - Configurable schema paths, tags, and state handlers
 
   roadmap:
     - name: "System-wide Event Bus"
@@ -57,3 +117,16 @@ module:
     - name: "Admin Dashboard Integration"
       description: "API endpoints for administrative dashboards"
       priority: "medium"
+    - name: "CC Logging Layer"
+      description: "Log updates, requests, and transformations for transparency and rollback"
+      priority: "low"
+    - name: "Metadata Map Service"
+      description: "Surface insight into all known ZK/Book/Prompt/Agentic entities"
+      priority: "high"
+
+  notes:
+    - "If `cc` begins accumulating logic that belongs to PEM, AIC, or another cognitive module, it must be immediately migrated."
+    - "Use `cc` as an operational gateway, not intellectual authority."
+    - "cc = interface; others = intelligence."
+    - "This manifest defines the ideal state of the module — deviations must be intentional and documented."
+    - "This template logic is reusable across COS and Pipeline for hub modules that orchestrate, but do not interpret or transform data themselves."

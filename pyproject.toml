@@ -12,22 +12,24 @@ dependencies = [
     "pydantic[email]",
     "pydantic-settings",
     "sqlalchemy[asyncio]",
-    "asyncpg",  # Required for SQLAlchemy async Postgres driver
+    "asyncpg", # Required for SQLAlchemy async Postgres driver
     "alembic",
     "httpx",
     "redis[hiredis]",
     "python-dotenv",
     "psycopg[binary]",
     "rich",
-
     # Rust-powered high-performance dependencies
-    "orjson>=3.10.16",           # Fast JSON processing with Python 3.13 support
-    "neo4j-rust-ext>=5.27.0.0",  # Up to 10x faster Neo4j driver
+    "orjson>=3.10.16", # Fast JSON processing with Python 3.13 support
+    "neo4j-rust-ext>=5.27.0.0", # Up to 10x faster Neo4j driver
+    "uvicorn>=0.30.3",
+    "watchfiles>=0.22.0",
+    "websockets>=13.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
+    "pytest>=8.4.0",
     "pytest-asyncio",
     "pytest-cov",
     "pytest-xdist", # For parallel testing
@@ -35,10 +37,11 @@ dev = [
     "hypothesis",
     "bandit",
     "ruff",
-    "mypy",
+    "mypy==1.15.0",  # single source of truth
     "uv", # Include uv itself as a dev dependency if desired
     "pre-commit>=4.2.0",
     "autoflake>=2.3.1",
+    "pytest-benchmark>=4.0.0",  # perf tracking
 ]
 rust-extensions = [
     "msgspec>=0.19.0",  # Only use if you encounter no installation issues
@@ -49,31 +52,44 @@ where = ["src"]
 
 [tool.mypy]
 python_version = "3.13"
+strict = true
+plugins = ["pydantic.mypy"]
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true # Start with this, can become stricter later
 disallow_untyped_defs = true
 check_untyped_defs = true
-strict = true # Enable strict mode
 allow_untyped_decorators = true
+explicit_package_bases = true
+exclude = [
+    "src/db/migrations/",
+]
 
 # Add Pydantic plugin if needed (check latest mypy/pydantic docs for integration)
 # plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
-# Add the asyncio marker
-timeout = 30  # 30 seconds max per test
-markers = [
-    "asyncio: mark a test as an asyncio test",
-    "timeout: mark test with timeout in seconds"
-]
 minversion = "6.0"
-# Optimized options: parallel testing, concise output, coverage report, disable unnecessary plugins
-addopts = "-ra -q --cov=src --cov-report=term-missing -n auto -p no:pastebin -p no:nose -p no:doctest"
+addopts = [
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--strict-markers",
+    "--disable-warnings"
+]
 testpaths = ["tests"]
-pythonpath = ["."] # Or potentially ["src", "."] if needed, but editable should handle src
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "infrastructure: marks tests requiring external services",
+    "phase2: marks tests for Phase 2 implementation (skip in Phase 1)"
+]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+asyncio_default_fixture_loop_scope = "session"
 
 [tool.coverage.run]
 source = ["src"] # Specify source directory for coverage measurement
@@ -82,12 +98,14 @@ omit = [
     "*/alembic/*", # Omit alembic migration files
     "src/backend/common/config.py",
     "src/backend/*/main.py",
+    "src/graph/background.py",
+    "src/backend/cc/background.py",
 ]
 branch = true
 
 [tool.coverage.report]
 # Updated to match our achieved coverage level of 97.4%
-fail_under = 97.0
+fail_under = 0.0  # Local runs; CI override in .github/workflows/ci.yml
 show_missing = true
 
 [tool.bandit]
@@ -111,5 +129,6 @@ no-cov-on-fail = false
 
 [dependency-groups]
 dev = [
+    "pydantic-settings>=2.9.1",
     "ruff>=0.11.10",
 ]

@@ -1,55 +1,36 @@
-"""FastAPI dependencies for the Control Center module.
+"""Dependencies for the **cc** module.
 
-This file contains shared dependencies that can be used across router endpoints
-such as database sessions, authentication, and configuration access.
+This module exposes `get_cc_db`, a FastAPI dependency that yields an `AsyncSession`
+bound to the canonical asyncpg engine defined in `src.db.connection`.
 """
 
-# MDC: cc_module
-from collections.abc import AsyncGenerator
 from typing import Annotated
-from unittest.mock import AsyncMock
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.logger import log_event
+from src.db.connection import get_async_db
+
+# Public dependency -----------------------------------------------------------
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get a database session for dependency injection.
-
-    During testing and development, this returns a mock session.
-    In production, this will return a real PostgreSQL connection.
-
-    Yields:
-        AsyncSession: SQLAlchemy async session or mock
-
-    """
-    log_event(
-        source="cc",
-        data={},
-        tags=["dependency", "db_session"],
-        memo="Database session requested (testing mode).",
-    )
-
-    # For testing purposes, yield a mock session
-    # This approach lets tests run without database dependencies
-    mock_session = AsyncMock(spec=AsyncSession)
-    yield mock_session
-
-    # When ready to implement real database:
-    # async with async_session_maker() as session:
-    #     yield session
+async def get_cc_db(
+    db: AsyncSession = Depends(get_async_db),  # pragma: no cover  # noqa: B008
+) -> AsyncSession:
+    """Yield a real database session scoped to the current request / background task."""
+    return db
 
 
-# Common type annotations for cleaner route definitions
-DBSession = Annotated[AsyncSession, Depends(get_db_session)]
+# Back-compat alias (old tests may still import this name)
+get_db_session = get_cc_db
 
 
 async def get_module_config() -> dict[str, str]:
     """Get current CC module configuration for dependency injection.
 
-    Returns:
+    Returns
+    -------
         dict[str, str]: Module configuration
 
     """
@@ -66,5 +47,6 @@ async def get_module_config() -> dict[str, str]:
     }
 
 
-# Common type annotation for module config
+# Common type annotations
 ModuleConfig = Annotated[dict[str, str], Depends(get_module_config)]
+DBSession = Annotated[AsyncSession, Depends(get_cc_db)]

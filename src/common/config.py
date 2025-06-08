@@ -1,10 +1,19 @@
+import os
 from functools import lru_cache
+from pathlib import Path
 
+from dotenv import load_dotenv
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# ------------------------ dynamic dotenv loading -------------------------
+# Priority: ENV_FILE (explicit)  > infrastructure/.env  > ignore
+candidate = os.getenv("ENV_FILE") or str(Path(__file__).parents[2] / "infrastructure" / ".env")
+if Path(candidate).exists():
+    load_dotenv(candidate)
 
 
-class Settings(BaseSettings):  # type: ignore[misc]
+class Settings(BaseSettings):
     POSTGRES_DEV_URL: str = Field(
         default="postgresql://test:test@localhost/test_db",
         validation_alias="POSTGRES_DEV_URL",
@@ -15,15 +24,21 @@ class Settings(BaseSettings):  # type: ignore[misc]
     )
     REDIS_HOST: str = Field(default="localhost", validation_alias="REDIS_HOST")
     REDIS_PORT: int = Field(default=6379, validation_alias="REDIS_PORT")
-    REDIS_PASSWORD: str | None = Field(
-        default="test_password", validation_alias="REDIS_PASSWORD"
-    )
+    REDIS_PASSWORD: str | None = Field(default="test_password", validation_alias="REDIS_PASSWORD")
+    MEM0_SCHEMA: str = Field(default="mem0_cc", validation_alias="MEM0_SCHEMA")
 
-    model_config = {
-        "env_file": ".env",
-        "env_file_encoding": "utf-8",
-        "extra": "allow",
-    }
+    # Neo4j Configuration (Task 11)
+    NEO4J_URI: str = Field(default="bolt://localhost:7687", validation_alias="NEO4J_URI")
+    NEO4J_USER: str = Field(default="neo4j", validation_alias="NEO4J_USER")
+    NEO4J_PASSWORD: str = Field(default="test", validation_alias="NEO4J_PASSWORD")
+    ENABLE_GRAPH_INTEGRATION: bool = Field(default=False, validation_alias="ENABLE_GRAPH_INTEGRATION")
+
+    # Scratch Data Configuration (Task 10)
+    SCRATCH_DEFAULT_TTL_DAYS: int = Field(default=7, ge=1, le=365)
+    SCRATCH_CLEANUP_BATCH_SIZE: int = Field(default=1000, ge=100, le=10000)
+    SCRATCH_ENABLE_AUTO_CLEANUP: bool = Field(default=True)
+
+    model_config = SettingsConfigDict(env_file=None)  # dotenv loaded manually
 
     @property
     def sync_db_url(self) -> str:
@@ -33,9 +48,7 @@ class Settings(BaseSettings):  # type: ignore[misc]
     def async_db_url(self) -> str:
         # Convert sync URL to asyncpg format if needed
         if self.POSTGRES_DEV_URL.startswith("postgresql://"):
-            return self.POSTGRES_DEV_URL.replace(
-                "postgresql://", "postgresql+asyncpg://", 1
-            )
+            return self.POSTGRES_DEV_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
         return self.POSTGRES_DEV_URL
 
 

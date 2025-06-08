@@ -15,4 +15,5 @@ class DeclarativeBaseProtocol(Protocol):
 class Base(SQLAlchemyBase):
     """Base class for all models."""
 
+    __abstract__ = True
     pass

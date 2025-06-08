@@ -79,9 +79,7 @@ class TestMem0Client:
         result = client.set("test-key", data)
 
         # Verify
-        mock_post.assert_called_once_with(
-            "http://localhost:7790/memory/test-key", json=data
-        )
+        mock_post.assert_called_once_with("http://localhost:7790/memory/test-key", json=data)
         mock_response.raise_for_status.assert_called_once()
         assert result == {"status": "success", "id": "test-key"}
 
@@ -112,9 +110,7 @@ class TestMem0Client:
     @patch("src.common.mem0_client.Mem0Client.get")
     @patch("src.common.mem0_client.Mem0Client.set")
     @patch("src.common.logger.logger.info")
-    def test_main_execution_directly(
-        self, mock_logger_info: Mock, mock_set: Mock, mock_get: Mock
-    ) -> None:
+    def test_main_execution_directly(self, mock_logger_info: Mock, mock_set: Mock, mock_get: Mock) -> None:
         """Test execution of the module's main block with direct execution."""
         # Setup mocks
         mock_set.return_value = {"status": "success", "id": "test-client-main"}
@@ -151,9 +147,7 @@ class TestMem0Client:
     @patch("httpx.post")
     @patch("httpx.get")
     @patch("src.common.logger.logger.info")
-    def test_main_execution(
-        self, mock_logger_info: Mock, mock_get: Mock, mock_post: Mock
-    ) -> None:
+    def test_main_execution(self, mock_logger_info: Mock, mock_get: Mock, mock_post: Mock) -> None:
         """Test execution of the module's main block."""
         # Setup mocks
         mock_post_response = Mock()

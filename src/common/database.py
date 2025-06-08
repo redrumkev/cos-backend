@@ -38,9 +38,7 @@ def get_session_maker() -> Callable[..., Session | MagicMock]:
 
         return mock_session_factory
 
-    return sessionmaker(
-        bind=get_engine(), class_=Session, autoflush=False, autocommit=False
-    )
+    return sessionmaker(bind=get_engine(), class_=Session, autoflush=False, autocommit=False)
 
 
 @lru_cache

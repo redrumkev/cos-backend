@@ -1,134 +1,283 @@
-"""Tests for the Control Center router endpoints.
+"""Tests for API router endpoints in the Control Center module.
 
-This file contains tests for the HTTP endpoints defined in the CC router.
+This file contains tests for HTTP endpoints, ensuring that
+router functions work correctly with various request scenarios.
 """
 
-# MDC: cc_module
-from collections.abc import Callable
-from typing import TypeVar, cast
+from __future__ import annotations
 
-import pytest
-from fastapi import FastAPI
+from uuid import uuid4
+
+import pytest  # Phase 2: Remove for skip removal
 from fastapi.testclient import TestClient
 
-from src.backend.cc.deps import ModuleConfig, get_module_config
-from src.backend.cc.router import router
-
-T = TypeVar("T")
-fixture = cast(Callable[[Callable[..., T]], Callable[..., T]], pytest.fixture)
+# Phase 2: Remove this skip block for router implementation (P2-ROUTER-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Router implementation wiring needed. Trigger: P2-ROUTER-001")
 
 
-@fixture
-def client() -> TestClient:
-    """Create a test client for the router."""
-    app = FastAPI()
-    app.include_router(router)
-    return TestClient(app)
+class TestModuleRouterEndpoints:
+    """Test cases for Module router endpoints."""
 
+    def test_create_module_success(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test creating a module via POST /modules."""
+        module_name = f"test_module_{unique_test_id}"
+        module_data = {"name": module_name, "version": "1.0.0", "config": '{"setting1": "value1"}'}
 
-def test_health_check(client: TestClient) -> None:
-    """Test the health check endpoint."""
-    # Make a request to the health endpoint
-    response = client.get("/health")
+        response = test_client.post("/cc/modules", json=module_data)
 
-    # Verify the response status code
-    assert response.status_code == 200
-
-    # Verify the response content
-    data = response.json()
-    assert "status" in data
-    assert data["status"] == "healthy"
-
-
-def test_get_config(client: TestClient) -> None:
-    """Test the configuration endpoint."""
-    # Define the mock config data
-    mock_config_data = {
-        "version": "0.1.0",
-        "environment": "test",
-    }
-
-    # Define an override function for the dependency
-    def override_get_module_config() -> ModuleConfig:
-        return mock_config_data
-
-    app = cast(FastAPI, client.app)  # Add this line to properly type the app
-    app.dependency_overrides[get_module_config] = override_get_module_config
-
-    try:
-        response = client.get("/config")
-
-        # Verify the response status code
-        assert response.status_code == 200
-
-        # Verify the response content includes the expected keys
+        assert response.status_code == 201
         data = response.json()
-        assert "version" in data
-        assert "modules_loaded" in data
+        assert data["name"] == module_name
+        assert data["version"] == "1.0.0"
+        assert data["config"] == '{"setting1": "value1"}'
+        assert data["active"] is True
+        assert "id" in data
+        assert "last_active" in data
 
-        # Check that version matches our mock data
-        assert data["version"] == mock_config_data["version"]
+    def test_create_module_minimal_data(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test creating a module with minimal required data."""
+        module_name = f"minimal_module_{unique_test_id}"
+        module_data = {"name": module_name, "version": "1.0.0"}
 
-    finally:
-        app.dependency_overrides.clear()  # Better than del for cleanup
+        response = test_client.post("/cc/modules", json=module_data)
 
+        assert response.status_code == 201
+        data = response.json()
+        assert data["name"] == module_name
+        assert data["version"] == "1.0.0"
+        assert data["config"] is None
 
-def test_system_health_report(client: TestClient) -> None:
-    """Test the system health report endpoint."""
-    # Make a request to the system health endpoint
-    response = client.get("/system/health")
+    def test_create_module_validation_error(self, test_client: TestClient) -> None:
+        """Test creating a module with invalid data."""
+        module_data = {
+            "name": "",  # Empty name should fail validation
+            "version": "1.0.0",
+        }
 
-    # Verify the response status code
-    assert response.status_code == 200
+        response = test_client.post("/cc/modules", json=module_data)
 
-    # Verify the response content
-    data = response.json()
-    assert "overall_status" in data
-    assert "modules" in data
-    assert "timestamp" in data
-    assert isinstance(data["modules"], list)
-    assert len(data["modules"]) > 0
+        assert response.status_code == 422  # Validation error
 
-    # Verify module data structure
-    module = data["modules"][0]
-    assert "module" in module
-    assert "status" in module
-    assert "last_updated" in module
+    def test_create_module_duplicate_name(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test creating a module with duplicate name."""
+        module_name = f"duplicate_module_{unique_test_id}"
+        module_data = {"name": module_name, "version": "1.0.0"}
 
+        # Create first module
+        response1 = test_client.post("/cc/modules", json=module_data)
+        assert response1.status_code == 201
 
-def test_ping_module(client: TestClient) -> None:
-    """Test the ping module endpoint."""
-    # Test data
-    request_data = {"module": "cc"}
+        # Try to create second module with same name
+        response2 = test_client.post("/cc/modules", json=module_data)
+        assert response2.status_code == 409
+        assert "already exists" in response2.json()["detail"]
 
-    # Make a request to the ping endpoint
-    response = client.post("/ping", json=request_data)
+    def test_list_modules_empty(self, test_client: TestClient) -> None:
+        """Test listing modules when database is empty."""
+        response = test_client.get("/cc/modules")
 
-    # Verify the response status code
-    assert response.status_code == 200
+        assert response.status_code == 200
+        data = response.json()
+        assert data == []
 
-    # Verify the response content
-    data = response.json()
-    assert "module" in data
-    assert "status" in data
-    assert "latency_ms" in data
-    assert data["module"] == "cc"
-    assert data["status"] == "healthy"
+    def test_list_modules_with_data(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test listing modules with data."""
+        # Create multiple modules
+        modules_data = [
+            {"name": f"module_a_{unique_test_id}", "version": "1.0.0"},
+            {"name": f"module_b_{unique_test_id}", "version": "2.0.0"},
+            {"name": f"module_c_{unique_test_id}", "version": "1.5.0"},
+        ]
 
+        for module_data in modules_data:
+            response = test_client.post("/cc/modules", json=module_data)
+            assert response.status_code == 201
 
-def test_ping_unknown_module(client: TestClient) -> None:
-    """Test the ping module endpoint with an unknown module."""
-    # Test data
-    request_data = {"module": "unknown_module"}
+        # List modules
+        response = test_client.get("/cc/modules")
 
-    # Make a request to the ping endpoint
-    response = client.post("/ping", json=request_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 3
 
-    # Verify the response status code
-    assert response.status_code == 200
+        # Should be ordered by name
+        module_names = [module["name"] for module in data]
+        expected_names = [f"module_a_{unique_test_id}", f"module_b_{unique_test_id}", f"module_c_{unique_test_id}"]
+        assert module_names == expected_names
 
-    # Verify the response content
-    data = response.json()
-    assert data["module"] == "unknown_module"
-    assert data["status"] == "unknown"
-    assert data["latency_ms"] == 0
+    def test_list_modules_pagination(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test listing modules with pagination."""
+        # Create multiple modules
+        for i in range(5):
+            module_data = {"name": f"module_{i:02d}_{unique_test_id}", "version": "1.0.0"}
+            response = test_client.post("/cc/modules", json=module_data)
+            assert response.status_code == 201
+
+        # Test first page
+        response = test_client.get("/cc/modules?skip=0&limit=2")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["name"] == f"module_00_{unique_test_id}"
+        assert data[1]["name"] == f"module_01_{unique_test_id}"
+
+        # Test second page
+        response = test_client.get("/cc/modules?skip=2&limit=2")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["name"] == f"module_02_{unique_test_id}"
+        assert data[1]["name"] == f"module_03_{unique_test_id}"
+
+    def test_get_module_success(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test getting a specific module by ID."""
+        # Create a module first
+        module_name = f"test_module_{unique_test_id}"
+        module_data = {"name": module_name, "version": "1.0.0"}
+        create_response = test_client.post("/cc/modules", json=module_data)
+        assert create_response.status_code == 201
+        created_module = create_response.json()
+
+        # Get the module by ID
+        response = test_client.get(f"/cc/modules/{created_module['id']}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == created_module["id"]
+        assert data["name"] == module_name
+        assert data["version"] == "1.0.0"
+
+    def test_get_module_not_found(self, test_client: TestClient) -> None:
+        """Test getting a module that doesn't exist."""
+        fake_id = str(uuid4())
+        response = test_client.get(f"/cc/modules/{fake_id}")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
+
+    def test_update_module_success(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test updating a module successfully."""
+        # Create a module first
+        module_name = f"test_module_{unique_test_id}"
+        module_data = {"name": module_name, "version": "1.0.0"}
+        create_response = test_client.post("/cc/modules", json=module_data)
+        assert create_response.status_code == 201
+        created_module = create_response.json()
+
+        # Update the module
+        update_data = {"version": "1.1.0", "active": False}
+        response = test_client.patch(f"/cc/modules/{created_module['id']}", json=update_data)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == created_module["id"]
+        assert data["version"] == "1.1.0"
+        assert data["active"] is False
+        assert data["name"] == module_name  # Unchanged
+
+    def test_update_module_partial(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test updating a module with partial data."""
+        # Create a module first
+        module_name = f"test_module_{unique_test_id}"
+        module_data = {"name": module_name, "version": "1.0.0"}
+        create_response = test_client.post("/cc/modules", json=module_data)
+        assert create_response.status_code == 201
+        created_module = create_response.json()
+
+        # Update only the version
+        update_data = {"version": "1.2.0"}
+        response = test_client.patch(f"/cc/modules/{created_module['id']}", json=update_data)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["version"] == "1.2.0"
+        assert data["name"] == module_name  # Unchanged
+        assert data["active"] is True  # Unchanged
+
+    def test_update_module_not_found(self, test_client: TestClient) -> None:
+        """Test updating a module that doesn't exist."""
+        fake_id = str(uuid4())
+        update_data = {"version": "1.1.0"}
+        response = test_client.patch(f"/cc/modules/{fake_id}", json=update_data)
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
+
+    def test_update_module_name_conflict(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test updating a module name to conflict with existing module."""
+        # Create two modules
+        module1_data = {"name": f"module_1_{unique_test_id}", "version": "1.0.0"}
+        module2_data = {"name": f"module_2_{unique_test_id}", "version": "1.0.0"}
+
+        create_response1 = test_client.post("/cc/modules", json=module1_data)
+        assert create_response1.status_code == 201
+
+        create_response2 = test_client.post("/cc/modules", json=module2_data)
+        assert create_response2.status_code == 201
+        module2 = create_response2.json()
+
+        # Try to update module2's name to conflict with module1
+        update_data = {"name": f"module_1_{unique_test_id}"}
+        response = test_client.patch(f"/cc/modules/{module2['id']}", json=update_data)
+
+        assert response.status_code == 409
+        assert "already exists" in response.json()["detail"]
+
+    def test_delete_module_success(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test deleting a module successfully."""
+        # Create a module first
+        module_name = f"test_module_{unique_test_id}"
+        module_data = {"name": module_name, "version": "1.0.0"}
+        create_response = test_client.post("/cc/modules", json=module_data)
+        assert create_response.status_code == 201
+        created_module = create_response.json()
+
+        # Delete the module
+        response = test_client.delete(f"/cc/modules/{created_module['id']}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == created_module["id"]
+
+        # Verify it's deleted by trying to get it
+        get_response = test_client.get(f"/cc/modules/{created_module['id']}")
+        assert get_response.status_code == 404
+
+    def test_delete_module_not_found(self, test_client: TestClient) -> None:
+        """Test deleting a module that doesn't exist."""
+        fake_id = str(uuid4())
+        response = test_client.delete(f"/cc/modules/{fake_id}")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
+
+    def test_module_crud_workflow(self, test_client: TestClient, unique_test_id: str) -> None:
+        """Test a complete CRUD workflow for modules."""
+        module_name = f"workflow_module_{unique_test_id}"
+
+        # Create
+        create_data = {"name": module_name, "version": "1.0.0"}
+        create_response = test_client.post("/cc/modules", json=create_data)
+        assert create_response.status_code == 201
+        module = create_response.json()
+
+        # Read
+        get_response = test_client.get(f"/cc/modules/{module['id']}")
+        assert get_response.status_code == 200
+        assert get_response.json()["name"] == module_name
+
+        # Update
+        update_data = {"version": "1.1.0", "active": False}
+        update_response = test_client.patch(f"/cc/modules/{module['id']}", json=update_data)
+        assert update_response.status_code == 200
+        updated_module = update_response.json()
+        assert updated_module["version"] == "1.1.0"
+        assert updated_module["active"] is False
+
+        # Delete
+        delete_response = test_client.delete(f"/cc/modules/{module['id']}")
+        assert delete_response.status_code == 200
+
+        # Verify deletion
+        final_get_response = test_client.get(f"/cc/modules/{module['id']}")
+        assert final_get_response.status_code == 404

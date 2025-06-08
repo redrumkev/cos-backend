@@ -19,7 +19,7 @@ from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pytest import mark
+from pytest import Pytester, mark
 from rich.console import Console
 from rich.text import Text
 from sqlalchemy import text
@@ -45,9 +45,7 @@ async def cleanup_connections() -> AsyncGenerator[None, None]:
     """Cleanup any hanging connections after each test."""
     yield
     # Cleanup any remaining connections
-    await asyncio.gather(
-        *asyncio.all_tasks() - {asyncio.current_task()}, return_exceptions=True
-    )
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()}, return_exceptions=True)
 
 
 @pytest.mark.usefixtures("mock_env_settings")
@@ -155,12 +153,7 @@ async def test_async_engine_connection_failure_logs_rich_error() -> None:
         found = False
         for call in mock_print.call_args_list:
             text_arg = call[0][0]
-            if (
-                isinstance(text_arg, Text)
-                and "❌" in text_arg.plain
-                and text_arg.style
-                and "red" in text_arg.style
-            ):
+            if isinstance(text_arg, Text) and "❌" in text_arg.plain and text_arg.style and "red" in text_arg.style:
                 found = True
         assert found, "No rich error log with emoji/color found."
 
@@ -184,18 +177,11 @@ async def test_async_session_pool_exhaustion_logs_rich_error() -> None:
         except Exception:
             import logging
 
-            logging.exception(
-                "Exception occurred during async session pool exhaustion test"
-            )
+            logging.exception("Exception occurred during async session pool exhaustion test")
         found = False
         for call in mock_print.call_args_list:
             text_arg = call[0][0]
-            if (
-                isinstance(text_arg, Text)
-                and "❌" in text_arg.plain
-                and text_arg.style
-                and "red" in text_arg.style
-            ):
+            if isinstance(text_arg, Text) and "❌" in text_arg.plain and text_arg.style and "red" in text_arg.style:
                 found = True
         assert found, "No rich error log with emoji/color found."
 
@@ -209,9 +195,7 @@ def test_rich_log_output_includes_color_and_emoji() -> None:
         found = False
         for call in mock_print.call_args_list:
             text_arg = call[0][0]
-            if isinstance(text_arg, Text) and (
-                "✅" in text_arg.plain and text_arg.style and "green" in text_arg.style
-            ):
+            if isinstance(text_arg, Text) and ("✅" in text_arg.plain and text_arg.style and "green" in text_arg.style):
                 found = True
         assert found, "No rich log with green color and emoji found."
 
@@ -238,49 +222,29 @@ def test_module_docstrings_and_onboarding_comments() -> None:
     # Check for module-level docstring
     assert re.search(r'""".*?"""', code, re.DOTALL), "No module-level docstring found."
     # Check for onboarding comments
-    assert "onboarding" in code.lower() or "template" in code.lower(), (
-        "No onboarding/template comments found."
-    )
+    assert "onboarding" in code.lower() or "template" in code.lower(), "No onboarding/template comments found."
     # Check for config loading doc
     assert "get_settings" in code, "No config loading doc found."
 
 
-def test_no_warnings_or_deprecations_in_output() -> None:
-    """Runs pytest w/strict flags, asserts only green bars/emojis for passing cases."""
-    import subprocess
+def test_no_warnings_or_deprecations_in_output(pytester: Pytester) -> None:
+    """Runs pytest on this file in a sandboxed copy and ensures no warnings/errors."""
+    # copy this test file into pytesters tmpdir
+    pytester.copy_file(
+        "tests/common/test_database.py",
+        "test_database.py",
+    )
 
-    # SECURITY NOTE: These are hardcoded commands only, no user input
-    safe_cmd = [
-        "pytest",
+    # run pytest with strict flags
+    result = pytester.runpytest(
         "-q",
         "--disable-warnings",
         "--tb=short",
-        "tests/common/test_database.py",
-    ]
-
-    # Strict validation to ensure no command injection is possible
-    # Only alphanumeric chars and basic path characters are allowed
-    safe_pattern = r"^[\w\-./=]+$"
-
-    # Validate each argument before execution
-    for arg in safe_cmd:
-        if not isinstance(arg, str):
-            raise ValueError(f"Command argument must be string: {arg}")
-        if not re.match(safe_pattern, arg):
-            raise ValueError(f"Potentially unsafe command argument: {arg}")
-
-    # Command is validated as safe, now we can run it
-    result = subprocess.run(  # noqa: S603, RUF100
-        safe_cmd,
-        capture_output=True,
-        text=True,
-        check=True,
-        shell=False,
+        "test_database.py",
     )
-    # Only green output (no warnings, no deprecations)
-    assert "warning" not in result.stdout.lower()
-    assert "deprecat" not in result.stdout.lower()
-    assert "failed" not in result.stdout.lower()
-    assert "error" not in result.stdout.lower()
-    # Optionally check for green bar/emoji
-    assert "==" in result.stdout or "✅" in result.stdout
+
+    # exit code zero means everything passed
+    assert result.ret == 0
+
+    # verify there are no warning/deprecation/failure/error messages
+    result.stdout.no_re_match(r"warning|deprecat|failed|error")

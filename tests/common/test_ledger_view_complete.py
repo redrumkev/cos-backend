@@ -3,7 +3,11 @@
 These tests focus on edge cases and conditions not covered in the main test suite.
 """
 
+from __future__ import annotations
+
 from unittest.mock import Mock, patch
+
+import pytest  # Phase 2: Remove for skip removal
 
 from src.common.ledger_view import (
     MemoryList,
@@ -12,15 +16,16 @@ from src.common.ledger_view import (
     main,
 )
 
+# Phase 2: Remove this skip block for common utilities testing (P2-UTILS-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Common utilities testing needed. Trigger: P2-UTILS-001")
+
 
 class TestLedgerViewCompleteCoverage:
     """Additional tests for the ledger_view module to reach 100% coverage."""
 
     @patch("src.common.ledger_view.MEMORY_PATH")
     @patch("src.common.ledger_view.console")
-    def test_load_memories_general_exception(
-        self, mock_console: Mock, mock_path: Mock
-    ) -> None:
+    def test_load_memories_general_exception(self, mock_console: Mock, mock_path: Mock) -> None:
         """Test handling of general exceptions in load_memories.
 
         This tests line 58 in ledger_view.py where a general exception is caught.

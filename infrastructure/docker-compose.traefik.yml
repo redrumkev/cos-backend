@@ -1,7 +1,7 @@
 services:
   traefik:
     restart: always
-    image: traefik:v3.4
+    image: traefik:v3.4.1
     container_name: cos_traefik
     command:
       - "--log.level=DEBUG"                             # DEBUG for development; use INFO or WARN in production for less noise
@@ -23,6 +23,12 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/api/rawdata || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - cos_network                                     # Service joins the shared network
 
