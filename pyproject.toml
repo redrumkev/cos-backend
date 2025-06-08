@@ -86,7 +86,8 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
     "infrastructure: marks tests requiring external services",
-    "phase2: marks tests for Phase 2 implementation (skip in Phase 1)"
+    "phase2: marks tests for Phase 2 implementation (skip in Phase 1)",
+    "timeout: marks tests with timeout requirements"
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
