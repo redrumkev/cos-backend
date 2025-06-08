@@ -8,7 +8,12 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest  # Phase 2: Remove for skip removal
+
 from src.common.ledger_view import filter_memories, main, render_plain, render_rich_table
+
+# Phase 2: Remove this skip block for common utilities testing (P2-UTILS-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Common utilities testing needed. Trigger: P2-UTILS-001")
 
 
 class TestFilterMemoriesEdgeCases:

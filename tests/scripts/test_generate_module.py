@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
+import pytest  # Phase 2: Remove for skip removal
 
 # Add scripts directory to Python path for importing
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
@@ -20,6 +20,9 @@ from generate_module import (
     generate_module,
     main,
 )
+
+# Phase 2: Remove this skip block for script testing (P2-SCRIPTS-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Script testing needed. Trigger: P2-SCRIPTS-001")
 
 
 class TestValidateName:

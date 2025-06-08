@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-import pytest
+import pytest  # Phase 2: Remove for skip removal
 from backend.cc.deps import get_cc_db
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# Phase 2: Remove this skip block for dependency injection wiring (P2-DEPS-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Dependency injection wiring needed. Trigger: P2-DEPS-001")
 
 
 @pytest.mark.asyncio

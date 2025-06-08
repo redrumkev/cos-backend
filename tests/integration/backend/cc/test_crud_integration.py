@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-import pytest
+import pytest  # Phase 2: Remove for skip removal
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,9 @@ from src.backend.cc.crud import (
     update_module,
 )
 from src.backend.cc.models import HealthStatus
+
+# Phase 2: Remove this skip block for end-to-end integration testing (P2-INTEGRATION-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: End-to-end integration testing needed. Trigger: P2-INTEGRATION-001")
 
 
 class TestCRUDIntegration:

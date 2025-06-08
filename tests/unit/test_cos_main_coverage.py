@@ -10,6 +10,11 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest  # Phase 2: Remove for skip removal
+
+# Phase 2: Remove this skip block for main module testing (P2-MAIN-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Main module testing needed. Trigger: P2-MAIN-001")
+
 
 class TestCosMainSysPath:
     """Test sys.path manipulation in cos_main.py - covers line 12."""

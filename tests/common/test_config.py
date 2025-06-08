@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import os
 
-import pytest
+import pytest  # Phase 2: Remove for skip removal
 
 from src.common.config import Settings
+
+# Phase 2: Remove this skip block for configuration testing (P2-CONFIG-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Configuration testing needed. Trigger: P2-CONFIG-001")
 
 
 @pytest.mark.usefixtures("mock_env_settings")

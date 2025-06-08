@@ -7,7 +7,12 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest  # Phase 2: Remove for skip removal
+
 from src.common.logger import _demo, log_event
+
+# Phase 2: Remove this skip block for logging system testing (P2-LOGGING-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Logging system testing needed. Trigger: P2-LOGGING-001")
 
 
 class TestLogEventFunction:

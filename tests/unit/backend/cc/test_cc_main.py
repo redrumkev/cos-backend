@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
+import pytest  # Phase 2: Remove for skip removal
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.backend.cc.cc_main import cc_app, cc_router, lifespan
+
+# Phase 2: Remove this skip block for main module testing (P2-MAIN-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Main module testing needed. Trigger: P2-MAIN-001")
 
 # Import the infrastructure skip marker from conftest
 

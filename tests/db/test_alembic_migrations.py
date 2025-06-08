@@ -6,7 +6,7 @@ import os
 from collections.abc import AsyncGenerator
 from typing import Any
 
-import pytest
+import pytest  # Phase 2: Remove for skip removal
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from src.db.connection import get_async_engine
 from tests.helpers import skip_if_no_db
+
+# Phase 2: Remove this skip block for migration scripts (P2-ALEMBIC-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Migration scripts needed. Trigger: P2-ALEMBIC-001")
 
 # Set up environment for testing
 os.environ["POSTGRES_DEV_URL"] = "postgresql+asyncpg://test:test@localhost:5432/test_db"

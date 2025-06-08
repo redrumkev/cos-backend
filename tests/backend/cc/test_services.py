@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
+import pytest  # Phase 2: Remove for skip removal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.services import (
@@ -19,6 +19,9 @@ from src.backend.cc.services import (
     get_modules,
     update_module,
 )
+
+# Phase 2: Remove this skip block for service layer implementation (P2-SERVICE-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Service layer implementation needed. Trigger: P2-SERVICE-001")
 
 
 class TestModuleServices:

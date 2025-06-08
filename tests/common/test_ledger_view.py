@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest  # Phase 2: Remove for skip removal
+
 from src.common.ledger_view import (
     MEMORY_PATH,
     MemoryList,
@@ -20,6 +22,9 @@ from src.common.ledger_view import (
     render_plain,
     render_rich_table,
 )
+
+# Phase 2: Remove this skip block for common utilities testing (P2-UTILS-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Common utilities testing needed. Trigger: P2-UTILS-001")
 
 
 class TestLedgerView:

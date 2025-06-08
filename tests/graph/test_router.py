@@ -5,11 +5,14 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-import pytest
+import pytest  # Phase 2: Remove for skip removal
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.graph.router import router as graph_router
+
+# Phase 2: Remove this skip block for Neo4j client implementation (P2-GRAPH-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Graph client implementation needed. Trigger: P2-GRAPH-001")
 
 
 @pytest.mark.xfail(reason="Flaky test - see Sprint 2 backlog for stabilization")

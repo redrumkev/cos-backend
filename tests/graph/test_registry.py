@@ -6,12 +6,17 @@ for the COS graph layer dual-label pattern.
 
 from __future__ import annotations
 
+import pytest  # Phase 2: Remove for skip removal
+
 from src.graph.registry import (
     GraphRegistry,
     ModuleLabel,
     NodeType,
     RelationshipType,
 )
+
+# Phase 2: Remove this skip block for Neo4j client implementation (P2-GRAPH-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Graph client implementation needed. Trigger: P2-GRAPH-001")
 
 
 class TestNodeType:

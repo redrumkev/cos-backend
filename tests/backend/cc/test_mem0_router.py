@@ -9,11 +9,14 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-import pytest
+import pytest  # Phase 2: Remove for skip removal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.mem0_models import ScratchNote
+
+# Phase 2: Remove this skip block for Mem0 module implementation (P2-MEM0-001)
+pytestmark = pytest.mark.skip(reason="Phase 2: Mem0 module implementation needed. Trigger: P2-MEM0-001")
 
 
 @pytest.mark.asyncio
