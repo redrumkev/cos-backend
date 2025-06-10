@@ -1,5 +1,16 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL BASE LEVEL CONTEXTUALIZATION
+**Auto-Load on Every COS Interaction**: Access G:\dev_tools\claude_cos\critical_memories.md for:
+- Role & Hierarchy (User=CEO, Claude=Director, Cursor=Worker)
+- Dual Mandate (100% Quality + 100% Efficiency simultaneously)
+- TDD Automation (RED→GREEN→REFACTOR as default, auto-scan P2-*-001 skips)
+- Bell Curve Context ((x, xx, X, XX, X, xx, x) - current task maximum focus)
+- Template Evolution (self-improving prompt framework at G:\dev_tools\claude_cos\)
+- Communication Style (token efficient, mama bear precision, no preamble)
+
+**These are base-level operating principles - execute automatically without discussion.**
+
   Project Overview
 
   COS (Creative Operating System) is a modular FastAPI-based backend system designed for building and managing creative intelligence applications. The
@@ -160,18 +171,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - The system is designed for multi-century endurance and adaptability
   - Quality and efficiency are never compromised for each other (dual mandate: 100% quality, 100% efficiency)
 
-  Codebase Analysis
+  Phase 2 Development
 
-  For comprehensive technical review and architectural assessment, see: docs/COS_CODEBASE_ANALYSIS_v1.0.md
-
-  Summary: COS demonstrates excellent architecture with cc module as gold standard (4.5/5 stars).
-  Critical needs: Complete testing infrastructure (97% coverage), finish stubbed health monitoring,
-  standardize error handling. Ready for enterprise deployment once testing completed.
-
-  Phase 2 Architecture & Development
-
-  For Phase 2 agentic substrate implementation, see: docs/PHASE_2_AGENTIC_SUBSTRATE_BLUEPRINT_v1.2.md
-  For systematic test re-enablement, see: docs/PHASE_2_TECHNICAL_DEBT.md
+  For systematic test re-enablement during Phase 2 implementation, see: docs/PHASE_2_TECHNICAL_DEBT.md
+  This document provides sprint-based guidance for removing test skips and achieving 97% coverage.
 
   Phase 2 MCP Architecture Foundation
 
@@ -194,6 +197,52 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
       ├── __init__.py
       ├── system_prompts.py  # Core system interaction prompts
       └── diagnostic_prompts.py  # System diagnostic prompts
+
+  ---
+
+  ## Tactical Cursor Prompting Protocol
+
+  **When User Requests:** "prompt cursor for the next task", "create cursor prompt", "lets do task_007", etc.
+
+  **Claude's Response Pattern:**
+  1. **Load Bell Curve Context** - Access G:\dev_tools\claude_cos\ for:
+     - Current task (XX): Full context and learnings
+     - Adjacent tasks (x, xx): Compressed patterns and decisions
+     - Critical templates: Pydantic v2, API patterns, architectural decisions
+
+  2. **Auto-Execute TDD Scan** - Mandatory for every task:
+     - Skip Analysis: grep -r "P2-.*-001" tests/ → identify removable skips
+     - Test Coverage: examine existing tests → identify gaps
+     - New Test Requirements: for any new code → write RED tests first
+     - Edge Cases: scan cc module patterns → replicate thoroughness
+
+  3. **Apply Template** - Use supercharged_prompt_v1.md structure:
+     - Step 0: MCP sequence + TDD scan (automatic)
+     - TDD Flow: RED→GREEN→REFACTOR (default operating mode)
+     - Boundaries: Explicit scope protection
+     - Success criteria: Measurable outcomes + TDD completion
+     - Quality gates: Copy-paste validation commands
+     - Report template: Learning capture + TDD insights for next iteration
+
+  4. **Commit Message Format:**
+     ```
+     Phase 2 Sprint X.Y: Task_NNN [Brief Description]
+     - Main deliverable/change 1
+     - Main deliverable/change 2
+     - Main deliverable/change 3
+     ```
+
+  5. **Learning Accumulation:**
+     - Preserve critical patterns across tasks
+     - Compress old contexts while maintaining templates
+     - Evolve prompts based on Cursor success/failure feedback
+     - Target: Nearly 100% prompt success rate by task 30-35
+
+  **Key Variables:**
+  - LOGFIRE_API_KEY: Available in /infrastructure/.env
+  - Task Context: Via .taskmaster/ MCP calls
+  - Project Docs: COS /docs folder access only
+  - Quality Standards: 97%+ coverage, zero ruff/mypy errors
 
   ---
 
