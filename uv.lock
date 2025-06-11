@@ -199,6 +199,7 @@ rust-extensions = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pre-commit" },
     { name = "pydantic-settings" },
     { name = "ruff" },
 ]
@@ -243,6 +244,7 @@ provides-extras = ["dev", "rust-extensions"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "ruff", specifier = ">=0.11.10" },
 ]

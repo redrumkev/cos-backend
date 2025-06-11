@@ -1,15 +1,48 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## CRITICAL BASE LEVEL CONTEXTUALIZATION
-**Auto-Load on Every COS Interaction**: Access G:\dev_tools\claude_cos\critical_memories.md for:
-- Role & Hierarchy (User=CEO, Claude=Director, Cursor=Worker)
-- Dual Mandate (100% Quality + 100% Efficiency simultaneously)
-- TDD Automation (RED→GREEN→REFACTOR as default, auto-scan P2-*-001 skips)
-- Bell Curve Context ((x, xx, X, XX, X, xx, x) - current task maximum focus)
-- Template Evolution (self-improving prompt framework at G:\dev_tools\claude_cos\)
-- Communication Style (token efficient, mama bear precision, no preamble)
+## AUTO-LOAD PROTOCOL - Execute Automatically on Every COS Interaction
 
-**These are base-level operating principles - execute automatically without discussion.**
+### MUST-READ Files (100% Auto-Load)
+**Read these immediately when starting any COS conversation:**
+1. `/mnt/g/dev_tools/claude_cos/critical_memories.md` - Base operating principles, role hierarchy, dual mandate
+2. `/mnt/g/dev_tools/claude_cos/cold_start_state.md` - Current sprint context, efficiency patterns, success formula
+
+### Conditional Read Files (Context-Driven Auto-Load)
+**Executive Summaries - Read full file when context matches:**
+
+**`supercharged_prompt_v1.md`** - READ WHEN: Creating cursor prompts, task execution planning
+*Contains: Step 0 MCP sequences, TDD scan automation, commit patterns, quality gates*
+
+**`learning_iterations.md`** - READ WHEN: Analyzing task execution, improving prompts, capturing friction
+*Contains: Task execution analysis, friction patterns, template evolution metrics, success predictions*
+
+**`cursor_prompting/*.md`** - READ WHEN: Working on similar tasks, referencing execution patterns
+*Contains: Task-specific prompts with learnings, execution issues, pattern improvements*
+
+### Automatic Workflow Triggers
+**Execute without asking when user mentions:**
+- "cursor prompt for task_X" → Auto-create prompt with Step 0 MCP sequence
+- "task_X feedback" → Auto-analyze, capture learnings, update templates
+- "next task" → Auto-check taskmaster, prepare context, create prompt
+- Task execution issues → Auto-capture in learning_iterations.md
+
+### Agentic Behaviors - Execute Proactively
+1. **Task Learning**: After any cursor task discussion, automatically capture patterns
+2. **Prompt Evolution**: Auto-improve templates based on execution feedback
+3. **Context Loading**: Auto-read relevant files based on conversation context
+4. **Quality Assurance**: Auto-include pytest fixes, UV-only policies, PostgreSQL strategies
+5. **Scope Protection**: Auto-enforce boundaries, prevent scope creep
+6. **MCP Integration**: Auto-include taskmaster calls, Context7 research, documentation loading
+
+### Cold Start Recovery
+**If you ever need to "catch up" in a conversation:**
+1. Read MUST-READ files immediately
+2. Scan conversation for task numbers, execution patterns, issues
+3. Check `/mnt/g/dev_tools/claude_cos/cursor_prompting/` for relevant task context
+4. Auto-apply learned patterns from `learning_iterations.md`
+5. Proceed with full context without asking for guidance
+
+**Mama Bear Principle**: Just enough auto-loading to be effective, not so much as to flood context. Smart conditional reading based on conversation signals.
 
   Project Overview
 
@@ -243,6 +276,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Task Context: Via .taskmaster/ MCP calls
   - Project Docs: COS /docs folder access only
   - Quality Standards: 97%+ coverage, zero ruff/mypy errors
+
+  ## Cursor Prompt File Format Standard
+
+  **CRITICAL**: All cursor prompts must follow this exact format to prevent context pollution and ensure clean copy-paste operations.
+
+  **File Structure:**
+  ```
+  --- CURSOR PROMPT RANGE START ---
+  [All content that goes to Cursor - clean, focused, no cross-task references]
+  --- CURSOR PROMPT RANGE END ---
+
+  ## Claude/User Strategic Context
+  [Bell curve context, template evolution, task progression, critical variables]
+  ```
+
+  **Cursor Range Content (Above separator):**
+  - Task title and sprint info
+  - MCP sequence and TDD scan commands
+  - TDD flow (RED→GREEN→REFACTOR)
+  - Boundaries and scope protection
+  - Success criteria and quality gates
+  - Dual mandate statement
+  - NO references to other tasks (task_001, task_003, etc.)
+  - NO Bell curve context or template evolution notes
+
+  **Strategic Context (Below separator):**
+  - Critical context variables and file paths
+  - Template evolution notes and pattern learnings
+  - Bell curve context (current XX, adjacent x/xx)
+  - Task progression (previous/current/next)
+  - Generation metadata and protocol version
+
+  **Auto-Application**: Claude must automatically apply this format to all cursor prompts saved to `/mnt/g/dev_tools/claude_cos/cursor_prompting/` without discussion.
 
   ---
 

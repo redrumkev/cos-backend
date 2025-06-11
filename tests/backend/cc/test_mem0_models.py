@@ -17,8 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.backend.cc.mem0_models import ScratchNote, get_mem0_table_args
 from src.common.config import get_settings
 
-# Phase 2: Remove this skip block for Mem0 module implementation (P2-MEM0-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Mem0 module implementation needed. Trigger: P2-MEM0-001")
+# Phase 2: Skip removed for Mem0 module implementation (P2-MEM0-001) - COMPLETED
 
 
 class TestScratchNoteModel:

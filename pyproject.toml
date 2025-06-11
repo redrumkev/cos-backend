@@ -133,6 +133,7 @@ no-cov-on-fail = false
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.2.0",
     "pydantic-settings>=2.9.1",
     "ruff>=0.11.10",
 ]
