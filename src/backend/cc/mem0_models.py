@@ -9,7 +9,7 @@ Reference implementation for future module scratch storage patterns.
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Index, String, Text, text
+from sqlalchemy import TIMESTAMP, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.common.config import get_settings
@@ -52,10 +52,10 @@ class ScratchNote(Base):
     key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(UTC), nullable=False, comment="UTC timestamp of creation"
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(UTC), nullable=False, comment="UTC timestamp of creation"
     )
     expires_at: Mapped[datetime | None] = mapped_column(
-        nullable=True, comment="UTC timestamp when record expires (NULL = never)"
+        TIMESTAMP(timezone=True), nullable=True, comment="UTC timestamp when record expires (NULL = never)"
     )
 
     def __init__(self, key: str, content: str | None = None, ttl_days: int | None = None, **kwargs: Any) -> None:

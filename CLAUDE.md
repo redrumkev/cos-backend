@@ -77,6 +77,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Redis: Used for caching, pub/sub, and session management
   - Neo4j: Graph data with dual-label pattern :<Type>:<domain_module>
 
+  Database Environment Strategy (Phase 2)
+
+  **PostgreSQL-Only Policy**: Use PostgreSQL exclusively for all environments
+  - Production database: PostgreSQL 17.5 with native schemas, UUID, timezone support
+  - Development/testing: Same PostgreSQL version for production parity
+  - NO SQLite: Eliminates dialect differences, simplifies code, ensures compatibility
+
+  **Current Development**: Use cos_postgres_dev (port 5433) as single source of truth
+  - _dev environment serves as "future _prod" while building toward v1.0
+  - _test environment (port 5434) is IGNORED until Phase 3+ when live production exists
+  - No three-tier complexity until there's something production-worthy to protect
+
+  **Future Migration** (Post-Backend Completion):
+  - Promote stable _dev → _prod v1.0
+  - Reset _dev to v1.01+ for continued iteration
+  - Introduce _test for granular testing when tic/tock development begins
+
   Development Commands
 
   Setup and Installation
