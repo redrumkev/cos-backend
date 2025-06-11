@@ -66,6 +66,7 @@ allow_untyped_decorators = true
 explicit_package_bases = true
 exclude = [
     "src/db/migrations/",
+    "tests/",
 ]
 
 # Add Pydantic plugin if needed (check latest mypy/pydantic docs for integration)
@@ -135,5 +136,6 @@ no-cov-on-fail = false
 dev = [
     "pre-commit>=4.2.0",
     "pydantic-settings>=2.9.1",
+    "pytest-asyncio>=0.26.0",
     "ruff>=0.11.10",
 ]

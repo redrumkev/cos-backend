@@ -201,6 +201,7 @@ rust-extensions = [
 dev = [
     { name = "pre-commit" },
     { name = "pydantic-settings" },
+    { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
 
@@ -246,6 +247,7 @@ provides-extras = ["dev", "rust-extensions"]
 dev = [
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pydantic-settings", specifier = ">=2.9.1" },
+    { name = "pytest-asyncio", specifier = ">=0.26.0" },
     { name = "ruff", specifier = ">=0.11.10" },
 ]
 
