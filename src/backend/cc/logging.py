@@ -18,7 +18,6 @@ from typing import Any
 import logfire
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
 from src.common.request_id_middleware import get_request_id
 
 _flush_lock = asyncio.Lock()
@@ -53,6 +52,24 @@ async def log_l1(
         - Minimal Logfire overhead with graceful error handling
 
     """
+    # Import models directly to avoid registry conflicts
+    try:
+        from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
+
+        base_log_cls = BaseLog
+        event_log_cls = EventLog
+        prompt_trace_cls = PromptTrace
+    except ImportError as err:
+        # Fallback if import fails during testing - direct import preferred
+        try:
+            from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
+
+            base_log_cls = BaseLog
+            event_log_cls = EventLog
+            prompt_trace_cls = PromptTrace
+        except ImportError:
+            raise ImportError("Failed to load mem0 models") from err
+
     # Get request_id from context if not provided
     if not request_id:
         request_id = get_request_id()
@@ -72,7 +89,7 @@ async def log_l1(
             pass
 
     # Create base log record
-    base_log = BaseLog(level="INFO", message=f"Event: {event_type}", payload=payload or {})
+    base_log = base_log_cls(level="INFO", message=f"Event: {event_type}", payload=payload or {})
     db.add(base_log)
     async with _flush_lock:
         await db.flush()  # Flush to get the ID without committing
@@ -81,7 +98,7 @@ async def log_l1(
 
     # Create event log if payload provided
     if payload is not None:
-        event_log = EventLog(
+        event_log = event_log_cls(
             event_type=event_type,
             event_data=payload,
             request_id=uuid.UUID(request_id) if isinstance(request_id, str) else request_id,
@@ -95,7 +112,7 @@ async def log_l1(
 
     # Create prompt trace if prompt_data provided
     if prompt_data is not None:
-        prompt_trace = PromptTrace(
+        prompt_trace = prompt_trace_cls(
             prompt_text=prompt_data.get("prompt_text", ""),
             response_text=prompt_data.get("response_text", ""),
             execution_time_ms=prompt_data.get("execution_time_ms", 0),
