@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import APIRouter, FastAPI, Request, WebSocket
 
 from src.common.logger import log_event
+from src.common.request_id_middleware import RequestIDMiddleware
 from src.graph.base import close_neo4j_connections
 from src.graph.router import router as graph_router
 
@@ -174,6 +175,9 @@ cc_app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Add middleware in proper order: RequestID first, then Logfire instrumentation happens in lifespan
+cc_app.add_middleware(RequestIDMiddleware)
 
 # Include the routers with prefix
 cc_app.include_router(router, prefix="/cc", tags=["cc"])
