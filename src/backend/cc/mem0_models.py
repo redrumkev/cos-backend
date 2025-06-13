@@ -122,9 +122,9 @@ class BaseLog(Base):
     # Primary log message
     message: Mapped[str] = mapped_column(Text, nullable=False, comment="Primary log message content")
 
-    # PostgreSQL JSONB for structured data
+    # PostgreSQL JSONB for structured data (fix for asyncpg encoding issue)
     payload: Mapped[dict[str, Any] | None] = mapped_column(
-        postgresql.JSONB(astext_type=Text()), nullable=True, comment="Structured payload data as JSONB"
+        postgresql.JSONB, nullable=True, comment="Structured payload data as JSONB"
     )
 
     # Relationships to child tables
@@ -251,9 +251,9 @@ class EventLog(Base):
         String(100), nullable=False, index=True, comment="Event type for classification and filtering"
     )
 
-    # Structured event data
+    # Structured event data (fix for asyncpg encoding issue)
     event_data: Mapped[dict[str, Any] | None] = mapped_column(
-        postgresql.JSONB(astext_type=Text()), nullable=True, comment="Structured event data as JSONB"
+        postgresql.JSONB, nullable=True, comment="Structured event data as JSONB"
     )
 
     # Request correlation

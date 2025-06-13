@@ -5,7 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### MUST-READ Files (100% Auto-Load)
 **Read these immediately when starting any COS conversation:**
 1. `/mnt/g/dev_tools/claude_cos/critical_memories.md` - Base operating principles, role hierarchy, dual mandate
-2. `/mnt/g/dev_tools/claude_cos/cold_start_state.md` - Current sprint context, efficiency patterns, success formula
+2. `/mnt/g/dev_tools/claude_cos/cold_start_state.md` - Current sprint context, proven patterns, efficiency gains
+3. `/mnt/g/dev_tools/claude_cos/workflow_intelligence.md` - Smart context triggers, document hierarchy, learning patterns
 
 ### Conditional Read Files (Context-Driven Auto-Load)
 **Executive Summaries - Read full file when context matches:**
