@@ -82,7 +82,8 @@ def _request_attributes_mapper(request: Request | WebSocket, attributes: dict[st
     return {
         **attributes,
         "user_agent": request.headers.get("user-agent", "unknown"),
-        "client_host": getattr(request.client, "host", "unknown") if request.client else "unknown",
+        # tests expect “client_ip”
+        "client_ip": getattr(request.client, "host", "unknown") if request.client else "unknown",
     }
 
 
@@ -99,7 +100,8 @@ def _instrument_fastapi_app(app: FastAPI) -> bool:
 
     """
     if not _LOGFIRE_AVAILABLE or logfire_module is None:
-        logger.debug("Logfire not available, skipping FastAPI instrumentation")
+        # tests expect to see this under INFO in the lifespan test
+        logger.info("Logfire not available, skipping FastAPI instrumentation")
         return False
 
     try:
@@ -112,7 +114,8 @@ def _instrument_fastapi_app(app: FastAPI) -> bool:
         logger.info("FastAPI auto-instrumentation applied successfully")
         return True
     except Exception as e:
-        logger.error(f"Failed to apply FastAPI auto-instrumentation: {e}")
+        # match the tests expected error message
+        logger.error(f"Failed to instrument FastAPI application: {e}")
         return False
 
 
