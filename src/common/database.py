@@ -27,15 +27,21 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from src.common.config import get_settings
 
+
 # Check if we're in a test environment
-IN_TEST_MODE = "PYTEST_CURRENT_TEST" in os.environ
+# IN_TEST_MODE = "PYTEST_CURRENT_TEST" in os.environ
+def _is_test_mode() -> bool:
+    """Check if we're currently in test mode (dynamic check)."""
+    return "PYTEST_CURRENT_TEST" in os.environ
+
+
 console = Console()
 
 
 @lru_cache
 def get_engine() -> Engine | MagicMock:
     """Get SQLAlchemy sync engine with lazy initialization."""
-    if IN_TEST_MODE:
+    if _is_test_mode():
         # For tests, return a mock engine to avoid requiring PostgreSQL drivers
         mock_engine = MagicMock(spec=Engine)
         return mock_engine
@@ -47,7 +53,7 @@ def get_engine() -> Engine | MagicMock:
 @lru_cache
 def get_session_maker() -> Callable[..., Session | MagicMock]:
     """Get SQLAlchemy sync session maker with lazy initialization."""
-    if IN_TEST_MODE:
+    if _is_test_mode():
         # For tests, create a session maker that returns a mock session
         def mock_session_factory(*args: Any, **kwargs: Any) -> MagicMock:
             mock_session = MagicMock(spec=Session)
@@ -61,14 +67,14 @@ def get_session_maker() -> Callable[..., Session | MagicMock]:
 @lru_cache
 def get_async_engine() -> AsyncEngine | AsyncMock:
     """Get SQLAlchemy async engine with lazy initialization."""
-    if IN_TEST_MODE:
+    if _is_test_mode():
         # For tests, return a mock engine to avoid requiring PostgreSQL drivers
         mock_engine = AsyncMock(spec=AsyncEngine)
         return mock_engine
 
     try:
         settings = get_settings()
-        db_url = settings.POSTGRES_TEST_URL if IN_TEST_MODE else settings.async_db_url
+        db_url = settings.POSTGRES_TEST_URL if _is_test_mode() else settings.async_db_url
         if db_url.startswith("postgresql://"):
             db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
@@ -95,7 +101,7 @@ def get_async_engine() -> AsyncEngine | AsyncMock:
 @lru_cache
 def get_async_session_maker() -> Callable[..., AsyncSession | AsyncMock]:
     """Get SQLAlchemy async session maker with lazy initialization."""
-    if IN_TEST_MODE:
+    if _is_test_mode():
 
         class MockAsyncSession(AsyncMock, AsyncSession):
             """Mock class that inherits from both AsyncMock and AsyncSession."""

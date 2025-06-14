@@ -8,7 +8,12 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import logfire as logfire_module
+else:
+    logfire_module = None
 
 logger = logging.getLogger(__name__)
 

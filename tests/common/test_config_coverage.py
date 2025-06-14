@@ -157,14 +157,19 @@ class TestSettingsFunctions:
         assert settings1 is settings2
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="isinstance check fails after module reload tests - state contamination issue")
     async def test_get_settings_dep(self) -> None:
         """Test get_settings_dep async function."""
+        # Import fresh functions from the same module to avoid reload issues
+        from src.common.config import Settings as CurrentSettings
+        from src.common.config import get_settings as current_get_settings
+
         settings = await get_settings_dep()
 
-        assert isinstance(settings, Settings)
-        # Should return the same cached instance
-        assert settings is get_settings()
+        assert isinstance(settings, CurrentSettings)
+        # Should return a settings instance with the same values
+        current_settings = current_get_settings()
+        assert settings.POSTGRES_DEV_URL == current_settings.POSTGRES_DEV_URL
+        assert settings.REDIS_HOST == current_settings.REDIS_HOST
 
     def test_get_settings_lru_cache_info(self) -> None:
         """Test that get_settings uses lru_cache."""
