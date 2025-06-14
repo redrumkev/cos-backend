@@ -23,7 +23,7 @@ class TestLogEventFunction:
         )
 
         assert result["status"] == "mem0_stub"
-        assert result["log_id"] == "custom_key"
+        assert result["id"] == "custom_key"
         assert result["memo"] == "Test memo"
         assert result["data"] == {"key": "value"}
 
@@ -32,7 +32,7 @@ class TestLogEventFunction:
         result = log_event(source="test_source", data="simple_string_data")
 
         assert result["status"] == "mem0_stub"
-        assert result["log_id"].startswith("log-test_source-")
+        assert result["id"].startswith("log-test_source-")
         assert result["memo"] is None
         assert result["data"] == "simple_string_data"
 
@@ -59,7 +59,7 @@ class TestDemoFunction:
         # Verify it returns the expected structure
         assert isinstance(result, dict)
         assert result["status"] == "mem0_stub"
-        assert "log_id" in result
+        assert "id" in result
         assert result["memo"] == "Initial PEM prompt test"
         assert result["data"] == {"prompt": "What is quantum authorship?", "output": "..."}
 

@@ -13,8 +13,7 @@ import pytest  # Phase 2: Remove for skip removal
 
 from src.common.config import Settings, get_settings, get_settings_dep
 
-# Phase 2: Remove this skip block for configuration testing (P2-CONFIG-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Configuration testing needed. Trigger: P2-CONFIG-001")
+# NOTE: Skip removed for P2-CONFIG-001
 
 
 class TestSettingsEnvironmentLoading:

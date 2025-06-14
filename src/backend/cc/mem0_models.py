@@ -31,6 +31,16 @@ def get_mem0_table_args() -> dict[str, Any]:
         return {"extend_existing": True}
 
 
+def get_base_log_fk_target() -> str:
+    """Get the correct foreign key target for base_log based on environment."""
+    import os
+
+    if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
+        return f"{settings.MEM0_SCHEMA}.base_log.id"
+    else:
+        return "base_log.id"
+
+
 class ScratchNote(Base):
     """Reference implementation for temporary data storage.
 
@@ -168,7 +178,7 @@ class PromptTrace(Base):
     # Foreign key to BaseLog
     base_log_id: Mapped[UUID] = mapped_column(
         postgresql.UUID(as_uuid=True),
-        ForeignKey(f"{settings.MEM0_SCHEMA}.base_log.id", ondelete="CASCADE"),
+        ForeignKey(get_base_log_fk_target(), ondelete="CASCADE"),
         nullable=False,
         index=True,
         comment="Foreign key to base_log table",
@@ -240,7 +250,7 @@ class EventLog(Base):
     # Foreign key to BaseLog
     base_log_id: Mapped[UUID] = mapped_column(
         postgresql.UUID(as_uuid=True),
-        ForeignKey(f"{settings.MEM0_SCHEMA}.base_log.id", ondelete="CASCADE"),
+        ForeignKey(get_base_log_fk_target(), ondelete="CASCADE"),
         nullable=False,
         index=True,
         comment="Foreign key to base_log table",

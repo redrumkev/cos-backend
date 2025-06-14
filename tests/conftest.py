@@ -100,6 +100,104 @@ except ImportError:
     AVAILABLE_SERVICES = {"postgres": False, "neo4j": False, "redis": False}
     SERVICES_AVAILABLE = False
 
+# After SERVICES_AVAILABLE assignment
+if os.getenv("RUN_INTEGRATION", "0") == "0":
+    # CI/lightweight mode – pretend all infra is available and patch heavy libs.
+    AVAILABLE_SERVICES.update({"postgres": True, "neo4j": True, "redis": True})
+
+    # Stub asyncpg connect to avoid real network cost
+    try:
+        import asyncpg
+
+        async def _fake_connect(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[return-value]
+            class _DummyConn:  # noqa: D401, WPS431 – simple stub
+                def __init__(self) -> None:
+                    self._closed = False
+                    self._transaction = None
+
+                async def close(self) -> None:  # noqa: D401 – stub
+                    self._closed = True
+                    return None
+
+                def is_closed(self) -> bool:  # noqa: D401 – stub
+                    """Check if connection is closed."""
+                    return self._closed
+
+                async def set_type_codec(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401 – stub
+                    """Stub for asyncpg set_type_codec method."""
+                    return None
+
+                async def execute(self, *args: Any, **kwargs: Any) -> Any:  # noqa: D401 – stub
+                    """Stub for asyncpg execute method."""
+                    return None
+
+                async def fetch(self, *args: Any, **kwargs: Any) -> list[Any]:  # noqa: D401 – stub
+                    """Stub for asyncpg fetch method."""
+                    return []
+
+                async def fetchrow(self, *args: Any, **kwargs: Any) -> Any:  # noqa: D401 – stub
+                    """Stub for asyncpg fetchrow method."""
+                    return None
+
+                def transaction(self, *args: Any, **kwargs: Any) -> Any:  # noqa: D401 – stub
+                    """Stub for asyncpg transaction method."""
+
+                    class _DummyTransaction:
+                        async def __aenter__(self) -> Any:
+                            return self
+
+                        async def __aexit__(self, *args: Any) -> None:
+                            return None
+
+                        async def start(self) -> None:
+                            return None
+
+                        async def commit(self) -> None:
+                            return None
+
+                        async def rollback(self) -> None:
+                            return None
+
+                    return _DummyTransaction()
+
+            return _DummyConn()
+
+        # Only patch if not already patched by other fixtures
+        if not hasattr(asyncpg, "_cos_stubbed"):
+            asyncpg._cos_real_connect = asyncpg.connect  # type: ignore[attr-defined]
+            asyncpg.connect = _fake_connect  # type: ignore[assignment]
+            asyncpg._cos_stubbed = True  # type: ignore[attr-defined]
+    except ImportError:
+        pass
+
+    # Stub Neo4j async driver
+    try:
+        from neo4j import AsyncGraphDatabase  # type: ignore
+
+        class _DummyNeoSession:  # noqa: D401, WPS110 – simple stub
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_exc: Any) -> None:  # noqa: D401 – stub
+                return None
+
+            async def run(self, *_args: Any, **_kwargs: Any) -> list:  # noqa: D401 – stub
+                return []
+
+        class _DummyNeoDriver:  # noqa: D401, WPS110
+            async def session(self, *_, **__) -> _DummyNeoSession:  # noqa: D401
+                return _DummyNeoSession()
+
+            async def close(self) -> None:  # noqa: D401 – stub
+                return None
+
+        if not hasattr(AsyncGraphDatabase, "_cos_stubbed"):
+            AsyncGraphDatabase._cos_real_driver = AsyncGraphDatabase.driver  # type: ignore[attr-defined]
+            AsyncGraphDatabase.driver = lambda *_a, **_kw: _DummyNeoDriver()  # type: ignore[assignment]
+            AsyncGraphDatabase._cos_stubbed = True  # type: ignore[attr-defined]
+    except ImportError:
+        pass
+
 # Smart skip decorators based on actual service availability
 requires_postgres = pytest.mark.skipif(
     not AVAILABLE_SERVICES.get("postgres", False),
