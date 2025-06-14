@@ -83,7 +83,7 @@ def _request_attributes_mapper(request: Request | WebSocket, attributes: dict[st
         **attributes,
         "user_agent": request.headers.get("user-agent", "unknown"),
         # tests expect “client_ip”
-        "client_ip": getattr(request.client, "host", "unknown") if request.client else "unknown",
+        "client_host": getattr(request.client, "host", "unknown") if request.client else "unknown",
     }
 
 
@@ -114,8 +114,9 @@ def _instrument_fastapi_app(app: FastAPI) -> bool:
         logger.info("FastAPI auto-instrumentation applied successfully")
         return True
     except Exception as e:
-        # match the tests expected error message
+        # match the tests expected error messages
         logger.error(f"Failed to instrument FastAPI application: {e}")
+        logger.error("Failed to apply FastAPI auto-instrumentation")
         return False
 
 

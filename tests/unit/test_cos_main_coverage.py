@@ -134,15 +134,17 @@ class TestCosMainAppCreation:
 class TestCosMainLogEvent:
     """Test the log_event call in cos_main.py."""
 
-    @patch("src.cos_main.log_event")
+    @patch("common.logger.log_event")
     def test_startup_log_event_called(self, mock_log_event: Any) -> None:
         """Test that log_event is called for startup."""
         # Re-import to trigger the log_event call
-        import importlib
+        import sys
 
-        import src.cos_main
+        # Remove the module from sys.modules to force fresh import
+        if "src.cos_main" in sys.modules:
+            del sys.modules["src.cos_main"]
 
-        importlib.reload(src.cos_main)
+        # Import the module fresh
 
         # Verify log_event was called with startup event
         mock_log_event.assert_called_with(source="cos_main", data={"event": "startup"}, memo="COS FastAPI initialized.")

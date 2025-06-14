@@ -215,9 +215,13 @@ def test_async_engine_configured_with_pooling_and_timeouts() -> None:
 @pytest.mark.usefixtures("mock_env_settings")
 async def test_async_engine_connection_failure_logs_rich_error() -> None:
     """Simulates connection failure and asserts rich error log (color + emoji)."""
+    # Clear the cache to ensure fresh execution
+    database.get_async_engine.cache_clear()
+
     # Patch engine to raise error
     with (
         patch("src.common.database.create_async_engine", side_effect=Exception("fail")),
+        patch("src.common.database._is_test_mode", return_value=False),  # Force non-test mode
         patch.object(Console, "print") as mock_print,
     ):
         import contextlib

@@ -139,6 +139,36 @@ if os.getenv("RUN_INTEGRATION", "0") == "0":
                     """Stub for asyncpg fetchrow method."""
                     return None
 
+                async def prepare(self, *args: Any, **kwargs: Any) -> Any:  # noqa: D401 – stub
+                    """Stub for asyncpg prepare method."""
+
+                    class _DummyPreparedStatement:
+                        def get_attributes(self) -> tuple:
+                            """Return empty attributes tuple."""
+                            return ()
+
+                        def get_statusmsg(self) -> str:
+                            """Return dummy status message."""
+                            return "SELECT 1"
+
+                        async def fetchrow(self, *args: Any, **kwargs: Any) -> Any:
+                            """Stub fetchrow method."""
+                            return None
+
+                        async def fetch(self, *args: Any, **kwargs: Any) -> list[Any]:
+                            """Stub fetch method."""
+                            return []
+
+                        async def execute(self, *args: Any, **kwargs: Any) -> Any:
+                            """Stub execute method."""
+                            return None
+
+                        async def cursor(self, *args: Any, **kwargs: Any) -> Any:
+                            """Stub cursor method."""
+                            return self
+
+                    return _DummyPreparedStatement()
+
                 def transaction(self, *args: Any, **kwargs: Any) -> Any:  # noqa: D401 – stub
                     """Stub for asyncpg transaction method."""
 
