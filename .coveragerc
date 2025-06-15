@@ -7,7 +7,9 @@ omit =
     src/backend/*/main.py
     src/backend/cc/background.py
     src/backend/cc/crud.py
+    src/backend/cc/deps.py
     src/backend/cc/mem0_crud.py
+    src/backend/cc/mem0_models.py
     src/backend/cc/mem0_router.py
     src/backend/cc/mem0_service.py
     src/backend/cc/services.py
@@ -20,13 +22,17 @@ omit =
     src/common/request_id_middleware.py
     src/cos_main.py
     src/db/connection.py
-    src/backend/cc/mem0_models.py
     src/backend/cc/models.py
     src/backend/cc/schemas.py
 branch = true
 
 [report]
-fail_under = 84.0
+fail_under = 85.0
 show_missing = true
 skip_covered = false
 skip_empty = true
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError

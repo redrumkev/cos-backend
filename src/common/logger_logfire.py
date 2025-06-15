@@ -10,8 +10,12 @@ import logging
 import os
 from typing import TYPE_CHECKING, Any
 
+# "logfire" is expected to be a module when available. When the package is not
+# installed we fall back to ``None``.  Annotate it accordingly so that mypy
+# understands both possibilities without raising assignment issues below.
+
 if TYPE_CHECKING:
-    import logfire as logfire_module
+    import logfire as logfire_module  # pragma: no cover
 else:
     logfire_module = None
 

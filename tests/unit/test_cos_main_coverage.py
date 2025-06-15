@@ -144,7 +144,8 @@ class TestCosMainLogEvent:
         if "src.cos_main" in sys.modules:
             del sys.modules["src.cos_main"]
 
-        # Import the module fresh
+        # Import the module fresh - this triggers the log_event call
+        import src.cos_main  # noqa: F401
 
         # Verify log_event was called with startup event
         mock_log_event.assert_called_with(source="cos_main", data={"event": "startup"}, memo="COS FastAPI initialized.")
