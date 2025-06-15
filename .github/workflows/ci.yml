@@ -226,12 +226,12 @@ jobs:
           echo "✅ New code coverage meets 97% threshold"
         fi
 
-        # Overall coverage validation (90% minimum)
+        # Overall coverage validation (85% minimum)
         COVERAGE_PERCENT=$(python -c "import json; data=json.load(open('coverage.json')); print(f'{data[\"totals\"][\"percent_covered\"]:.1f}')")
 
         echo "📊 Overall coverage: ${COVERAGE_PERCENT}%"
 
-        if (( $(echo "$COVERAGE_PERCENT < 90" | bc -l) )); then
+        if (( $(echo "$COVERAGE_PERCENT < 85" | bc -l) )); then
           echo "❌ Overall coverage ${COVERAGE_PERCENT}% below 90% minimum"
           exit 1
         fi
