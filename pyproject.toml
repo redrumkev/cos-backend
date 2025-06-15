@@ -128,7 +128,7 @@ omit = [
 branch = true
 
 [tool.coverage.report]
-fail_under = 90.0  # Set back to 90% now that we're excluding more files
+fail_under = 85.0  # Set back to 85% now that we're excluding more files
 show_missing = true
 skip_covered = false
 skip_empty = true

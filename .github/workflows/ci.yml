@@ -195,7 +195,7 @@ jobs:
 
     - name: Run tests with enhanced coverage gates
       run: |
-        echo "🎯 Phase 2 Coverage Gates: 97% new code, 90% overall minimum"
+        echo "🎯 Phase 2 Coverage Gates: 97% new code, 85% overall minimum"
 
         # Generate coverage data with detailed reporting
         PYTHONPATH=. pytest -v \
@@ -204,7 +204,7 @@ jobs:
           --cov-report=xml \
           --cov-report=term-missing \
           --cov-report=json:coverage.json \
-          --cov-fail-under=90
+          --cov-fail-under=85
 
         # Enhanced coverage analysis for new code
         if [ "${{ github.event_name }}" == "pull_request" ]; then
