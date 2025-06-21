@@ -207,8 +207,7 @@ jobs:
           --cov-report=json:coverage.json \
           --cov-fail-under=40 \
           --continue-on-collection-errors \
-          --tb=no \
-          -x || echo "⚠️  Tests failed as expected during Phase 2 Sprint 1 - database infrastructure pending"
+          --tb=no || echo "⚠️  Tests failed as expected during Phase 2 Sprint 1 - database infrastructure pending"
 
         # Enhanced coverage analysis for new code
         if [ "${{ github.event_name }}" == "pull_request" ]; then
