@@ -1,7 +1,7 @@
 services:
   neo4j:
     restart: always
-    image: neo4j:2025.04.0 # Community Edition with new datacode 2025.04.0 format
+    image: neo4j:2025.05.1 # Community Edition with latest stable version
     container_name: cos_neo4j
     environment:
       NEO4J_AUTH: ${NEO4J_USER}/${NEO4J_PASSWORD}
@@ -13,13 +13,13 @@ services:
       - "7687:7687"
     volumes:
       - type: bind
-        source: F:/neo4j_cos_data
+        source: ${COS_NEO4J_ROOT}
         target: /data
       - type: bind
-        source: F:/neo4j_cos_logs
+        source: ${COS_NEO4J_ROOT}_logs
         target: /logs
       - type: bind
-        source: F:/neo4j_cos_transactions
+        source: ${COS_NEO4J_ROOT}_transactions
         target: /var/lib/neo4j/transactions
     labels:
       - "traefik.enable=true"

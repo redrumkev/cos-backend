@@ -200,6 +200,7 @@ rust-extensions = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "mypy" },
     { name = "pre-commit" },
     { name = "pydantic-settings" },
     { name = "pytest-asyncio" },
@@ -247,6 +248,7 @@ provides-extras = ["dev", "rust-extensions"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "mypy", specifier = "==1.15.0" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "pytest-asyncio", specifier = ">=0.26.0" },
