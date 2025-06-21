@@ -1,5 +1,50 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## AUTO-LOAD PROTOCOL - Execute Automatically on Every COS Interaction
+
+### MUST-READ Files (100% Auto-Load)
+**Read these immediately when starting any COS conversation:**
+1. `/mnt/g/dev_tools/claude_cos/critical_memories.md` - Base operating principles, role hierarchy, dual mandate
+2. `/mnt/g/dev_tools/claude_cos/cold_start_state.md` - Current sprint context, proven patterns, efficiency gains
+3. `/mnt/g/dev_tools/claude_cos/workflow_intelligence.md` - Smart context triggers, document hierarchy, learning patterns
+
+### Conditional Read Files (Context-Driven Auto-Load)
+**Executive Summaries - Read full file when context matches:**
+
+**`supercharged_prompt_v1.md`** - READ WHEN: Creating cursor prompts, task execution planning
+*Contains: Step 0 MCP sequences, TDD scan automation, commit patterns, quality gates*
+
+**`learning_iterations.md`** - READ WHEN: Analyzing task execution, improving prompts, capturing friction
+*Contains: Task execution analysis, friction patterns, template evolution metrics, success predictions*
+
+**`cursor_prompting/*.md`** - READ WHEN: Working on similar tasks, referencing execution patterns
+*Contains: Task-specific prompts with learnings, execution issues, pattern improvements*
+
+### Automatic Workflow Triggers
+**Execute without asking when user mentions:**
+- "cursor prompt for task_X" → Auto-create prompt with Step 0 MCP sequence
+- "task_X feedback" → Auto-analyze, capture learnings, update templates
+- "next task" → Auto-check taskmaster, prepare context, create prompt
+- Task execution issues → Auto-capture in learning_iterations.md
+
+### Agentic Behaviors - Execute Proactively
+1. **Task Learning**: After any cursor task discussion, automatically capture patterns
+2. **Prompt Evolution**: Auto-improve templates based on execution feedback
+3. **Context Loading**: Auto-read relevant files based on conversation context
+4. **Quality Assurance**: Auto-include pytest fixes, UV-only policies, PostgreSQL strategies
+5. **Scope Protection**: Auto-enforce boundaries, prevent scope creep
+6. **MCP Integration**: Auto-include taskmaster calls, Context7 research, documentation loading
+
+### Cold Start Recovery
+**If you ever need to "catch up" in a conversation:**
+1. Read MUST-READ files immediately
+2. Scan conversation for task numbers, execution patterns, issues
+3. Check `/mnt/g/dev_tools/claude_cos/cursor_prompting/` for relevant task context
+4. Auto-apply learned patterns from `learning_iterations.md`
+5. Proceed with full context without asking for guidance
+
+**Mama Bear Principle**: Just enough auto-loading to be effective, not so much as to flood context. Smart conditional reading based on conversation signals.
+
   Project Overview
 
   COS (Creative Operating System) is a modular FastAPI-based backend system designed for building and managing creative intelligence applications. The
@@ -32,6 +77,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - PostgreSQL: Each module has two schemas: <module_name> (primary) and mem0_<module_name> (ephemeral memory)
   - Redis: Used for caching, pub/sub, and session management
   - Neo4j: Graph data with dual-label pattern :<Type>:<domain_module>
+
+  Database Environment Strategy (Phase 2)
+
+  **PostgreSQL-Only Policy**: Use PostgreSQL exclusively for all environments
+  - Production database: PostgreSQL 17.5 with native schemas, UUID, timezone support
+  - Development/testing: Same PostgreSQL version for production parity
+  - NO SQLite: Eliminates dialect differences, simplifies code, ensures compatibility
+
+  **Current Development**: Use cos_postgres_dev (port 5433) as single source of truth
+  - _dev environment serves as "future _prod" while building toward v1.0
+  - _test environment (port 5434) is IGNORED until Phase 3+ when live production exists
+  - No three-tier complexity until there's something production-worthy to protect
+
+  **Future Migration** (Post-Backend Completion):
+  - Promote stable _dev → _prod v1.0
+  - Reset _dev to v1.01+ for continued iteration
+  - Introduce _test for granular testing when tic/tock development begins
 
   Development Commands
 
@@ -160,56 +222,111 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - The system is designed for multi-century endurance and adaptability
   - Quality and efficiency are never compromised for each other (dual mandate: 100% quality, 100% efficiency)
 
-  Codebase Analysis
+  Phase 2 Development
 
-  For comprehensive technical review and architectural assessment, see: docs/COS_CODEBASE_ANALYSIS_v1.0.md
+  For systematic test re-enablement during Phase 2 implementation, see: docs/PHASE_2_TECHNICAL_DEBT.md
+  This document provides sprint-based guidance for removing test skips and achieving 97% coverage.
 
-  Summary: COS demonstrates excellent architecture with cc module as gold standard (4.5/5 stars).
-  Critical needs: Complete testing infrastructure (97% coverage), finish stubbed health monitoring,
-  standardize error handling. Ready for enterprise deployment once testing completed.
+  Phase 2 MCP Architecture Foundation
 
-  CI Resolution & Phase 2 Planning
+  When you're ready for Phase 2, here's the structure to implement:
 
-  For immediate CI fixes, see: docs/PHASE_1_CI_RESOLUTION_PLAN.md
-  For comprehensive Phase 2 vision, see: docs/PHASE_2_AGENTIC_SUBSTRATE_BLUEPRINT_v1.0.md
+  src/backend/cc/mcp/
+  ├── __init__.py
+  ├── server.py              # MCP server implementation
+  ├── client.py              # MCP client for inter-module communication
+  ├── tools/                 # Agentic tool implementations
+  │   ├── __init__.py
+  │   ├── health_tools.py    # Advanced health management
+  │   ├── module_tools.py    # Module lifecycle operations
+  │   └── coordination_tools.py  # Cross-module coordination
+  ├── resources/             # Exposed resources for other agents
+  │   ├── __init__.py
+  │   ├── system_state.py    # Current system state resource
+  │   └── config_resource.py # Live configuration resource
+  └── prompts/              # System prompts for LLM agents
+      ├── __init__.py
+      ├── system_prompts.py  # Core system interaction prompts
+      └── diagnostic_prompts.py  # System diagnostic prompts
 
-  Current Status: Phase 1 completion blocked by CI infrastructure issues. Quick fixes available for:
-  - Neo4j version compatibility (use neo4j:5.15 instead of 2025.04.0)
-  - Environment variable mapping corrections
-  - Smart test skipping implementation
+  ---
 
-  Phase 2 Vision: Transform cc module into agentic substrate with:
-  - Multi-layer memory system (L1→L2→L3→L4)
-  - MCP (Model Context Protocol) for agent interfaces
-  - AlphaEvolve feedback loop for self-improvement
-  - 6-sprint roadmap to multi-century intelligence foundation
+  ## Tactical Cursor Prompting Protocol
 
- Immediate Actions (This Week)
+  **When User Requests:** "prompt cursor for the next task", "create cursor prompt", "lets do task_007", etc.
 
-  1. Apply CI fixes from the resolution plan:
-    - Change neo4j:2025.04.0 → neo4j:5.15 in .github/workflows/ci.yml
-    - Add environment variable mapping
-    - Implement smart test skipping
-  2. Merge Phase 1 once CI is green:
-    - feature/cc-gold → main
-    - Tag as v1.0-phase1-gold-standard
+  **Claude's Response Pattern:**
+  1. **Load Bell Curve Context** - Access G:\dev_tools\claude_cos\ for:
+     - Current task (XX): Full context and learnings
+     - Adjacent tasks (x, xx): Compressed patterns and decisions
+     - Critical templates: Pydantic v2, API patterns, architectural decisions
 
-  Phase 2 Launch (Next Week)
+  2. **Auto-Execute TDD Scan** - Mandatory for every task:
+     - Skip Analysis: grep -r "P2-.*-001" tests/ → identify removable skips
+     - Test Coverage: examine existing tests → identify gaps
+     - New Test Requirements: for any new code → write RED tests first
+     - Edge Cases: scan cc module patterns → replicate thoroughness
 
-  1. Create feat/cc-goldPh2 branch
-  2. Implement MCP architecture in cc module
-  3. Begin 6-sprint journey through the memory layers (L1→L2→L3→L4)
+  3. **Apply Template** - Use supercharged_prompt_v1.md structure:
+     - Step 0: MCP sequence + TDD scan (automatic)
+     - TDD Flow: RED→GREEN→REFACTOR (default operating mode)
+     - Boundaries: Explicit scope protection
+     - Success criteria: Measurable outcomes + TDD completion
+     - Quality gates: Copy-paste validation commands
+     - Report template: Learning capture + TDD insights for next iteration
 
-  🏆 What You've Achieved
+  4. **Commit Message Format:**
+     ```
+     Phase 2 Sprint X.Y: Task_NNN [Brief Description]
+     - Main deliverable/change 1
+     - Main deliverable/change 2
+     - Main deliverable/change 3
+     ```
 
-  Your cc module is genuinely gold standard quality:
-  - ✅ Perfect architecture (Hybrid Vertical Slice + Atomic Composition)
-  - ✅ Modern Python patterns (SQLAlchemy 2.0, Pydantic v2, async-first)
-  - ✅ Comprehensive test suite (570+ tests written)
-  - ✅ FORWARD principles embodied
-  - ✅ Multi-century thinking embedded
+  5. **Learning Accumulation:**
+     - Preserve critical patterns across tasks
+     - Compress old contexts while maintaining templates
+     - Evolve prompts based on Cursor success/failure feedback
+     - Target: Nearly 100% prompt success rate by task 30-35
 
-  The CI issues are pure infrastructure, not code quality problems. Once resolved, you'll have an enterprise-ready foundation for your agentic COS vision.
+  **Key Variables:**
+  - LOGFIRE_API_KEY: Available in /infrastructure/.env
+  - Task Context: Via .taskmaster/ MCP calls
+  - Project Docs: COS /docs folder access only
+  - Quality Standards: 97%+ coverage, zero ruff/mypy errors
+
+  ## Cursor Prompt File Format Standard
+
+  **CRITICAL**: All cursor prompts must follow this exact format to prevent context pollution and ensure clean copy-paste operations.
+
+  **File Structure:**
+  ```
+  --- CURSOR PROMPT RANGE START ---
+  [All content that goes to Cursor - clean, focused, no cross-task references]
+  --- CURSOR PROMPT RANGE END ---
+
+  ## Claude/User Strategic Context
+  [Bell curve context, template evolution, task progression, critical variables]
+  ```
+
+  **Cursor Range Content (Above separator):**
+  - Task title and sprint info
+  - MCP sequence and TDD scan commands
+  - TDD flow (RED→GREEN→REFACTOR)
+  - Boundaries and scope protection
+  - Success criteria and quality gates
+  - Dual mandate statement
+  - NO references to other tasks (task_001, task_003, etc.)
+  - NO Bell curve context or template evolution notes
+
+  **Strategic Context (Below separator):**
+  - Critical context variables and file paths
+  - Template evolution notes and pattern learnings
+  - Bell curve context (current XX, adjacent x/xx)
+  - Task progression (previous/current/next)
+  - Generation metadata and protocol version
+
+  **Auto-Application**: Claude must automatically apply this format to all cursor prompts saved to `/mnt/g/dev_tools/claude_cos/cursor_prompting/` without discussion.
 
   ---
 

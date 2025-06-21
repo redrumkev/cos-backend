@@ -3,7 +3,9 @@
 ## Overview
 Systematic test re-enablement plan for Phase 2 implementation. This document tracks all tests that have been systematically skipped during Phase 1 completion to enable CI success while preserving full test coverage for Phase 2 development.
 
-## Skip Triggers and Implementation Plan
+**Updated**: June 14, 2025 - Post Sprint 1 Completion
+
+## Active Skip Triggers and Implementation Plan
 
 ### P2-ASYNC-001: Async/SQLAlchemy Configuration
 - **Files**: `tests/backend/cc/test_crud.py`
@@ -168,6 +170,42 @@ find tests/ -name "*.py" -exec grep -l "P2-INTEGRATION-001" {} \;
 
 ---
 
+## COMPLETED P2-* Patterns (Sprint 1 Systematic Elimination)
+
+**IMPORTANT**: These patterns have been systematically eliminated during Sprint 1. They remain documented here for future grep-based verification that they haven't been reintroduced as comments or lurking code.
+
+### ✅ P2-SCRIPTS-001: ELIMINATED (Sprint 1 DELTA Phase)
+- **Status**: Completely removed from codebase
+- **Tests Restored**: 23 passing tests
+- **Coverage Impact**: 99% scripts module coverage achieved
+- **Files Previously Affected**: `tests/scripts/test_*.py`
+- **Elimination Method**: Low-risk pattern removal with full validation
+- **Verification**: grep -r "P2-SCRIPTS-001" should return zero results
+
+### ✅ P2-UTILS-001: ELIMINATED (Sprint 1 EPSILON Phase)
+- **Status**: Completely removed from codebase
+- **Tests Restored**: 21 passing tests (ledger_view utilities)
+- **Infrastructure Fixes**: Config isinstance conflicts, module reload timing resolved
+- **Files Previously Affected**: `tests/common/test_ledger_view*.py`, `tests/common/test_config*.py`
+- **Elimination Method**: Infrastructure-first approach with dynamic import handling
+- **Verification**: grep -r "P2-UTILS-001" should return zero results
+
+### ✅ P2-DB-001: ELIMINATED (Sprint 1 ZETA Phase)
+- **Status**: Completely removed from codebase
+- **Tests Restored**: 3 database tests + critical infrastructure foundations
+- **Infrastructure Fixes**: IN_TEST_MODE dynamic detection, async mock enhancement
+- **Files Previously Affected**: `tests/common/test_database.py`, `tests/db/test_*.py`
+- **Elimination Method**: Fundamental timing dependency resolution in test infrastructure
+- **Verification**: grep -r "P2-DB-001" should return zero results
+
+**Sprint 1 Achievement Summary**:
+- **47 tests** converted from skipped to passing
+- **Coverage increase**: 41% → 53% (+12% systematic improvement)
+- **Infrastructure breakthroughs**: IN_TEST_MODE timing, config reload handling, async mocks
+- **Methodology validation**: Proven P2-* pattern elimination approach for Sprint 2+
+
+---
+
 **Generated**: Phase 1 Completion
-**Last Updated**: June 8, 2025
-**Next Review**: Phase 2 - Start of Sprint 2.1
+**Last Updated**: June 14, 2025 (Post Sprint 1)
+**Next Review**: Sprint 2 Planning - Remaining P2-* Pattern Elimination

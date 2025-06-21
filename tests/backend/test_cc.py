@@ -5,10 +5,10 @@ from collections.abc import Generator
 
 # Third-party imports
 import pytest
+from fastapi.testclient import TestClient
 
 # Local imports
 from backend.cc.cc_main import cc_app
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture(scope="module")

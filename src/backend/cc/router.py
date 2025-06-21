@@ -5,16 +5,20 @@ connecting client requests to the appropriate services.
 """
 
 # MDC: cc_module
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from src.backend.cc.logging import log_l1
 from src.common.logger import log_event
 
 from .deps import DBSession, ModuleConfig, get_module_config
 from .mem0_router import router as mem0_router
 from .schemas import (
     CCConfig,
+    DebugLogRequest,
+    DebugLogResponse,
     HealthStatusResponse,
     Module,
     ModuleCreate,
@@ -145,6 +149,76 @@ async def get_status() -> dict[str, str]:
         memo="CC status endpoint accessed.",
     )
     return {"status": "ok"}
+
+
+@router.post(
+    "/debug/log",
+    response_model=DebugLogResponse,
+    response_model_exclude_none=True,
+    summary="Debug Logging Endpoint",
+    description="Create debug log entries using the log_l1 service for testing and diagnostics.",
+    tags=["Debug"],
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_debug_log(
+    request: DebugLogRequest,
+    db: DBSession,
+) -> DebugLogResponse:
+    """Create debug log entries for testing and diagnostic purposes.
+
+    This endpoint demonstrates service consumption patterns by calling the
+    :pyfunc:`src.backend.cc.logging.log_l1` service directly.
+    """
+    start_time = time.perf_counter()
+
+    try:
+        # Persist logs via L1 logging service
+        log_ids = await log_l1(
+            db=db,
+            event_type=request.event_type,
+            payload=request.payload,
+            prompt_data=request.prompt_data,
+            request_id=request.request_id,
+            trace_id=request.trace_id,
+        )
+
+        performance_ms = (time.perf_counter() - start_time) * 1000
+
+        # Emit an additional audit log for the API call itself
+        log_event(
+            source="cc",
+            data={
+                "event_type": request.event_type,
+                "log_ids": {k: str(v) for k, v in log_ids.items()},
+                "performance_ms": performance_ms,
+            },
+            tags=["debug", "log", "cc_router"],
+            memo="Debug log created via /debug/log endpoint.",
+        )
+
+        return DebugLogResponse(
+            success=True,
+            message=f"Debug log created successfully for event_type: {request.event_type}",
+            log_ids=log_ids,
+            performance_ms=performance_ms,
+        )
+
+    except Exception as exc:
+        performance_ms = (time.perf_counter() - start_time) * 1000
+        log_event(
+            source="cc",
+            data={
+                "event_type": request.event_type,
+                "error": str(exc),
+                "performance_ms": performance_ms,
+            },
+            tags=["debug", "log", "error", "cc_router"],
+            memo="Failed to create debug log via /debug/log endpoint.",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create debug log: {exc}",
+        ) from exc
 
 
 # Module CRUD Endpoints

@@ -19,12 +19,16 @@ dependencies = [
     "python-dotenv",
     "psycopg[binary]",
     "rich",
+    "logfire", # Observability and structured logging
     # Rust-powered high-performance dependencies
     "orjson>=3.10.16", # Fast JSON processing with Python 3.13 support
     "neo4j-rust-ext>=5.27.0.0", # Up to 10x faster Neo4j driver
     "uvicorn>=0.30.3",
     "watchfiles>=0.22.0",
     "websockets>=13.0",
+    "pytest-cov>=6.1.1",
+    "coverage>=7.8.0",
+    "psycopg2-binary>=2.9.10",
 ]
 
 [project.optional-dependencies]
@@ -63,6 +67,7 @@ allow_untyped_decorators = true
 explicit_package_bases = true
 exclude = [
     "src/db/migrations/",
+    "tests/",
 ]
 
 # Add Pydantic plugin if needed (check latest mypy/pydantic docs for integration)
@@ -87,10 +92,11 @@ markers = [
     "unit: marks tests as unit tests",
     "infrastructure: marks tests requiring external services",
     "phase2: marks tests for Phase 2 implementation (skip in Phase 1)",
-    "timeout: marks tests with timeout requirements"
+    "timeout: marks tests with timeout requirements",
+    "benchmark: marks tests as performance benchmarks"
 ]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "session"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
 source = ["src"] # Specify source directory for coverage measurement
@@ -130,6 +136,8 @@ no-cov-on-fail = false
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.2.0",
     "pydantic-settings>=2.9.1",
+    "pytest-asyncio>=0.26.0",
     "ruff>=0.11.10",
 ]
