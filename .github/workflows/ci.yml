@@ -197,7 +197,7 @@ jobs:
       run: |
         echo "🎯 Phase 2 Coverage Gates: 97% new code, 90% overall minimum"
 
-        # Generate coverage data with detailed reporting  
+        # Generate coverage data with detailed reporting
         # Phase 2 Sprint 1: Allow test failures while database infrastructure is being built
         PYTHONPATH=. pytest -v \
           --cov=src \
