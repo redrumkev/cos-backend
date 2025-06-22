@@ -7,11 +7,22 @@ production environments with environment variable overrides.
 
 from __future__ import annotations
 
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
 
-from dotenv import load_dotenv
+# Gracefully handle optional python-dotenv dependency
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover
+    logging.getLogger(__name__).warning("python-dotenv not installed; environment files will be ignored.")
+
+    def load_dotenv(_path: str | os.PathLike[str] | None = None, *args: object, **kwargs: object) -> None:  # type: ignore[override]
+        """Fallback no-op load_dotenv when dotenv is not available."""
+        return
+
+
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

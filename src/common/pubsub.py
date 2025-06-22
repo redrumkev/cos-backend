@@ -14,6 +14,7 @@ import logging
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 # Import Redis with graceful degradation - use Any for type hints to avoid linter issues
@@ -25,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 # Import redis with runtime checks
 try:
-    import redis.asyncio as aioredis
-    from redis.asyncio.connection import ConnectionPool
+    import redis.asyncio as redis
+    from redis.asyncio import ConnectionPool
     from redis.exceptions import (
         ConnectionError as RedisConnectionError,
         RedisError,
@@ -36,7 +37,7 @@ try:
     _REDIS_AVAILABLE = True
 except ImportError:
     logger.warning("Redis package not available. Pub/Sub functionality will be disabled.")
-    aioredis = None
+    redis = None
     ConnectionPool = None
     RedisConnectionError = Exception
     RedisError = Exception
@@ -48,6 +49,258 @@ from .redis_config import get_redis_config  # noqa: E402
 # Type aliases for clarity
 MessageHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
 MessageData = dict[str, Any]
+
+
+class CircuitBreakerState(Enum):
+    """Circuit breaker states following the standard pattern."""
+
+    CLOSED = "closed"  # Normal operation, requests pass through
+    OPEN = "open"  # Failing fast, requests are rejected
+    HALF_OPEN = "half_open"  # Testing recovery, limited requests allowed
+
+
+class CircuitBreakerError(Exception):
+    """Exception raised when circuit breaker is open."""
+
+
+class CircuitBreaker:
+    """Thread-safe circuit breaker implementation for Redis operations.
+
+    Implements the circuit breaker pattern to prevent cascading failures
+    during Redis unavailability. Supports three states:
+    - CLOSED: Normal operation
+    - OPEN: Failing fast to prevent cascading failures
+    - HALF_OPEN: Testing recovery with limited requests
+
+    Features:
+    - Configurable failure thresholds and timeouts
+    - Exponential backoff with jitter for recovery attempts
+    - Thread-safe state management using asyncio.Lock
+    - Metrics tracking for monitoring and observability
+    """
+
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 60.0,
+        success_threshold: int = 3,
+        timeout: float = 10.0,
+        expected_exception: type[Exception] | tuple[type[Exception], ...] = Exception,
+    ) -> None:
+        """Initialize circuit breaker with configuration parameters.
+
+        Args:
+        ----
+            failure_threshold: Number of consecutive failures before opening circuit
+            recovery_timeout: Seconds to wait before attempting recovery (OPEN -> HALF_OPEN)
+            success_threshold: Number of consecutive successes needed to close circuit in HALF_OPEN
+            timeout: Timeout in seconds for individual operations
+            expected_exception: Exception type(s) that should trigger circuit breaker
+
+        """
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.success_threshold = success_threshold
+        self.timeout = timeout
+        self.expected_exception = expected_exception
+
+        # State management
+        self._failure_count = 0
+        self._success_count = 0
+        self._last_failure_time: float | None = None
+        self._next_attempt_time: float | None = None
+        
+        # Special case: if failure_threshold is 0, start in OPEN state (always fail fast)
+        if failure_threshold == 0:
+            self._state = CircuitBreakerState.OPEN
+            self._next_attempt_time = float("inf")  # Never allow attempts
+        else:
+            self._state = CircuitBreakerState.CLOSED
+
+        # Thread safety
+        self._lock = asyncio.Lock()
+
+        # Metrics for monitoring
+        self._total_requests = 0
+        self._total_failures = 0
+        self._total_successes = 0
+        self._state_transitions: dict[str, int] = {
+            "closed_to_open": 0,
+            "open_to_half_open": 0,
+            "half_open_to_closed": 0,
+            "half_open_to_open": 0,
+        }
+
+    @property
+    def state(self) -> CircuitBreakerState:
+        """Get current circuit breaker state."""
+        return self._state
+
+    @property
+    def failure_count(self) -> int:
+        """Get current failure count."""
+        return self._failure_count
+
+    @property
+    def success_count(self) -> int:
+        """Get current success count in HALF_OPEN state."""
+        return self._success_count
+
+    @property
+    def metrics(self) -> dict[str, Any]:
+        """Get circuit breaker metrics for monitoring."""
+        return {
+            "state": self._state.value,
+            "failure_count": self._failure_count,
+            "success_count": self._success_count,
+            "total_requests": self._total_requests,
+            "total_failures": self._total_failures,
+            "total_successes": self._total_successes,
+            "failure_rate": self._total_failures / max(1, self._total_requests),
+            "state_transitions": self._state_transitions.copy(),
+            "last_failure_time": self._last_failure_time,
+            "next_attempt_time": self._next_attempt_time,
+        }
+
+    async def _can_attempt_request(self) -> bool:
+        """Check if a request can be attempted based on current state."""
+        current_time = time.time()
+
+        if self._state == CircuitBreakerState.CLOSED:
+            return True
+        elif self._state == CircuitBreakerState.OPEN:
+            # Check if recovery timeout has elapsed
+            if self._next_attempt_time is not None and current_time >= self._next_attempt_time:
+                await self._transition_to_half_open()
+                return True
+            return False
+        elif self._state == CircuitBreakerState.HALF_OPEN:
+            # Allow limited requests in half-open state
+            return True
+
+        return False
+
+    async def _transition_to_open(self) -> None:
+        """Transition circuit breaker to OPEN state."""
+        if self._state != CircuitBreakerState.OPEN:
+            previous_state = self._state.value
+            self._state = CircuitBreakerState.OPEN
+            self._last_failure_time = time.time()
+
+            # Calculate next attempt time with exponential backoff
+            backoff_multiplier = min(2 ** (self._failure_count - self.failure_threshold), 8)
+            jitter = (time.time() % 1) * 0.1  # Add jitter to prevent thundering herd
+            self._next_attempt_time = self._last_failure_time + (self.recovery_timeout * backoff_multiplier) + jitter
+
+            # Track state transition
+            if previous_state == "closed":
+                self._state_transitions["closed_to_open"] += 1
+            elif previous_state == "half_open":
+                self._state_transitions["half_open_to_open"] += 1
+
+            logger.warning(
+                f"Circuit breaker opened after {self._failure_count} failures. "
+                f"Next attempt at {self._next_attempt_time}"
+            )
+
+    async def _transition_to_half_open(self) -> None:
+        """Transition circuit breaker to HALF_OPEN state."""
+        if self._state != CircuitBreakerState.HALF_OPEN:
+            self._state = CircuitBreakerState.HALF_OPEN
+            self._success_count = 0
+            self._state_transitions["open_to_half_open"] += 1
+            logger.info("Circuit breaker transitioned to HALF_OPEN - testing recovery")
+
+    async def _transition_to_closed(self) -> None:
+        """Transition circuit breaker to CLOSED state."""
+        if self._state != CircuitBreakerState.CLOSED:
+            self._state = CircuitBreakerState.CLOSED
+            self._failure_count = 0
+            self._success_count = 0
+            self._last_failure_time = None
+            self._next_attempt_time = None
+            self._state_transitions["half_open_to_closed"] += 1
+            logger.info("Circuit breaker closed - normal operation restored")
+
+    async def _record_success(self) -> None:
+        """Record a successful operation and update state if needed."""
+        self._total_requests += 1
+        self._total_successes += 1
+
+        if self._state == CircuitBreakerState.HALF_OPEN:
+            self._success_count += 1
+            if self._success_count >= self.success_threshold:
+                await self._transition_to_closed()
+        elif self._state == CircuitBreakerState.CLOSED:
+            # Reset failure count on success in closed state
+            self._failure_count = 0
+
+    async def _record_failure(self) -> None:
+        """Record a failed operation and update state if needed."""
+        self._total_requests += 1
+        self._total_failures += 1
+        self._failure_count += 1
+
+        if self._state == CircuitBreakerState.CLOSED:
+            # Special case: if failure_threshold is 0, open immediately on any failure
+            if self.failure_threshold == 0 or self._failure_count >= self.failure_threshold:
+                await self._transition_to_open()
+        elif self._state == CircuitBreakerState.HALF_OPEN:
+            # Any failure in half-open state transitions back to open
+            await self._transition_to_open()
+
+    async def call(self, func: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
+        """Execute a function with circuit breaker protection.
+
+        Args:
+        ----
+            func: Async function to execute
+            *args: Positional arguments for the function
+            **kwargs: Keyword arguments for the function
+
+        Returns:
+        -------
+            Result of the function call
+
+        Raises:
+        ------
+            CircuitBreakerError: If circuit breaker is open
+            Exception: Any exception raised by the wrapped function
+
+        """
+        async with self._lock:
+            # Check if request can be attempted
+            if not await self._can_attempt_request():
+                raise CircuitBreakerError(
+                    f"Circuit breaker is {self._state.value}. " f"Next attempt at {self._next_attempt_time}"
+                )
+
+        try:
+            # Execute the function with timeout
+            result = await asyncio.wait_for(func(*args, **kwargs), timeout=self.timeout)
+
+            # Record success
+            async with self._lock:
+                await self._record_success()
+
+            return result
+
+        except self.expected_exception:
+            # Record failure for expected exceptions
+            async with self._lock:
+                await self._record_failure()
+            raise
+        except TimeoutError:
+            # Treat timeouts as failures
+            async with self._lock:
+                await self._record_failure()
+            raise
+        except Exception:
+            # For unexpected exceptions, don't count as circuit breaker failure
+            # but still track in metrics
+            async with self._lock:
+                self._total_requests += 1
+            raise
 
 
 class PubSubError(Exception):
@@ -63,14 +316,14 @@ class SubscribeError(PubSubError):
 
 
 class RedisPubSub:
-    """High-performance Redis Pub/Sub wrapper with connection pooling.
+    """High-performance Redis Pub/Sub wrapper with connection pooling and circuit breaker.
 
     Designed for <1ms publish latency with automatic connection management,
-    error handling, and JSON serialization/deserialization.
+    error handling, circuit breaker resilience, and JSON serialization/deserialization.
     """
 
     def __init__(self) -> None:
-        """Initialize Redis Pub/Sub client with optimized connection pool."""
+        """Initialize Redis Pub/Sub client with optimized connection pool and circuit breaker."""
         if not _REDIS_AVAILABLE:
             raise PubSubError("Redis package is required for pub/sub functionality. Install with: pip install redis")
 
@@ -83,15 +336,24 @@ class RedisPubSub:
         self._listening_task: asyncio.Task[None] | None = None
         self._connected = False
 
+        # Initialize circuit breaker for Redis operations
+        self._circuit_breaker = CircuitBreaker(
+            failure_threshold=3,  # Open after 3 consecutive failures
+            recovery_timeout=30.0,  # Wait 30s before attempting recovery
+            success_threshold=2,  # Close after 2 consecutive successes
+            timeout=5.0,  # 5s timeout for individual Redis operations
+            expected_exception=(RedisError, RedisConnectionError, RedisTimeoutError),
+        )
+
     async def connect(self) -> None:
-        """Establish Redis connection with optimized pool settings."""
+        """Establish Redis connection with optimized pool settings and circuit breaker protection."""
         if self._connected:
             return
 
         if not _REDIS_AVAILABLE:
             raise PubSubError("Redis package is required for connection")
 
-        try:
+        async def _connect_operation() -> None:
             # Create optimized connection pool
             assert ConnectionPool is not None, "Redis ConnectionPool not available"
             self._pool = ConnectionPool.from_url(
@@ -107,8 +369,8 @@ class RedisPubSub:
                 retry=3,  # Quick retries for transient failures
             )
 
-            assert aioredis is not None, "Redis aioredis not available"
-            self._redis = aioredis.Redis(
+            assert redis is not None, "Redis client not available"
+            self._redis = redis.Redis(
                 connection_pool=self._pool,
                 decode_responses=False,  # Handle bytes for performance
             )
@@ -116,9 +378,16 @@ class RedisPubSub:
             # Test connection
             assert self._redis is not None  # mypy assertion
             await self._redis.ping()
+
+        try:
+            # Use circuit breaker to protect connection operation
+            await self._circuit_breaker.call(_connect_operation)
             self._connected = True
             logger.info("Redis Pub/Sub connected successfully")
 
+        except CircuitBreakerError as e:
+            logger.error(f"Circuit breaker prevented Redis connection: {e}")
+            raise PubSubError(f"Redis connection blocked by circuit breaker: {e}") from e
         except RedisError as e:
             logger.error(f"Failed to connect to Redis: {e}")
             raise PubSubError(f"Redis connection failed: {e}") from e
@@ -159,7 +428,7 @@ class RedisPubSub:
             logger.error(f"Error during Redis disconnect: {e}")
 
     async def publish(self, channel: str, message: MessageData) -> int:
-        """Publish message to Redis channel with <1ms latency target.
+        """Publish message to Redis channel with <1ms latency target and circuit breaker protection.
 
         Args:
         ----
@@ -173,16 +442,22 @@ class RedisPubSub:
         Raises:
         ------
             PublishError: If publishing fails
+            CircuitBreakerError: If circuit breaker is open
 
         """
         if not self._connected or not self._redis:
             await self.connect()
 
         assert self._redis is not None  # mypy assertion
-        try:
-            # High-performance JSON serialization
-            serialized = json.dumps(message, separators=(",", ":"), ensure_ascii=False)
 
+        # Pre-serialize JSON for performance
+        try:
+            serialized = json.dumps(message, separators=(",", ":"), ensure_ascii=False)
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error(f"Failed to serialize message for channel '{channel}': {e}")
+            raise PublishError(f"Failed to serialize message: {e}") from e
+
+        async def _publish_operation() -> int:
             # Publish with timing measurement
             start_time = time.perf_counter()
             result = await self._redis.publish(channel, serialized)
@@ -195,7 +470,15 @@ class RedisPubSub:
             logger.debug(f"Published to '{channel}' in {elapsed:.3f}ms, {result} subscribers")
             return int(result)
 
-        except (RedisError, json.JSONDecodeError, TypeError) as e:
+        try:
+            # Use circuit breaker to protect publish operation
+            result = await self._circuit_breaker.call(_publish_operation)
+            return int(result)
+
+        except CircuitBreakerError as e:
+            logger.error(f"Circuit breaker prevented publish to channel '{channel}': {e}")
+            raise PublishError(f"Publish blocked by circuit breaker: {e}") from e
+        except RedisError as e:
             logger.error(f"Failed to publish to channel '{channel}': {e}")
             raise PublishError(f"Failed to publish message: {e}") from e
 
@@ -376,7 +659,7 @@ class RedisPubSub:
                 await self.unsubscribe(channel, handler)
 
     async def get_subscribers_count(self, channel: str) -> int:
-        """Get the number of subscribers for a channel.
+        """Get the number of subscribers for a channel with circuit breaker protection.
 
         Args:
         ----
@@ -391,10 +674,15 @@ class RedisPubSub:
             await self.connect()
 
         assert self._redis is not None  # mypy assertion
-        try:
+
+        async def _get_count_operation() -> int:
             result = await self._redis.pubsub_numsub(channel)
             return int(result[channel]) if channel in result else 0
-        except RedisError as e:
+
+        try:
+            result = await self._circuit_breaker.call(_get_count_operation)
+            return int(result)
+        except (CircuitBreakerError, RedisError) as e:
             logger.error(f"Failed to get subscriber count for channel '{channel}': {e}")
             return 0
 
@@ -407,6 +695,51 @@ class RedisPubSub:
     def active_subscriptions(self) -> set[str]:
         """Get set of currently subscribed channels."""
         return self._subscribers.copy()
+
+    @property
+    def circuit_breaker_state(self) -> CircuitBreakerState:
+        """Get current circuit breaker state."""
+        return self._circuit_breaker.state
+
+    @property
+    def circuit_breaker_metrics(self) -> dict[str, Any]:
+        """Get circuit breaker metrics for monitoring."""
+        return self._circuit_breaker.metrics
+
+    async def health_check(self) -> dict[str, Any]:
+        """Perform health check on Redis connection and circuit breaker.
+
+        Returns
+        -------
+            Health status dictionary with connection and circuit breaker info
+
+        """
+        health_status = {
+            "connected": self._connected,
+            "circuit_breaker": {
+                "state": self._circuit_breaker.state.value,
+                "metrics": self._circuit_breaker.metrics,
+            },
+            "redis_available": _REDIS_AVAILABLE,
+            "active_subscriptions": len(self._subscribers),
+        }
+
+        # Test Redis connection if available
+        if self._connected and self._redis:
+            try:
+
+                async def _ping_operation() -> bool:
+                    await self._redis.ping()
+                    return True
+
+                await self._circuit_breaker.call(_ping_operation)
+                health_status["redis_ping"] = "success"
+            except (CircuitBreakerError, RedisError) as e:
+                health_status["redis_ping"] = f"failed: {e}"
+        else:
+            health_status["redis_ping"] = "not_connected"
+
+        return health_status
 
 
 # Global singleton instance
