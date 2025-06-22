@@ -6,7 +6,7 @@ connecting client requests to the appropriate services.
 
 # MDC: cc_module
 import time
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -17,8 +17,11 @@ from .deps import DBSession, ModuleConfig, get_module_config
 from .mem0_router import router as mem0_router
 from .schemas import (
     CCConfig,
+    CircuitBreakerStatus,
     DebugLogRequest,
     DebugLogResponse,
+    DLQMetrics,
+    EnhancedHealthResponse,
     HealthStatusResponse,
     Module,
     ModuleCreate,
@@ -111,6 +114,140 @@ async def system_health_report(
         ],
         timestamp="2025-04-02T10:15:00Z",
     )
+
+
+@router.get(
+    "/health/enhanced",
+    response_model=EnhancedHealthResponse,
+    summary="Enhanced Health Check with Circuit Breaker and DLQ Metrics",
+    description="Provides comprehensive health status including circuit breaker state and DLQ metrics.",
+    tags=["Health"],
+)
+async def enhanced_health_check() -> EnhancedHealthResponse:
+    """Return enhanced health status including circuit breaker and DLQ metrics."""
+    log_event(
+        source="cc",
+        data={},
+        tags=["health", "enhanced", "circuit_breaker", "dlq"],
+        memo="Enhanced health check endpoint accessed.",
+    )
+
+    # TODO: Replace with actual Redis connection and circuit breaker instances
+    # For now, return mock data that demonstrates the structure
+    from datetime import datetime
+
+    # Mock circuit breaker status (would come from actual circuit breaker instance)
+    circuit_breaker_status = CircuitBreakerStatus(
+        state="CLOSED",
+        failure_count=0,
+        last_failure_time=None,
+        next_attempt_time=None,
+    )
+
+    # Mock DLQ metrics (would come from actual Redis queries)
+    dlq_metrics = [
+        DLQMetrics(
+            size=0,  # Would use: await redis_client.xlen("subscriber_dlq")
+            channel="subscriber_dlq",
+            oldest_message_time=None,
+            newest_message_time=None,
+        )
+    ]
+
+    # Mock uptime (would track actual service start time)
+    uptime_seconds = 3600.0  # 1 hour placeholder
+
+    # Mock Redis connection status (would check actual Redis connectivity)
+    redis_connected = True  # Would use: await redis_client.ping()
+
+    current_time = datetime.utcnow()
+
+    # Determine overall status based on metrics
+    overall_status = "healthy"
+    if circuit_breaker_status.state == "OPEN":
+        overall_status = "degraded"
+    elif not redis_connected:
+        overall_status = "offline"
+    elif any(dlq.size > 100 for dlq in dlq_metrics):  # High DLQ size threshold
+        overall_status = "degraded"
+
+    return EnhancedHealthResponse(
+        status=overall_status,
+        timestamp=current_time.isoformat() + "Z",
+        circuit_breaker_state=circuit_breaker_status,
+        dlq_metrics=dlq_metrics,
+        uptime_seconds=uptime_seconds,
+        redis_connected=redis_connected,
+    )
+
+
+@router.get(
+    "/metrics",
+    summary="Prometheus Metrics",
+    description="Exposes Prometheus metrics for monitoring and observability.",
+    tags=["Monitoring"],
+    include_in_schema=False,  # Don't include in OpenAPI schema
+)
+async def metrics() -> Any:
+    """Expose Prometheus metrics endpoint."""
+    try:
+        from prometheus_client import CONTENT_TYPE_LATEST, Gauge, generate_latest
+
+        # Log access to metrics endpoint
+        log_event(
+            source="cc",
+            data={},
+            tags=["metrics", "prometheus", "monitoring"],
+            memo="Prometheus metrics endpoint accessed.",
+        )
+
+        # Create custom metrics for circuit breaker and DLQ
+        # In a real implementation, these would be updated by the actual components
+
+        # Circuit breaker state metric (enum converted to gauge)
+        circuit_breaker_state_gauge = Gauge(
+            "circuit_breaker_state", "Circuit breaker state (0=CLOSED, 1=HALF_OPEN, 2=OPEN)", ["component"]
+        )
+        circuit_breaker_state_gauge.labels(component="subscriber").set(0)  # CLOSED
+
+        # Circuit breaker failure count
+        circuit_breaker_failures = Gauge(
+            "circuit_breaker_failures_total", "Total number of circuit breaker failures", ["component"]
+        )
+        circuit_breaker_failures.labels(component="subscriber").set(0)
+
+        # DLQ size metric
+        dlq_size_gauge = Gauge("dlq_size", "Number of messages in Dead Letter Queue", ["channel"])
+        dlq_size_gauge.labels(channel="subscriber_dlq").set(0)
+
+        # Service uptime
+        uptime_gauge = Gauge("service_uptime_seconds", "Service uptime in seconds")
+        uptime_gauge.set(3600.0)  # Mock 1 hour
+
+        # Redis connection status
+        redis_connection_gauge = Gauge("redis_connected", "Redis connection status (1=connected, 0=disconnected)")
+        redis_connection_gauge.set(1)  # Connected
+
+        # In-flight messages (for subscriber)
+        inflight_messages_gauge = Gauge(
+            "subscriber_inflight_messages", "Number of messages currently being processed", ["channel"]
+        )
+        inflight_messages_gauge.labels(channel="subscriber").set(0)
+
+        # Generate and return metrics in Prometheus format
+        from fastapi import Response
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+    except ImportError:
+        # Fallback if prometheus_client is not available
+        log_event(
+            source="cc",
+            data={"error": "prometheus_client not available"},
+            tags=["metrics", "error"],
+            memo="Prometheus client library not available for metrics endpoint.",
+        )
+        return Response(content="# Prometheus client not available\n", media_type="text/plain")
 
 
 @router.post(

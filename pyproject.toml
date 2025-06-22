@@ -30,6 +30,10 @@ dependencies = [
     "coverage>=7.8.0",
     "psycopg2-binary>=2.9.10",
     "async-timeout>=5.0.1",
+    "fakeredis>=2.20.0",  # Fast in-memory Redis for testing
+    "prometheus-client>=0.21.0",  # Prometheus metrics client
+    "testcontainers[redis]>=3.7.0",  # Real Redis containers for integration tests
+    "freezegun>=1.2.2",  # Time manipulation for deterministic tests
 ]
 
 [project.optional-dependencies]
@@ -47,6 +51,10 @@ dev = [
     "pre-commit>=4.2.0",
     "autoflake>=2.3.1",
     "pytest-benchmark>=4.0.0",  # perf tracking
+    "fakeredis>=2.20.0",  # Fast in-memory Redis for testing
+    "testcontainers[redis]>=3.7.0",  # Real Redis containers for integration tests
+    "freezegun>=1.2.2",  # Time manipulation for deterministic tests
+    "prometheus-fastapi-instrumentator>=7.0.0",  # Prometheus metrics for FastAPI
 ]
 rust-extensions = [
     "msgspec>=0.19.0",  # Only use if you encounter no installation issues

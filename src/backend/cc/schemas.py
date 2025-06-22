@@ -326,3 +326,82 @@ class DebugLogResponse(BaseModel):
             }
         }
     )
+
+
+# Enhanced Health Schemas for Circuit Breaker and DLQ Metrics
+class CircuitBreakerStatus(BaseModel):
+    """Model for circuit breaker status metrics."""
+
+    state: Literal["CLOSED", "OPEN", "HALF_OPEN"] = Field(..., description="Current state of the circuit breaker")
+    failure_count: int = Field(..., description="Number of consecutive failures")
+    last_failure_time: str | None = Field(None, description="ISO-8601 timestamp of the last failure")
+    next_attempt_time: str | None = Field(
+        None, description="ISO-8601 timestamp when next attempt is allowed (OPEN state)"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "state": "CLOSED",
+                "failure_count": 0,
+                "last_failure_time": None,
+                "next_attempt_time": None,
+            }
+        }
+    )
+
+
+class DLQMetrics(BaseModel):
+    """Model for Dead Letter Queue metrics."""
+
+    size: int = Field(..., description="Number of messages currently in the DLQ")
+    channel: str = Field(..., description="DLQ channel name")
+    oldest_message_time: str | None = Field(None, description="ISO-8601 timestamp of the oldest message in DLQ")
+    newest_message_time: str | None = Field(None, description="ISO-8601 timestamp of the newest message in DLQ")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "size": 3,
+                "channel": "subscriber_dlq",
+                "oldest_message_time": "2025-04-02T09:30:00Z",
+                "newest_message_time": "2025-04-02T10:15:00Z",
+            }
+        }
+    )
+
+
+class EnhancedHealthResponse(BaseModel):
+    """Enhanced health response with circuit breaker and DLQ metrics."""
+
+    status: Literal["healthy", "degraded", "offline"] = Field(..., description="Overall health status")
+    timestamp: str = Field(..., description="ISO-8601 timestamp when the health check was performed")
+    circuit_breaker_state: CircuitBreakerStatus = Field(..., description="Circuit breaker status metrics")
+    dlq_metrics: list[DLQMetrics] = Field(..., description="Dead Letter Queue metrics for all monitored channels")
+    uptime_seconds: float = Field(..., description="Service uptime in seconds")
+    redis_connected: bool = Field(..., description="Whether Redis connection is active")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "status": "healthy",
+                "timestamp": "2025-04-02T10:15:00Z",
+                "circuit_breaker_state": {
+                    "state": "CLOSED",
+                    "failure_count": 0,
+                    "last_failure_time": None,
+                    "next_attempt_time": None,
+                },
+                "dlq_metrics": [
+                    {
+                        "size": 3,
+                        "channel": "subscriber_dlq",
+                        "oldest_message_time": "2025-04-02T09:30:00Z",
+                        "newest_message_time": "2025-04-02T10:15:00Z",
+                    }
+                ],
+                "uptime_seconds": 3600.5,
+                "redis_connected": True,
+            }
+        }
+    )
