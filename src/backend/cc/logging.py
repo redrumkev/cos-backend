@@ -13,14 +13,83 @@ Features:
 
 import asyncio
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import logfire
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
+from src.common.pubsub import get_pubsub
 from src.common.request_id_middleware import get_request_id
 
 _flush_lock = asyncio.Lock()
+
+
+async def _publish_l1_event(log_id: uuid.UUID, event_data: dict[str, Any]) -> None:
+    """Publish L1 event to Redis after successful database commit.
+
+    This function implements fire-and-forget publishing with error isolation.
+    All exceptions are caught and logged but never re-raised to prevent
+    interfering with the main database transaction flow.
+
+    Args:
+    ----
+        log_id: UUID of the event log record
+        event_data: Event data dictionary to publish
+
+    """
+    try:
+        with logfire.span("publish_l1_event", kind="producer") as span:
+            # Get Redis pubsub instance with circuit breaker protection
+            pubsub = await get_pubsub()
+
+            # Publish to the L1 Redis channel
+            await pubsub.publish("mem0.recorded.cc", event_data)
+
+            # Set span attributes for observability
+            span.set_attribute("log_id", str(log_id))
+            span.set_attribute("event_type", event_data.get("event", {}).get("event_type", "unknown"))
+
+    except Exception as e:
+        # Error isolation: log the error but never re-raise
+        # This ensures Redis failures don't affect database operations
+        logfire.warn(
+            "Failed to publish L1 event to Redis", log_id=str(log_id), error=str(e), error_type=type(e).__name__
+        )
+
+
+@event.listens_for(Session, "after_commit", named=True)
+def _after_commit_publish_events(session: Session, **kw: Any) -> None:
+    """SQLAlchemy after_commit event listener for Redis publishing.
+
+    This listener is triggered after a successful database commit and
+    schedules Redis publishing tasks for any events in the session outbox.
+    Uses asyncio.create_task for fire-and-forget execution.
+
+    Args:
+    ----
+        session: The Session that was committed
+        **kw: Additional event arguments (ignored)
+
+    """
+    # Retrieve and clear outbox events from session info
+    outbox_events = session.info.pop("l1_outbox", None)
+    if not outbox_events:
+        return
+
+    # Schedule publishing tasks asynchronously (fire-and-forget)
+    try:
+        loop = asyncio.get_running_loop()
+        tasks = []
+        for log_id, event_data in outbox_events:
+            task = loop.create_task(_publish_l1_event(log_id, event_data))
+            tasks.append(task)
+    except RuntimeError:
+        # No running event loop - this can happen in some test scenarios
+        # Log the situation but don't fail
+        logfire.warn("No running event loop for Redis publishing", event_count=len(outbox_events))
 
 
 async def log_l1(
@@ -109,6 +178,23 @@ async def log_l1(
         async with _flush_lock:
             await db.flush()
         result_ids["event_log_id"] = event_log.id
+
+        # Queue event for Redis publishing after commit
+        event_publish_data = {
+            "log_id": str(event_log.id),
+            "created_at": datetime.now(UTC).isoformat(),
+            "event": {
+                "event_type": event_type,
+                "event_data": payload,
+                "request_id": request_id,
+                "trace_id": trace_id,
+            },
+        }
+
+        # Add to session outbox for after_commit publishing
+        if "l1_outbox" not in db.info:
+            db.info["l1_outbox"] = []
+        db.info["l1_outbox"].append((event_log.id, event_publish_data))
 
     # Create prompt trace if prompt_data provided
     if prompt_data is not None:
