@@ -1,0 +1,48 @@
+# Docker Compose Override - Windows  
+# Individual drive letters for optimal Windows performance
+
+services:
+  postgres_prod:
+    volumes:
+      - type: bind
+        source: P:/postgres_cos_prod
+        target: /var/lib/postgresql/data
+
+  postgres_dev:
+    volumes:
+      - type: bind
+        source: P:/postgres_cos_dev
+        target: /var/lib/postgresql/data
+
+  redis:
+    volumes:
+      - type: bind
+        source: E:/redis_cos_data
+        target: /data
+      - type: bind
+        source: ./redis.conf
+        target: /usr/local/etc/redis/redis.conf
+
+  elasticsearch:
+    volumes:
+      - type: bind
+        source: F:/elasticsearch_cos_data
+        target: /usr/share/elasticsearch/data
+
+  neo4j:
+    volumes:
+      - type: bind
+        source: F:/neo4j_cos_data
+        target: /data
+      - type: bind
+        source: F:/neo4j_cos_logs
+        target: /logs
+      - type: bind
+        source: F:/neo4j_cos_transactions
+        target: /var/lib/neo4j/transactions
+
+# Networks inherit from main compose file
+networks:
+  cos_network:
+    external: false
+    name: cos_network
