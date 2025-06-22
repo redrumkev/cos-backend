@@ -11,7 +11,8 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from redis.exceptions import ConnectionError, RedisError
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import RedisError
 
 from src.common.pubsub import (
     MessageData,
@@ -84,7 +85,7 @@ class TestRedisPubSub:
     @patch("src.common.pubsub.ConnectionPool")
     async def test_connect_failure(self, mock_pool_cls: MagicMock, pubsub: RedisPubSub) -> None:
         """Test Redis connection failure."""
-        mock_pool_cls.from_url.side_effect = ConnectionError("Connection failed")
+        mock_pool_cls.from_url.side_effect = RedisConnectionError("Connection failed")
 
         with pytest.raises(PubSubError, match="Redis connection failed"):
             await pubsub.connect()
