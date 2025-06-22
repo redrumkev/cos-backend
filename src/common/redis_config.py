@@ -18,7 +18,7 @@ try:
 except ImportError:  # pragma: no cover
     logging.getLogger(__name__).warning("python-dotenv not installed; environment files will be ignored.")
 
-    def load_dotenv(_path: str | os.PathLike[str] | None = None, *args: object, **kwargs: object) -> None:  # type: ignore[override]
+    def load_dotenv(_path: str | os.PathLike[str] | None = None, *args: object, **kwargs: object) -> None:  # type: ignore[misc]
         """Fallback no-op load_dotenv when dotenv is not available."""
         return
 

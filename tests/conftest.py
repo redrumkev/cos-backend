@@ -10,11 +10,11 @@ from collections.abc import AsyncGenerator, Callable, Generator
 from pathlib import Path
 from typing import Any, TypeVar
 
-import pytest
-import pytest_asyncio
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+import pytest  # type: ignore[import-untyped]
+import pytest_asyncio  # type: ignore[import-untyped]
+from fastapi import FastAPI  # type: ignore[import-untyped]
+from fastapi.testclient import TestClient  # type: ignore[import-untyped]
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # type: ignore[import-untyped]
 
 # Force settings to load dummy env file during test collection
 os.environ.setdefault("ENV_FILE", str(Path(__file__).parents[1] / "infrastructure" / ".env.ci"))
@@ -107,10 +107,10 @@ if os.getenv("RUN_INTEGRATION", "0") == "0":
 
     # Stub asyncpg connect to avoid real network cost
     try:
-        import asyncpg
+        import asyncpg  # type: ignore[import-untyped]
 
         async def _fake_connect(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[return-value]
-            class _DummyConn:  # noqa: D401, WPS431 – simple stub
+            class _DummyConn:  # noqa: D401 – simple stub
                 def __init__(self) -> None:
                     self._closed = False
                     self._transaction = None
@@ -174,7 +174,7 @@ if os.getenv("RUN_INTEGRATION", "0") == "0":
     try:
         from neo4j import AsyncGraphDatabase  # type: ignore
 
-        class _DummyNeoSession:  # noqa: D401, WPS110 – simple stub
+        class _DummyNeoSession:  # noqa: D401 – simple stub
             async def __aenter__(self):
                 return self
 
@@ -184,7 +184,7 @@ if os.getenv("RUN_INTEGRATION", "0") == "0":
             async def run(self, *_args: Any, **_kwargs: Any) -> list:  # noqa: D401 – stub
                 return []
 
-        class _DummyNeoDriver:  # noqa: D401, WPS110
+        class _DummyNeoDriver:  # noqa: D401
             async def session(self, *_, **__) -> _DummyNeoSession:  # noqa: D401
                 return _DummyNeoSession()
 
@@ -236,7 +236,6 @@ skip_if_no_message_bus = pytest.mark.skipif(
 
 
 @pytest.fixture
-@skip_if_no_infrastructure  # Apply infrastructure check at fixture level
 async def setup_database() -> AsyncGenerator[None, None]:
     """Create all tables once at session start."""
     if engine is None:
@@ -244,6 +243,8 @@ async def setup_database() -> AsyncGenerator[None, None]:
 
     from src.backend.cc import models  # noqa: F401
 
+    # Type assertion - we know engine is not None after the check above
+    assert engine is not None
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -282,7 +283,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
         during teardown to ensure no database state bleeds between tests.
     3.  The engine itself is disposed after the test to avoid resource leaks.
     """
-    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from sqlalchemy.ext.asyncio import async_sessionmaker  # type: ignore[import-untyped]
 
     # Late import to avoid circulars and ensure settings/env are initialised
     from src.db.connection import get_async_engine
@@ -342,6 +343,8 @@ async def postgres_session() -> AsyncGenerator[Callable[[], Any], None]:
     if engine is None:
         pytest.skip("Database engine not available - infrastructure check failed")
 
+    # Type assertion - we know engine is not None after the check above
+    assert engine is not None
     conn = await engine.connect()
     trans = await conn.begin()
     test_session_local = async_sessionmaker(bind=conn, expire_on_commit=False)
@@ -409,7 +412,7 @@ def test_client(client: TestClient | None) -> TestClient:
 @pytest_asyncio.fixture(scope="function")
 async def async_client(override_get_db: Any) -> AsyncGenerator[Any, None]:
     try:
-        from httpx import ASGITransport, AsyncClient
+        from httpx import ASGITransport, AsyncClient  # type: ignore[import-untyped]
 
         from src.cos_main import app
 
@@ -473,7 +476,7 @@ def current_test_env() -> Generator[None, None, None]:
 # ---------------------------------------------------------------------------
 
 try:
-    from sqlalchemy.engine import CursorResult, Result
+    from sqlalchemy.engine import CursorResult, Result  # type: ignore[import-untyped]
 
     if not hasattr(Result, "rowcount"):
 

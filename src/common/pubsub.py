@@ -109,7 +109,7 @@ class CircuitBreaker:
         self._success_count = 0
         self._last_failure_time: float | None = None
         self._next_attempt_time: float | None = None
-        
+
         # Special case: if failure_threshold is 0, start in OPEN state (always fail fast)
         if failure_threshold == 0:
             self._state = CircuitBreakerState.OPEN
@@ -355,7 +355,7 @@ class RedisPubSub:
 
         async def _connect_operation() -> None:
             # Create optimized connection pool
-            assert ConnectionPool is not None, "Redis ConnectionPool not available"
+            assert ConnectionPool is not None, "Redis ConnectionPool not available"  # nosec B101
             self._pool = ConnectionPool.from_url(
                 self._config.redis_url,
                 max_connections=self._config.redis_max_connections,
@@ -369,14 +369,14 @@ class RedisPubSub:
                 retry=3,  # Quick retries for transient failures
             )
 
-            assert redis is not None, "Redis client not available"
+            assert redis is not None, "Redis client not available"  # nosec B101
             self._redis = redis.Redis(
                 connection_pool=self._pool,
                 decode_responses=False,  # Handle bytes for performance
             )
 
             # Test connection
-            assert self._redis is not None  # mypy assertion
+            assert self._redis is not None  # mypy assertion  # nosec B101  # nosec B101
             await self._redis.ping()
 
         try:
@@ -448,7 +448,7 @@ class RedisPubSub:
         if not self._connected or not self._redis:
             await self.connect()
 
-        assert self._redis is not None  # mypy assertion
+        assert self._redis is not None  # mypy assertion  # nosec B101
 
         # Pre-serialize JSON for performance
         try:
@@ -498,7 +498,7 @@ class RedisPubSub:
         if not self._connected or not self._redis:
             await self.connect()
 
-        assert self._redis is not None  # mypy assertion
+        assert self._redis is not None  # mypy assertion  # nosec B101
         try:
             # Initialize pubsub if needed
             if not self._pubsub:
@@ -511,7 +511,7 @@ class RedisPubSub:
 
             # Subscribe to channel if not already subscribed
             if channel not in self._subscribers:
-                assert self._pubsub is not None  # mypy assertion
+                assert self._pubsub is not None  # mypy assertion  # nosec B101
                 await self._pubsub.subscribe(channel)
                 self._subscribers.add(channel)
                 logger.info(f"Subscribed to channel '{channel}'")
@@ -673,7 +673,7 @@ class RedisPubSub:
         if not self._connected or not self._redis:
             await self.connect()
 
-        assert self._redis is not None  # mypy assertion
+        assert self._redis is not None  # mypy assertion  # nosec B101
 
         async def _get_count_operation() -> int:
             result = await self._redis.pubsub_numsub(channel)
