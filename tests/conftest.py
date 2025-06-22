@@ -526,3 +526,178 @@ try:
         AsyncResult.rowcount = _async_rowcount  # type: ignore[assignment]
 except ImportError:
     pass
+
+
+# ===== Redis Pub/Sub Testing Enhancement Fixtures =====
+
+
+@pytest_asyncio.fixture(scope="session")
+def event_loop_session() -> Generator[asyncio.AbstractEventLoop, None, None]:
+    """Session-scoped event loop for Redis testing consistency."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        yield loop
+    finally:
+        loop.close()
+
+
+@pytest_asyncio.fixture
+async def fake_redis() -> AsyncGenerator[Any, None]:
+    """Async fakeredis instance with proper cleanup and performance optimizations."""
+    try:
+        import fakeredis.aioredis
+    except ImportError:
+        pytest.skip("fakeredis not available")
+
+    # Create fakeredis instance with optimized settings
+    redis_client = fakeredis.aioredis.FakeRedis(
+        decode_responses=False,  # Match production behavior
+        socket_keepalive=True,
+        socket_keepalive_options={},
+        retry_on_timeout=True,
+    )
+
+    try:
+        yield redis_client
+    finally:
+        await redis_client.flushall()
+        await redis_client.aclose()
+
+
+@pytest_asyncio.fixture
+async def flaky_redis(fake_redis: Any, monkeypatch: Any) -> AsyncGenerator[Any, None]:
+    """Redis client that simulates network failures and timeouts."""
+    failure_count = 0
+    max_failures = 3
+
+    original_publish = fake_redis.publish
+    original_ping = fake_redis.ping
+
+    async def failing_publish(*args: Any, **kwargs: Any) -> Any:
+        nonlocal failure_count
+        if failure_count < max_failures:
+            failure_count += 1
+            from src.common.pubsub import RedisError
+
+            raise RedisError(f"Simulated network failure {failure_count}")
+        return await original_publish(*args, **kwargs)
+
+    async def failing_ping(*args: Any, **kwargs: Any) -> Any:
+        nonlocal failure_count
+        if failure_count < max_failures:
+            failure_count += 1
+            from src.common.pubsub import RedisConnectionError
+
+            raise RedisConnectionError("Simulated connection failure")
+        return await original_ping(*args, **kwargs)
+
+    fake_redis.publish = failing_publish
+    fake_redis.ping = failing_ping
+
+    try:
+        yield fake_redis
+    finally:
+        fake_redis.publish = original_publish
+        fake_redis.ping = original_ping
+
+
+@pytest_asyncio.fixture
+async def redis_pubsub_with_mocks(fake_redis: Any, monkeypatch: Any) -> AsyncGenerator[Any, None]:
+    """RedisPubSub instance with mocked Redis client for comprehensive testing."""
+    from src.common.pubsub import RedisPubSub
+
+    # Mock configuration
+    mock_config = type(
+        "MockConfig",
+        (),
+        {
+            "redis_url": "redis://localhost:6379",
+            "redis_max_connections": 10,
+            "redis_socket_connect_timeout": 5,
+            "redis_socket_keepalive": True,
+            "redis_retry_on_timeout": True,
+            "redis_health_check_interval": 30,
+        },
+    )()
+
+    # Patch Redis availability and config
+    monkeypatch.setattr("src.common.pubsub._REDIS_AVAILABLE", True)
+    monkeypatch.setattr("src.common.pubsub.get_redis_config", lambda: mock_config)
+
+    # Create pubsub instance and inject fake redis
+    pubsub = RedisPubSub()
+    pubsub._redis = fake_redis
+    pubsub._connected = True
+
+    # Ensure fake redis publish returns positive subscriber count
+    original_publish = fake_redis.publish
+
+    async def mock_publish(*args: Any, **kwargs: Any) -> int:
+        await original_publish(*args, **kwargs)
+        return 1  # Always return 1 subscriber for testing
+
+    fake_redis.publish = mock_publish
+
+    try:
+        yield pubsub
+    finally:
+        await pubsub.disconnect()
+
+
+@pytest.fixture
+def circuit_breaker_test_config() -> dict[str, Any]:
+    """Standard circuit breaker configuration for testing."""
+    return {
+        "failure_threshold": 3,
+        "recovery_timeout": 1.0,  # Fast recovery for tests
+        "success_threshold": 2,
+        "timeout": 0.5,
+    }
+
+
+@pytest.fixture
+def redis_performance_config() -> dict[str, Any]:
+    """Performance test configuration and thresholds."""
+    return {
+        "target_latency_ms": 1.0,
+        "max_latency_ms": 5.0,
+        "warmup_iterations": 5,
+        "test_iterations": 10,
+        "payload_sizes": [10, 100, 1000, 10000],  # bytes
+    }
+
+
+class RedisTestUtils:
+    """Utility class for Redis testing patterns."""
+
+    @staticmethod
+    async def wait_for_message_processing(delay: float = 0.1) -> None:
+        """Wait for async message processing to complete."""
+        await asyncio.sleep(delay)
+
+    @staticmethod
+    def generate_test_message(size_bytes: int = 100) -> dict[str, Any]:
+        """Generate test message of specified size."""
+        import string
+        import random
+
+        # Generate payload to reach target size
+        content = "".join(random.choices(string.ascii_letters + string.digits, k=size_bytes))
+        return {
+            "test_id": random.randint(1000, 9999),
+            "timestamp": 1700000000.0,
+            "content": content,
+            "metadata": {"size": size_bytes, "type": "test"},
+        }
+
+    @staticmethod
+    async def simulate_network_latency(delay_ms: float = 10) -> None:
+        """Simulate network latency in tests."""
+        await asyncio.sleep(delay_ms / 1000)
+
+
+@pytest.fixture
+def redis_test_utils() -> RedisTestUtils:
+    """Provide Redis testing utilities."""
+    return RedisTestUtils()
