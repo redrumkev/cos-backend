@@ -35,6 +35,8 @@ dependencies = [
     "testcontainers[redis]>=3.7.0", # Real Redis containers for integration tests
     "freezegun>=1.2.2", # Time manipulation for deterministic tests
     "pytest-benchmark>=5.1.0",
+    "psutil>=6.1.0",  # System and process monitoring for performance tests
+    "pytest-memray>=1.7.0",  # Memory profiling for leak detection
 ]
 
 [project.optional-dependencies]
@@ -90,7 +92,14 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
     "--strict-markers",
-    "--disable-warnings"
+    "--disable-warnings",
+    "--benchmark-save=latest",
+    "--benchmark-min-rounds=200",
+    "--benchmark-warmup-iterations=10",
+    "--benchmark-max-time=5.0",
+    "--benchmark-disable-gc",
+    "--strict-config",
+    "-v"
 ]
 testpaths = ["tests"]
 python_files = "test_*.py"
@@ -103,10 +112,20 @@ markers = [
     "infrastructure: marks tests requiring external services",
     "phase2: marks tests for Phase 2 implementation (skip in Phase 1)",
     "timeout: marks tests with timeout requirements",
-    "benchmark: marks tests as performance benchmarks"
+    "benchmark: marks tests as performance benchmarks",
+    "performance: Performance benchmark tests",
+    "requires_redis: Tests requiring Redis service",
+    "requires_postgres: Tests requiring PostgreSQL service",
+    "requires_neo4j: Tests requiring Neo4j service",
+    "requires_all_services: Tests requiring all infrastructure services"
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning"
+]
 
 [tool.coverage.run]
 source = ["src"] # Specify source directory for coverage measurement
