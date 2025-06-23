@@ -1,4 +1,4 @@
-# Docker Compose Override - Windows  
+# Docker Compose Override - Windows
 # Individual drive letters for optimal Windows performance
 
 services:

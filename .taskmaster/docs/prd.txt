@@ -2,7 +2,7 @@
 
 **Metadata:**
 - **Phase:** 2
-- **Sprint:** 2  
+- **Sprint:** 2
 - **Title:** L1.5 Redis Event Bus - Bridging Structured Memory to Semantic Intelligence
 - **Date:** 2025-06-18
 - **Owner:** Kevin
@@ -22,7 +22,7 @@ Implement the L1.5 Redis Pub/Sub layer that bridges structured L1 memory (Postgr
 
 **FORWARD Principles Applied**:
 - **Frictionless**: Standard Redis patterns reusable across all modules
-- **Orchestrated**: Event-driven architecture enables intelligent automation  
+- **Orchestrated**: Event-driven architecture enables intelligent automation
 - **Real-Time**: Sub-millisecond message publishing for immediate responsiveness
 - **Wide-Angle**: Pub/Sub foundation serves multi-century evolution needs
 - **Adaptive**: Scales from single module to hundreds without refactoring
@@ -44,7 +44,7 @@ Building on Sprint 1's breakthrough achievements:
 ### Industry Best Practices Integration
 Based on 2024 Redis patterns research:
 - **Dedicated Pub/Sub Instance**: Avoid mixing with transactional operations
-- **Connection Pooling**: AsyncIO-compatible pool with graceful degradation  
+- **Connection Pooling**: AsyncIO-compatible pool with graceful degradation
 - **Circuit Breaker Pattern**: Prevent cascading failures during Redis unavailability
 - **At-Least-Once Delivery**: Message acknowledgment and retry patterns
 - **Performance Optimization**: Async operations throughout, <1ms publish targets
@@ -65,7 +65,7 @@ L1 (mem0_cc PostgreSQL) → SQLAlchemy after_commit → Redis Publish → L2 Con
 {
   "base_log_id": "550e8400-e29b-41d4-a716-446655440000",
   "source_module": "cc",
-  "timestamp": "2025-06-18T10:30:00.123456Z", 
+  "timestamp": "2025-06-18T10:30:00.123456Z",
   "trace_id": "logfire-trace-identifier",
   "request_id": "request-uuid-from-middleware",
   "event_type": "prompt_trace|event_log",
@@ -117,7 +117,7 @@ L1 (mem0_cc PostgreSQL) → SQLAlchemy after_commit → Redis Publish → L2 Con
 
 6. **Performance Validation Infrastructure**
    - Redis publish latency measurement (<1ms target)
-   - Round-trip integration timing (<5ms target)  
+   - Round-trip integration timing (<5ms target)
    - Connection pool efficiency monitoring
    - Memory usage profiling for Redis client
 
@@ -189,7 +189,7 @@ async def subscribe_to_channel(channel: str) -> AsyncIterator[dict]
 
 class CircuitBreaker:
     # Resilience pattern for Redis unavailability
-    
+
 class BaseSubscriber(ABC):
     # Abstract base for Sprint 3 L2 consumer
     @abstractmethod
@@ -200,7 +200,7 @@ class BaseSubscriber(ABC):
 ```python
 # Configuration constants and validation:
 REDIS_URL: str
-REDIS_MAX_CONNECTIONS: int  
+REDIS_MAX_CONNECTIONS: int
 REDIS_SOCKET_CONNECT_TIMEOUT: int
 REDIS_SOCKET_KEEPALIVE: bool
 REDIS_RETRY_ON_TIMEOUT: bool
@@ -212,7 +212,7 @@ REDIS_RETRY_ON_TIMEOUT: bool
 async def log_l1(...) -> UUID:
     # Existing L1 database logic...
     await db.commit()  # Existing commit
-    
+
     # NEW: Publish after successful commit
     await _publish_l1_event(base_log.id, event_data)
     return base_log.id
@@ -227,7 +227,7 @@ class BaseSubscriber(ABC):
     # Foundation for Sprint 3 L2 consumer
     async def start_consuming(self, channel: str) -> None
     async def stop_consuming(self) -> None
-    @abstractmethod 
+    @abstractmethod
     async def process_message(self, message: dict) -> bool
 ```
 
@@ -241,7 +241,7 @@ class BaseSubscriber(ABC):
 
 #### `tests/integration/test_redis_pipeline.py`
 - Live Redis instance integration
-- End-to-end message flow validation  
+- End-to-end message flow validation
 - Connection pool stress testing
 - Network failure simulation
 
@@ -299,7 +299,7 @@ services:
 
 - [ ] **Publish Latency Benchmark**: p95 latency for `publish_message()` < 1ms measured over 1000 iterations using pytest-benchmark
 - [ ] **Integration Pipeline Timing**: End-to-end time from API request to Redis message receipt < 5ms in 95% of cases
-- [ ] **Connection Pool Efficiency**: Connection acquisition from pool < 5ms under load (100 concurrent requests)  
+- [ ] **Connection Pool Efficiency**: Connection acquisition from pool < 5ms under load (100 concurrent requests)
 - [ ] **Memory Usage Validation**: Redis client memory footprint remains < 50MB during sustained operation
 - [ ] **Throughput Capacity**: System sustains ≥1000 messages/second for 60 seconds without degradation
 
@@ -311,7 +311,7 @@ services:
 - [ ] **Type Safety Validation**: mypy --strict passes with zero type errors
 - [ ] **Security Compliance**: bandit security scan shows zero high/medium vulnerabilities
 
-### Infrastructure & Configuration Criteria  
+### Infrastructure & Configuration Criteria
 
 - [ ] **Environment Configuration**: All Redis environment variables properly documented and validated
 - [ ] **Docker Integration**: Redis service starts successfully in Docker Compose environment

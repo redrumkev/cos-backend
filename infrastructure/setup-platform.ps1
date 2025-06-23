@@ -42,7 +42,7 @@ Write-Host "📁 Creating data directory structure..." -ForegroundColor Yellow
 
 $DataRoots = @{
     "postgres" = "P:\postgres_cos"
-    "redis" = "E:\redis_cos_data" 
+    "redis" = "E:\redis_cos_data"
     "neo4j_data" = "F:\neo4j_cos_data"
     "neo4j_logs" = "F:\neo4j_cos_logs"
     "neo4j_transactions" = "F:\neo4j_cos_transactions"
@@ -97,7 +97,7 @@ Write-Host "🔍 Validating configuration..." -ForegroundColor Yellow
 
 $RequiredFiles = @(
     "docker-compose.yml",
-    "docker-compose.traefik.yml", 
+    "docker-compose.traefik.yml",
     "docker-compose.mem0g.yml",
     "docker-compose.override.yml",
     ".env"
