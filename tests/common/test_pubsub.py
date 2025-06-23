@@ -8,6 +8,8 @@ import asyncio
 import builtins
 import contextlib
 import time
+from collections.abc import AsyncGenerator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -34,7 +36,7 @@ class TestRedisPubSub:
         return RedisPubSub()
 
     @pytest.fixture
-    async def connected_pubsub(self, pubsub: RedisPubSub) -> RedisPubSub:
+    async def connected_pubsub(self, pubsub: RedisPubSub) -> AsyncGenerator[RedisPubSub, None]:
         """Create connected RedisPubSub instance."""
         with patch("src.common.pubsub.ConnectionPool"), patch("src.common.pubsub.aioredis.Redis") as mock_redis_cls:
             mock_redis = AsyncMock()
@@ -173,12 +175,12 @@ class TestRedisPubSub:
         with pytest.raises(PublishError, match="Failed to publish message"):
             await connected_pubsub.publish("test", {"obj": NonSerializable()})
 
-    async def test_publish_performance_warning(self, connected_pubsub: RedisPubSub, caplog) -> None:
+    async def test_publish_performance_warning(self, connected_pubsub: RedisPubSub, caplog: Any) -> None:
         """Test publish performance warning for slow operations."""
         mock_redis = AsyncMock()
 
         # Mock slow publish operation
-        async def slow_publish(*args, **kwargs):
+        async def slow_publish(*args: Any, **kwargs: Any) -> int:
             await asyncio.sleep(0.002)  # 2ms delay
             return 1
 
@@ -382,7 +384,7 @@ class TestRedisPubSub:
         # Should not raise exception
         await connected_pubsub._handle_message(message)
 
-    async def test_handle_message_json_decode_error(self, connected_pubsub: RedisPubSub, caplog) -> None:
+    async def test_handle_message_json_decode_error(self, connected_pubsub: RedisPubSub, caplog: Any) -> None:
         """Test handling message with invalid JSON."""
 
         async def handler(channel: str, message: MessageData) -> None:
@@ -396,7 +398,7 @@ class TestRedisPubSub:
 
         assert "Failed to decode message" in caplog.text
 
-    async def test_handle_message_handler_exception(self, connected_pubsub: RedisPubSub, caplog) -> None:
+    async def test_handle_message_handler_exception(self, connected_pubsub: RedisPubSub, caplog: Any) -> None:
         """Test handling message when handler raises exception."""
 
         async def failing_handler(channel: str, message: MessageData) -> None:
@@ -418,9 +420,9 @@ class TestRedisPubSub:
             {"type": "unsubscribe", "channel": "test", "data": 0},
         ]
 
-        async def mock_listen():
+        async def mock_listen() -> AsyncGenerator[dict[str, Any], None]:
             for msg in messages:
-                yield msg
+                yield msg  # type: ignore[misc]
 
         mock_pubsub = AsyncMock()
         mock_pubsub.listen.return_value = mock_listen()
@@ -443,7 +445,7 @@ class TestRedisPubSub:
     async def test_listen_loop_redis_error_reconnect(self, connected_pubsub: RedisPubSub) -> None:
         """Test listen loop handles Redis errors with reconnection."""
 
-        async def mock_listen():
+        async def mock_listen() -> AsyncGenerator[dict[str, Any], None]:
             raise RedisError("Connection lost")
             yield  # pragma: no cover
 
@@ -465,7 +467,7 @@ class TestRedisPubSub:
     async def test_listen_loop_cancelled(self, connected_pubsub: RedisPubSub) -> None:
         """Test listen loop handles cancellation gracefully."""
 
-        async def mock_listen():
+        async def mock_listen() -> AsyncGenerator[dict[str, Any], None]:
             await asyncio.sleep(1)  # Simulate long operation
             yield {"type": "message", "channel": "test", "data": "{}"}  # pragma: no cover
 
@@ -537,7 +539,7 @@ class TestRedisPubSub:
 
         assert count == 0
 
-    async def test_get_subscribers_count_redis_error(self, connected_pubsub: RedisPubSub, caplog) -> None:
+    async def test_get_subscribers_count_redis_error(self, connected_pubsub: RedisPubSub, caplog: Any) -> None:
         """Test getting subscriber count with Redis error."""
         mock_redis = AsyncMock()
         mock_redis.pubsub_numsub.side_effect = RedisError("Redis error")
@@ -656,7 +658,7 @@ class TestRedisPubSubIntegration:
     """Integration tests requiring actual Redis instance."""
 
     @pytest.fixture
-    async def live_pubsub(self) -> RedisPubSub:
+    async def live_pubsub(self) -> AsyncGenerator[RedisPubSub, None]:
         """Create RedisPubSub with real Redis connection."""
         pubsub = RedisPubSub()
         try:

@@ -47,7 +47,7 @@ class TestCircuitBreaker:
     async def test_successful_call(self, circuit_breaker: CircuitBreaker) -> None:
         """Test successful function call through circuit breaker."""
 
-        async def success_func():
+        async def success_func() -> str:
             return "success"
 
         result = await circuit_breaker.call(success_func)
@@ -57,7 +57,7 @@ class TestCircuitBreaker:
     async def test_failure_tracking(self, circuit_breaker: CircuitBreaker) -> None:
         """Test failure tracking and threshold behavior."""
 
-        async def failing_func():
+        async def failing_func() -> None:
             raise TestError("Test failure")
 
         # Should remain closed for failures below threshold
@@ -75,7 +75,7 @@ class TestCircuitBreaker:
     async def test_open_state_blocks_requests(self, circuit_breaker: CircuitBreaker) -> None:
         """Test that open circuit breaker blocks requests."""
 
-        async def failing_func():
+        async def failing_func() -> None:
             raise TestError("Test failure")
 
         # Trigger circuit breaker to open
@@ -86,7 +86,7 @@ class TestCircuitBreaker:
         assert circuit_breaker.state == CircuitBreakerState.OPEN
 
         # Should block subsequent requests
-        async def success_func():
+        async def success_func() -> str:
             return "success"
 
         with pytest.raises(CircuitBreakerError):
@@ -95,7 +95,7 @@ class TestCircuitBreaker:
     async def test_half_open_transition(self, circuit_breaker: CircuitBreaker) -> None:
         """Test transition from OPEN to HALF_OPEN after timeout."""
 
-        async def failing_func():
+        async def failing_func() -> None:
             raise TestError("Test failure")
 
         # Open the circuit breaker
@@ -109,19 +109,19 @@ class TestCircuitBreaker:
         await asyncio.sleep(circuit_breaker.recovery_timeout + 0.1)
 
         # Next call should transition to HALF_OPEN
-        async def success_func():
+        async def success_func() -> str:
             return "success"
 
         result = await circuit_breaker.call(success_func)
         assert result == "success"
-        assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN
+        assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN  # type: ignore[comparison-overlap]
 
     async def test_half_open_to_closed_transition(self, circuit_breaker: CircuitBreaker) -> None:
         """Test transition from HALF_OPEN to CLOSED after enough successes."""
         # Manually set to HALF_OPEN state
         circuit_breaker._state = CircuitBreakerState.HALF_OPEN
 
-        async def success_func():
+        async def success_func() -> str:
             return "success"
 
         # Should remain HALF_OPEN until success threshold is reached
@@ -141,7 +141,7 @@ class TestCircuitBreaker:
         # Manually set to HALF_OPEN state
         circuit_breaker._state = CircuitBreakerState.HALF_OPEN
 
-        async def failing_func():
+        async def failing_func() -> None:
             raise TestError("Test failure")
 
         # Any failure in HALF_OPEN should return to OPEN
@@ -152,7 +152,7 @@ class TestCircuitBreaker:
     async def test_timeout_handling(self, circuit_breaker: CircuitBreaker) -> None:
         """Test that timeouts are treated as failures."""
 
-        async def slow_func():
+        async def slow_func() -> str:
             await asyncio.sleep(circuit_breaker.timeout + 0.1)
             return "too slow"
 
@@ -163,10 +163,10 @@ class TestCircuitBreaker:
     async def test_metrics_tracking(self, circuit_breaker: CircuitBreaker) -> None:
         """Test that metrics are properly tracked."""
 
-        async def success_func():
+        async def success_func() -> str:
             return "success"
 
-        async def failing_func():
+        async def failing_func() -> None:
             raise TestError("Test failure")
 
         # Execute some operations
@@ -185,7 +185,7 @@ class TestCircuitBreaker:
     async def test_exponential_backoff(self, circuit_breaker: CircuitBreaker) -> None:
         """Test exponential backoff behavior."""
 
-        async def failing_func():
+        async def failing_func() -> None:
             raise TestError("Test failure")
 
         # Open the circuit breaker
@@ -205,6 +205,8 @@ class TestCircuitBreaker:
             await circuit_breaker.call(failing_func)
 
         second_next_attempt = circuit_breaker._next_attempt_time
+        assert first_next_attempt is not None
+        assert second_next_attempt is not None
         assert second_next_attempt > first_next_attempt
 
 
@@ -212,7 +214,7 @@ class TestRedisPubSubCircuitBreaker:
     """Test cases for circuit breaker integration with RedisPubSub."""
 
     @pytest.fixture
-    def mock_redis_config(self):
+    def mock_redis_config(self) -> Mock:
         """Mock Redis configuration."""
         config = Mock()
         config.redis_url = "redis://localhost:6379"
@@ -255,9 +257,8 @@ class TestRedisPubSubCircuitBreaker:
         pubsub, mock_redis = pubsub_with_mocks
 
         # Mock Redis ping to fail
-        from src.common.pubsub import RedisError
 
-        mock_redis.ping.side_effect = RedisError("Connection failed")
+        mock_redis.ping.side_effect = PublishError("Connection failed")
 
         # Multiple failures should trigger circuit breaker
         for _ in range(pubsub._circuit_breaker.failure_threshold):
@@ -285,9 +286,8 @@ class TestRedisPubSubCircuitBreaker:
         pubsub._connected = True
 
         # Mock Redis publish to fail
-        from src.common.pubsub import RedisError
 
-        mock_redis.publish.side_effect = RedisError("Publish failed")
+        mock_redis.publish.side_effect = PublishError("Publish failed")
 
         # Multiple failures should trigger circuit breaker
         for _ in range(pubsub._circuit_breaker.failure_threshold):
@@ -343,9 +343,8 @@ class TestRedisPubSubCircuitBreaker:
         pubsub._connected = True
 
         # Cause failures to open circuit breaker
-        from src.common.pubsub import RedisError
 
-        mock_redis.publish.side_effect = RedisError("Redis down")
+        mock_redis.publish.side_effect = PublishError("Redis down")
 
         for _ in range(pubsub._circuit_breaker.failure_threshold):
             with pytest.raises(PublishError):
@@ -385,10 +384,10 @@ class TestCircuitBreakerConfiguration:
             expected_exception=(CustomError, ValueError),
         )
 
-        async def custom_error_func():
+        async def custom_error_func() -> None:
             raise CustomError("Custom error")
 
-        async def other_error_func():
+        async def other_error_func() -> None:
             raise RuntimeError("Other error")
 
         # CustomError should trigger circuit breaker
@@ -405,7 +404,7 @@ class TestCircuitBreakerConfiguration:
         """Test circuit breaker with zero failure threshold (always open)."""
         circuit_breaker = CircuitBreaker(failure_threshold=0)
 
-        async def any_func():
+        async def any_func() -> str:
             return "success"
 
         # Should immediately block requests
@@ -416,7 +415,7 @@ class TestCircuitBreakerConfiguration:
         """Test circuit breaker thread safety with concurrent access."""
         circuit_breaker = CircuitBreaker(failure_threshold=5)
 
-        async def test_func():
+        async def test_func() -> str:
             await asyncio.sleep(0.01)  # Small delay
             return "success"
 

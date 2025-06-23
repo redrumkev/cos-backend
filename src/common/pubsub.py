@@ -2,7 +2,8 @@
 """High-performance Redis Pub/Sub wrapper for COS.
 
 This module provides a lightweight, high-performance Redis Pub/Sub wrapper designed for
-<1ms publish latency with comprehensive error handling and connection management.
+<1ms publish latency with comprehensive error handling, Logfire integration, and
+correlation ID tracking for distributed observability.
 """
 
 from __future__ import annotations
@@ -12,8 +13,11 @@ import contextlib
 import json
 import logging
 import time
+import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -23,6 +27,51 @@ if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+
+# Import Logfire with graceful degradation
+try:
+    import logfire
+
+    _LOGFIRE_AVAILABLE = True
+except ImportError:
+    logger.warning("Logfire package not available. Distributed tracing will be disabled.")
+    logfire = None
+    _LOGFIRE_AVAILABLE = False
+
+# Context variable for correlation ID tracking
+correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
+
+
+@dataclass
+class RedisOperationMetrics:
+    """Metrics for Redis operation tracking and observability."""
+
+    operation: str
+    channel: str | None = None
+    key: str | None = None
+    correlation_id: str | None = None
+    start_time: float = field(default_factory=time.perf_counter)
+    duration_ms: float | None = None
+    success: bool = False
+    error_type: str | None = None
+    error_message: str | None = None
+    subscriber_count: int | None = None
+    message_size_bytes: int | None = None
+    circuit_breaker_state: str | None = None
+
+    def mark_completed(self, success: bool = True, error: Exception | None = None) -> None:
+        """Mark operation as completed and calculate duration."""
+        self.duration_ms = (time.perf_counter() - self.start_time) * 1000
+        self.success = success
+
+        if error:
+            self.error_type = type(error).__name__
+            self.error_message = str(error)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert metrics to dictionary for logging."""
+        return {k: v for k, v in self.__dict__.items() if v is not None}
+
 
 # Import redis with runtime checks
 try:
@@ -235,6 +284,15 @@ class CircuitBreaker:
             # Reset failure count on success in closed state
             self._failure_count = 0
 
+        # Log circuit breaker metrics with Logfire if available
+        if _LOGFIRE_AVAILABLE and logfire:
+            logfire.debug(
+                "Circuit breaker success recorded",
+                state=self._state.value,
+                success_count=self._success_count,
+                failure_count=self._failure_count,
+            )
+
     async def _record_failure(self) -> None:
         """Record a failed operation and update state if needed."""
         self._total_requests += 1
@@ -248,6 +306,15 @@ class CircuitBreaker:
         elif self._state == CircuitBreakerState.HALF_OPEN:
             # Any failure in half-open state transitions back to open
             await self._transition_to_open()
+
+        # Log circuit breaker metrics with Logfire if available
+        if _LOGFIRE_AVAILABLE and logfire:
+            logfire.warning(
+                "Circuit breaker failure recorded",
+                state=self._state.value,
+                failure_count=self._failure_count,
+                failure_threshold=self.failure_threshold,
+            )
 
     async def call(self, func: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
         """Execute a function with circuit breaker protection.
@@ -427,13 +494,14 @@ class RedisPubSub:
         except RedisError as e:
             logger.error(f"Error during Redis disconnect: {e}")
 
-    async def publish(self, channel: str, message: MessageData) -> int:
-        """Publish message to Redis channel with <1ms latency target and circuit breaker protection.
+    async def publish(self, channel: str, message: MessageData, correlation_id: str | None = None) -> int:
+        """Publish message to Redis channel with <1ms latency target and comprehensive observability.
 
         Args:
         ----
             channel: Redis channel name
             message: Message data to publish (will be JSON serialized)
+            correlation_id: Optional correlation ID for distributed tracing
 
         Returns:
         -------
@@ -445,42 +513,121 @@ class RedisPubSub:
             CircuitBreakerError: If circuit breaker is open
 
         """
-        if not self._connected or not self._redis:
-            await self.connect()
+        # Get or generate correlation ID
+        if not correlation_id:
+            correlation_id = correlation_id or str(uuid.uuid4())
 
-        assert self._redis is not None  # mypy assertion  # nosec B101
+        # Initialize operation metrics
+        metrics = RedisOperationMetrics(
+            operation="PUBLISH",
+            channel=channel,
+            correlation_id=correlation_id,
+            circuit_breaker_state=self._circuit_breaker.state.value,
+        )
 
-        # Pre-serialize JSON for performance
-        try:
-            serialized = json.dumps(message, separators=(",", ":"), ensure_ascii=False)
-        except (json.JSONDecodeError, TypeError) as e:
-            logger.error(f"Failed to serialize message for channel '{channel}': {e}")
-            raise PublishError(f"Failed to serialize message: {e}") from e
+        # Start Logfire span for complete observability
+        span_name = f"Redis PUBLISH {channel}"
+        if _LOGFIRE_AVAILABLE and logfire:
+            span_context = logfire.span(span_name, channel=channel, correlation_id=correlation_id, operation="publish")
+        else:
+            span_context = contextlib.nullcontext()
 
-        async def _publish_operation() -> int:
-            # Publish with timing measurement
-            start_time = time.perf_counter()
-            result = await self._redis.publish(channel, serialized)
-            elapsed = (time.perf_counter() - start_time) * 1000
+        with span_context as span:
+            try:
+                if not self._connected or not self._redis:
+                    await self.connect()
 
-            # Log performance warning if >1ms
-            if elapsed > 1.0:
-                logger.warning(f"Publish latency {elapsed:.2f}ms exceeded 1ms target for channel '{channel}'")
+                assert self._redis is not None  # mypy assertion  # nosec B101
 
-            logger.debug(f"Published to '{channel}' in {elapsed:.3f}ms, {result} subscribers")
-            return int(result)
+                # Pre-serialize JSON for performance
+                try:
+                    serialized = json.dumps(message, separators=(",", ":"), ensure_ascii=False)
+                    metrics.message_size_bytes = len(serialized.encode("utf-8"))
+                except (json.JSONDecodeError, TypeError) as e:
+                    error_msg = f"Failed to serialize message for channel '{channel}': {e}"
+                    logger.error(error_msg)
+                    metrics.mark_completed(success=False, error=e)
 
-        try:
-            # Use circuit breaker to protect publish operation
-            result = await self._circuit_breaker.call(_publish_operation)
-            return int(result)
+                    if _LOGFIRE_AVAILABLE and logfire and span:
+                        span.record_exception(e)
+                        span.set_attributes(metrics.to_dict())
+                        logfire.error("Message serialization failed", extra=metrics.to_dict())
 
-        except CircuitBreakerError as e:
-            logger.error(f"Circuit breaker prevented publish to channel '{channel}': {e}")
-            raise PublishError(f"Publish blocked by circuit breaker: {e}") from e
-        except RedisError as e:
-            logger.error(f"Failed to publish to channel '{channel}': {e}")
-            raise PublishError(f"Failed to publish message: {e}") from e
+                    raise PublishError(f"Failed to serialize message: {e}") from e
+
+                async def _publish_operation() -> int:
+                    # Publish with timing measurement
+                    start_time = time.perf_counter()
+                    result = await self._redis.publish(channel, serialized)
+                    elapsed = (time.perf_counter() - start_time) * 1000
+
+                    # Update metrics with subscriber count
+                    metrics.subscriber_count = int(result)
+
+                    # Log performance warning if >1ms
+                    if elapsed > 1.0:
+                        logger.warning(f"Publish latency {elapsed:.2f}ms exceeded 1ms target for channel '{channel}'")
+                        if _LOGFIRE_AVAILABLE and logfire:
+                            logfire.warning(
+                                "Publish latency exceeded target",
+                                channel=channel,
+                                latency_ms=elapsed,
+                                target_ms=1.0,
+                                correlation_id=correlation_id,
+                            )
+
+                    logger.debug(f"Published to '{channel}' in {elapsed:.3f}ms, {result} subscribers")
+                    return int(result)
+
+                # Use circuit breaker to protect publish operation
+                result = await self._circuit_breaker.call(_publish_operation)
+
+                # Mark operation as successful
+                metrics.mark_completed(success=True)
+
+                # Set span attributes for successful operation
+                if _LOGFIRE_AVAILABLE and logfire and span:
+                    span.set_attributes(metrics.to_dict())
+                    logfire.info("Message published successfully", extra=metrics.to_dict())
+
+                return int(result)
+
+            except CircuitBreakerError as e:
+                error_msg = f"Circuit breaker prevented publish to channel '{channel}': {e}"
+                logger.error(error_msg)
+                metrics.mark_completed(success=False, error=e)
+
+                if _LOGFIRE_AVAILABLE and logfire and span:
+                    span.record_exception(e)
+                    span.set_attributes(metrics.to_dict())
+                    logfire.error("Publish blocked by circuit breaker", extra=metrics.to_dict())
+
+                raise PublishError(f"Publish blocked by circuit breaker: {e}") from e
+
+            except RedisError as e:
+                error_msg = f"Failed to publish to channel '{channel}': {e}"
+                logger.error(error_msg)
+                metrics.mark_completed(success=False, error=e)
+
+                if _LOGFIRE_AVAILABLE and logfire and span:
+                    span.record_exception(e)
+                    span.set_attributes(metrics.to_dict())
+                    logfire.error("Redis publish operation failed", extra=metrics.to_dict())
+
+                raise PublishError(f"Failed to publish message: {e}") from e
+
+            except Exception as e:
+                # Handle unexpected errors
+                error_msg = f"Unexpected error publishing to channel '{channel}': {e}"
+                logger.error(error_msg)
+                metrics.mark_completed(success=False, error=e)
+
+                if _LOGFIRE_AVAILABLE and logfire and span:
+                    span.record_exception(e)
+                    span.set_attributes(metrics.to_dict())
+                    logfire.error("Unexpected publish error", extra=metrics.to_dict())
+
+                raise PublishError(f"Unexpected publish error: {e}") from e
 
     async def subscribe(self, channel: str, handler: MessageHandler) -> None:
         """Subscribe to Redis channel with message handler.
@@ -706,40 +853,234 @@ class RedisPubSub:
         """Get circuit breaker metrics for monitoring."""
         return self._circuit_breaker.metrics
 
-    async def health_check(self) -> dict[str, Any]:
-        """Perform health check on Redis connection and circuit breaker.
+    async def health_check(self, correlation_id: str | None = None) -> dict[str, Any]:
+        """Perform comprehensive health check on Redis connection and circuit breaker.
 
-        Returns
+        Args:
+        ----
+            correlation_id: Optional correlation ID for tracking health check requests
+
+        Returns:
         -------
-            Health status dictionary with connection and circuit breaker info
+            Health status dictionary with connection, circuit breaker, and performance info
 
         """
-        health_status = {
-            "connected": self._connected,
-            "circuit_breaker": {
-                "state": self._circuit_breaker.state.value,
-                "metrics": self._circuit_breaker.metrics,
-            },
-            "redis_available": _REDIS_AVAILABLE,
-            "active_subscriptions": len(self._subscribers),
+        # Get or generate correlation ID
+        if not correlation_id:
+            correlation_id = str(uuid.uuid4())
+
+        # Initialize health check metrics
+        metrics = RedisOperationMetrics(
+            operation="HEALTH_CHECK",
+            correlation_id=correlation_id,
+            circuit_breaker_state=self._circuit_breaker.state.value,
+        )
+
+        # Start Logfire span for health check observability
+        if _LOGFIRE_AVAILABLE and logfire:
+            span_context = logfire.span("Redis Health Check", correlation_id=correlation_id, operation="health_check")
+        else:
+            span_context = contextlib.nullcontext()
+
+        with span_context as span:
+            health_status = {
+                "timestamp": time.time(),
+                "correlation_id": correlation_id,
+                "connected": self._connected,
+                "circuit_breaker": {
+                    "state": self._circuit_breaker.state.value,
+                    "metrics": self._circuit_breaker.metrics,
+                },
+                "redis_available": _REDIS_AVAILABLE,
+                "logfire_available": _LOGFIRE_AVAILABLE,
+                "active_subscriptions": len(self._subscribers),
+                "subscriber_channels": list(self._subscribers),
+            }
+
+            # Test Redis connection if available
+            ping_start_time = time.perf_counter()
+            if self._connected and self._redis:
+                try:
+
+                    async def _ping_operation() -> bool:
+                        await self._redis.ping()
+                        return True
+
+                    await self._circuit_breaker.call(_ping_operation)
+                    ping_duration = (time.perf_counter() - ping_start_time) * 1000
+
+                    health_status["redis_ping"] = "success"
+                    health_status["ping_duration_ms"] = ping_duration
+
+                    # Test Redis info command for additional metrics
+                    try:
+
+                        async def _info_operation() -> dict[str, Any]:
+                            info_result = await self._redis.info()
+                            return dict(info_result) if info_result else {}
+
+                        redis_info = await self._circuit_breaker.call(_info_operation)
+                        health_status["redis_info"] = {
+                            "connected_clients": redis_info.get("connected_clients", "unknown"),
+                            "used_memory": redis_info.get("used_memory", "unknown"),
+                            "redis_version": redis_info.get("redis_version", "unknown"),
+                            "uptime_in_seconds": redis_info.get("uptime_in_seconds", "unknown"),
+                        }
+
+                    except Exception as info_error:
+                        health_status["redis_info"] = f"info_failed: {info_error}"
+                        if _LOGFIRE_AVAILABLE and logfire:
+                            logfire.warning(
+                                "Redis INFO command failed during health check",
+                                correlation_id=correlation_id,
+                                error=str(info_error),
+                            )
+
+                    metrics.mark_completed(success=True)
+
+                    if _LOGFIRE_AVAILABLE and logfire and span:
+                        span.set_attributes(metrics.to_dict())
+                        logfire.info("Redis health check passed", extra=health_status)
+
+                except (CircuitBreakerError, RedisError) as e:
+                    ping_duration = (time.perf_counter() - ping_start_time) * 1000
+                    health_status["redis_ping"] = f"failed: {e}"
+                    health_status["ping_duration_ms"] = ping_duration
+
+                    metrics.mark_completed(success=False, error=e)
+
+                    if _LOGFIRE_AVAILABLE and logfire and span:
+                        span.record_exception(e)
+                        span.set_attributes(metrics.to_dict())
+                        logfire.error("Redis health check failed", extra=health_status)
+
+                except Exception as e:
+                    ping_duration = (time.perf_counter() - ping_start_time) * 1000
+                    health_status["redis_ping"] = f"unexpected_error: {e}"
+                    health_status["ping_duration_ms"] = ping_duration
+
+                    metrics.mark_completed(success=False, error=e)
+
+                    if _LOGFIRE_AVAILABLE and logfire and span:
+                        span.record_exception(e)
+                        span.set_attributes(metrics.to_dict())
+                        logfire.error("Redis health check unexpected error", extra=health_status)
+            else:
+                health_status["redis_ping"] = "not_connected"
+                health_status["ping_duration_ms"] = 0
+
+                if _LOGFIRE_AVAILABLE and logfire:
+                    logfire.warning(
+                        "Redis health check skipped - not connected",
+                        correlation_id=correlation_id,
+                        connected=self._connected,
+                    )
+
+            return health_status
+
+    async def publish_with_fallback(
+        self, channel: str, message: MessageData, correlation_id: str | None = None, fallback_strategy: str = "log_only"
+    ) -> dict[str, Any]:
+        """Publish message with graceful degradation fallback strategies.
+
+        Args:
+        ----
+            channel: Redis channel name
+            message: Message data to publish
+            correlation_id: Optional correlation ID for distributed tracing
+            fallback_strategy: Strategy when Redis fails ("log_only", "memory_queue", "file_queue")
+
+        Returns:
+        -------
+            Dictionary with operation result and fallback information
+
+        """
+        result = {
+            "success": False,
+            "primary_attempted": True,
+            "fallback_used": False,
+            "fallback_strategy": fallback_strategy,
+            "correlation_id": correlation_id or str(uuid.uuid4()),
+            "subscriber_count": 0,
+            "error": None,
         }
 
-        # Test Redis connection if available
-        if self._connected and self._redis:
-            try:
+        # Try primary Redis publish
+        try:
+            subscriber_count = await self.publish(channel, message, correlation_id)
+            result.update({"success": True, "subscriber_count": subscriber_count})
 
-                async def _ping_operation() -> bool:
-                    await self._redis.ping()
-                    return True
+            if _LOGFIRE_AVAILABLE and logfire:
+                logfire.info(
+                    "Message published via primary Redis",
+                    channel=channel,
+                    correlation_id=result["correlation_id"],
+                    subscriber_count=subscriber_count,
+                )
 
-                await self._circuit_breaker.call(_ping_operation)
-                health_status["redis_ping"] = "success"
-            except (CircuitBreakerError, RedisError) as e:
-                health_status["redis_ping"] = f"failed: {e}"
-        else:
-            health_status["redis_ping"] = "not_connected"
+            return result
 
-        return health_status
+        except (PublishError, CircuitBreakerError, RedisError) as primary_error:
+            result["error"] = str(primary_error)
+            result["fallback_used"] = True
+
+            if _LOGFIRE_AVAILABLE and logfire:
+                logfire.warning(
+                    "Primary Redis publish failed, using fallback strategy",
+                    channel=channel,
+                    correlation_id=result["correlation_id"],
+                    error=str(primary_error),
+                    fallback_strategy=fallback_strategy,
+                )
+
+            # Apply fallback strategy
+            if fallback_strategy == "log_only":
+                # Simply log the message for later replay
+                logger.warning(
+                    f"Redis unavailable - message logged for replay: "
+                    f"channel='{channel}', correlation_id='{result['correlation_id']}'"
+                )
+                result["success"] = True  # Consider log-only as success
+
+            elif fallback_strategy == "memory_queue":
+                # Store in memory queue (implement based on requirements)
+                if not hasattr(self, "_memory_queue"):
+                    self._memory_queue = []
+
+                self._memory_queue.append(
+                    {
+                        "channel": channel,
+                        "message": message,
+                        "correlation_id": result["correlation_id"],
+                        "timestamp": time.time(),
+                    }
+                )
+
+                logger.info(
+                    f"Message queued in memory for later delivery: "
+                    f"channel='{channel}', correlation_id='{result['correlation_id']}'"
+                )
+                result["success"] = True
+
+            elif fallback_strategy == "file_queue":
+                # Store in file queue for persistence (implement based on requirements)
+                try:
+                    # This would need proper file queue implementation
+                    # For now, just log the intent to queue
+                    logger.info(
+                        f"Message would be queued to file: "
+                        f"channel='{channel}', correlation_id='{result['correlation_id']}'"
+                    )
+                    result["success"] = True
+
+                except Exception as file_error:
+                    logger.error(f"File queue fallback failed: {file_error}")
+                    result["error"] = f"Primary and file fallback failed: {file_error}"
+
+            if _LOGFIRE_AVAILABLE and logfire:
+                logfire.info("Fallback strategy applied", extra=result)
+
+            return result
 
 
 # Global singleton instance

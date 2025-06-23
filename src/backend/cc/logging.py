@@ -21,18 +21,20 @@ from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from src.common.logger import get_logger
 from src.common.pubsub import get_pubsub
 from src.common.request_id_middleware import get_request_id
 
 _flush_lock = asyncio.Lock()
+logger = get_logger(__name__)
 
 
 async def _publish_l1_event(log_id: uuid.UUID, event_data: dict[str, Any]) -> None:
-    """Publish L1 event to Redis after successful database commit.
+    """Publish L1 event to Redis after successful database commit with enhanced error handling.
 
-    This function implements fire-and-forget publishing with error isolation.
-    All exceptions are caught and logged but never re-raised to prevent
-    interfering with the main database transaction flow.
+    This function implements fire-and-forget publishing with comprehensive error isolation,
+    Logfire integration, and graceful degradation. All exceptions are caught and logged
+    but never re-raised to prevent interfering with the main database transaction flow.
 
     Args:
     ----
@@ -40,24 +42,83 @@ async def _publish_l1_event(log_id: uuid.UUID, event_data: dict[str, Any]) -> No
         event_data: Event data dictionary to publish
 
     """
+    correlation_id = event_data.get("event", {}).get("request_id") or str(uuid.uuid4())
+
     try:
-        with logfire.span("publish_l1_event", kind="producer") as span:
+        with logfire.span(
+            "publish_l1_event", kind="producer", log_id=str(log_id), correlation_id=correlation_id
+        ) as span:
             # Get Redis pubsub instance with circuit breaker protection
             pubsub = await get_pubsub()
 
-            # Publish to the L1 Redis channel
-            await pubsub.publish("mem0.recorded.cc", event_data)
+            # Publish to the L1 Redis channel with correlation ID
+            subscriber_count = await pubsub.publish("mem0.recorded.cc", event_data, correlation_id=correlation_id)
 
-            # Set span attributes for observability
+            # Set comprehensive span attributes for observability
             span.set_attribute("log_id", str(log_id))
+            span.set_attribute("correlation_id", correlation_id)
             span.set_attribute("event_type", event_data.get("event", {}).get("event_type", "unknown"))
+            span.set_attribute("subscriber_count", subscriber_count)
+            span.set_attribute("success", True)
+
+            # Log successful publish with detailed context
+            logfire.info(
+                "L1 event published successfully to Redis",
+                log_id=str(log_id),
+                correlation_id=correlation_id,
+                channel="mem0.recorded.cc",
+                subscriber_count=subscriber_count,
+                event_type=event_data.get("event", {}).get("event_type", "unknown"),
+            )
 
     except Exception as e:
-        # Error isolation: log the error but never re-raise
-        # This ensures Redis failures don't affect database operations
-        logfire.warn(
-            "Failed to publish L1 event to Redis", log_id=str(log_id), error=str(e), error_type=type(e).__name__
+        # Enhanced error isolation with comprehensive logging context
+        error_context = {
+            "log_id": str(log_id),
+            "correlation_id": correlation_id,
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "channel": "mem0.recorded.cc",
+            "event_type": event_data.get("event", {}).get("event_type", "unknown"),
+            "event_data_size": len(str(event_data)),
+            "success": False,
+        }
+
+        # Log detailed error information
+        logfire.error("Failed to publish L1 event to Redis - implementing graceful degradation", **error_context)
+
+        # Additional logging for debugging in development
+        logger.error(
+            f"Redis publish failed for log_id {log_id}: {e}",
+            extra={
+                "correlation_id": correlation_id,
+                "error_type": type(e).__name__,
+                "event_data_keys": list(event_data.get("event", {}).keys()) if "event" in event_data else [],
+            },
         )
+
+        # Attempt graceful degradation - try fallback publish
+        try:
+            if hasattr(pubsub, "publish_with_fallback"):
+                fallback_result = await pubsub.publish_with_fallback(
+                    "mem0.recorded.cc", event_data, correlation_id=correlation_id, fallback_strategy="log_only"
+                )
+
+                logfire.info(
+                    "L1 event fallback strategy applied",
+                    log_id=str(log_id),
+                    correlation_id=correlation_id,
+                    fallback_result=fallback_result,
+                )
+
+        except Exception as fallback_error:
+            # Even fallback failed - log but continue
+            logfire.error(
+                "L1 event fallback strategy also failed",
+                log_id=str(log_id),
+                correlation_id=correlation_id,
+                fallback_error=str(fallback_error),
+            )
 
 
 @event.listens_for(Session, "after_commit", named=True)
