@@ -95,7 +95,7 @@ def mock_redis_config() -> Any:
 
 @pytest.fixture
 def circuit_breaker_config() -> dict[str, Any]:
-    """Standard circuit breaker configuration for testing."""
+    """Return standard circuit breaker configuration for testing."""
     return {
         "failure_threshold": 3,
         "recovery_timeout": 1.0,

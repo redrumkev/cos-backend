@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from typing import Any
 
 import pytest
 from freezegun import freeze_time

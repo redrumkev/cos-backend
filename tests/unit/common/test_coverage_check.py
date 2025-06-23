@@ -1,5 +1,6 @@
 """Quick coverage check for Redis pub/sub components."""
 
+from typing import Any
 from unittest.mock import patch
 
 from src.common.base_subscriber import BaseSubscriber

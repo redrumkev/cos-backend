@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from collections.abc import AsyncGenerator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -154,7 +155,7 @@ class TestBaseSubscriber:
             {"id": 2, "data": "test2"},
         ]
 
-        async def mock_subscribe(channel: str) -> None:
+        async def mock_subscribe(channel: str) -> AsyncGenerator[dict[str, Any], None]:
             for msg in messages:
                 yield {**msg, "_subscriber_message_id": f"msg_{msg['id']}"}
 
@@ -183,7 +184,7 @@ class TestBaseSubscriber:
             {"id": 3, "data": "test3"},
         ]
 
-        async def mock_subscribe(channel: str) -> None:
+        async def mock_subscribe(channel: str) -> AsyncGenerator[dict[str, Any], None]:
             for msg in messages:
                 yield {**msg, "_subscriber_message_id": f"msg_{msg['id']}"}
                 await asyncio.sleep(0.01)  # Small delay
@@ -536,7 +537,7 @@ class TestBaseSubscriber:
     async def test_consume_loop_error_handling(self, subscriber: ConcreteSubscriber, caplog: Any) -> None:
         """Test consume loop error handling."""
 
-        async def error_subscribe(channel: str) -> None:
+        async def error_subscribe(channel: str) -> AsyncGenerator[dict[str, Any], None]:
             raise Exception("Subscribe error")
             yield  # Unreachable
 
@@ -573,7 +574,7 @@ class TestSubscribeToChannel:
             mock_get_pubsub.return_value = mock_pubsub
 
             # Create async generator manually
-            async def mock_generator() -> None:
+            async def mock_generator() -> AsyncGenerator[dict[str, Any], None]:
                 messages = [
                     {"id": 1, "data": "test1"},
                     {"id": 2, "data": "test2"},
