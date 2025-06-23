@@ -6,6 +6,7 @@ connecting client requests to the appropriate services.
 
 # MDC: cc_module
 import time
+import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -18,6 +19,7 @@ from .mem0_router import router as mem0_router
 from .schemas import (
     CCConfig,
     CircuitBreakerStatus,
+    ConnectionPoolStatus,
     DebugLogRequest,
     DebugLogResponse,
     DLQMetrics,
@@ -29,6 +31,9 @@ from .schemas import (
     ModulePingRequest,
     ModulePingResponse,
     ModuleUpdate,
+    RedisHealthResponse,
+    RedisPerformanceMetrics,
+    RedisValidationInfo,
     SystemHealthReport,
 )
 from .services import create_module as service_create_module
@@ -292,8 +297,8 @@ async def get_status() -> dict[str, str]:
     "/debug/log",
     response_model=DebugLogResponse,
     response_model_exclude_none=True,
-    summary="Debug Logging Endpoint",
-    description="Create debug log entries using the log_l1 service for testing and diagnostics.",
+    summary="Enhanced Debug Logging Endpoint",
+    description="Create debug log entries with Redis publishing validation for testing and diagnostics.",
     tags=["Debug"],
     status_code=status.HTTP_201_CREATED,
 )
@@ -301,10 +306,11 @@ async def create_debug_log(
     request: DebugLogRequest,
     db: DBSession,
 ) -> DebugLogResponse:
-    """Create debug log entries for testing and diagnostic purposes.
+    """Create debug log entries for testing and diagnostic purposes with Redis validation.
 
     This endpoint demonstrates service consumption patterns by calling the
-    :pyfunc:`src.backend.cc.logging.log_l1` service directly.
+    :pyfunc:`src.backend.cc.logging.log_l1` service directly and includes
+    Redis publishing validation as part of Task 008 implementation.
     """
     start_time = time.perf_counter()
 
@@ -319,6 +325,9 @@ async def create_debug_log(
             trace_id=request.trace_id,
         )
 
+        # Perform Redis validation for the debug log
+        redis_validation = await _validate_redis_publishing(request)
+
         performance_ms = (time.perf_counter() - start_time) * 1000
 
         # Emit an additional audit log for the API call itself
@@ -328,9 +337,13 @@ async def create_debug_log(
                 "event_type": request.event_type,
                 "log_ids": {k: str(v) for k, v in log_ids.items()},
                 "performance_ms": performance_ms,
+                "redis_validation": {
+                    "publish_success": redis_validation.publish_success,
+                    "connection_status": redis_validation.connection_status,
+                },
             },
-            tags=["debug", "log", "cc_router"],
-            memo="Debug log created via /debug/log endpoint.",
+            tags=["debug", "log", "cc_router", "redis_validation"],
+            memo="Debug log created via enhanced /debug/log endpoint with Redis validation.",
         )
 
         return DebugLogResponse(
@@ -338,24 +351,237 @@ async def create_debug_log(
             message=f"Debug log created successfully for event_type: {request.event_type}",
             log_ids=log_ids,
             performance_ms=performance_ms,
+            redis_validation=redis_validation,
         )
 
     except Exception as exc:
         performance_ms = (time.perf_counter() - start_time) * 1000
+
+        # Attempt to get Redis validation even on failure
+        try:
+            redis_validation = await _validate_redis_publishing(request)
+        except Exception:
+            # If Redis validation also fails, provide a minimal response
+            redis_validation = RedisValidationInfo(
+                publish_success=False,
+                connection_status="error",
+                error_details="Redis validation failed during error recovery",
+            )
+
         log_event(
             source="cc",
             data={
                 "event_type": request.event_type,
                 "error": str(exc),
                 "performance_ms": performance_ms,
+                "redis_validation": {
+                    "publish_success": redis_validation.publish_success,
+                    "connection_status": redis_validation.connection_status,
+                },
             },
-            tags=["debug", "log", "error", "cc_router"],
-            memo="Failed to create debug log via /debug/log endpoint.",
+            tags=["debug", "log", "error", "cc_router", "redis_validation"],
+            memo="Failed to create debug log via enhanced /debug/log endpoint.",
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create debug log: {exc}",
         ) from exc
+
+
+async def _validate_redis_publishing(request: DebugLogRequest) -> RedisValidationInfo:
+    """Validate Redis publishing by attempting to publish a test message.
+
+    This helper function tests Redis connectivity and message publishing
+    for the enhanced debug log endpoint.
+    """
+    from datetime import datetime
+
+    from src.common.message_format import EventType, build_message
+    from src.common.pubsub import get_pubsub
+
+    redis_start_time = time.perf_counter()
+
+    try:
+        # Get the Redis pub/sub instance
+        pubsub = await get_pubsub()
+
+        # Create a test message using the standardized format
+        test_message_data = {
+            "debug_validation_type": f"debug_validation_{request.event_type}",
+            "original_event_type": request.event_type,
+            "validation_timestamp": datetime.utcnow().isoformat() + "Z",
+            "payload_preview": request.payload,
+            "tags": ["debug", "validation", "redis_test"],
+        }
+
+        # Attempt to publish to a test channel
+        await pubsub.publish("debug_validation", test_message_data)
+
+        # Also create the formatted message for response
+        test_message = build_message(
+            base_log_id=uuid.uuid4(),
+            source_module="backend.cc.debug",
+            timestamp=datetime.utcnow(),
+            trace_id=request.trace_id or "debug-validation",
+            request_id=request.request_id or "debug-request",
+            event_type=EventType.EVENT_LOG,
+            data=test_message_data,
+        )
+
+        redis_latency_ms = (time.perf_counter() - redis_start_time) * 1000
+
+        return RedisValidationInfo(
+            publish_success=True,
+            published_message=test_message,
+            redis_latency_ms=redis_latency_ms,
+            connection_status="connected",
+        )
+
+    except Exception as exc:
+        redis_latency_ms = (time.perf_counter() - redis_start_time) * 1000
+
+        return RedisValidationInfo(
+            publish_success=False,
+            published_message=None,
+            redis_latency_ms=redis_latency_ms,
+            connection_status="error",
+            error_details=str(exc),
+        )
+
+
+@router.get(
+    "/debug/redis-health",
+    response_model=RedisHealthResponse,
+    summary="Redis Health Status",
+    description="Comprehensive Redis health monitoring including connection pool, "
+    "performance metrics, and circuit breaker status.",
+    tags=["Debug", "Health"],
+)
+async def redis_health_check() -> RedisHealthResponse:
+    """Get comprehensive Redis health status for monitoring and diagnostics.
+
+    This endpoint provides detailed Redis health information including:
+    - Connection pool status and metrics
+    - Performance benchmarks and latencies
+    - Circuit breaker state and failure tracking
+    - Redis server information and statistics
+    """
+    from datetime import datetime
+
+    from src.common.pubsub import get_pubsub
+
+    check_start_time = time.perf_counter()
+    current_time = datetime.utcnow()
+
+    try:
+        # Get the Redis pub/sub instance
+        pubsub = await get_pubsub()
+
+        # Perform a ping to measure latency
+        ping_start = time.perf_counter()
+        await pubsub._redis.ping()
+        ping_latency_ms = (time.perf_counter() - ping_start) * 1000
+
+        # Get Redis server information
+        redis_info = await pubsub._redis.info()
+
+        # Extract connection pool information
+        pool = pubsub._redis.connection_pool
+        max_connections = pool.max_connections
+        # Calculate active/idle connections (approximation)
+        created_connections = len(pool._created_connections) if hasattr(pool, "_created_connections") else 0
+        available_connections = (
+            len(pool._available_connections) if hasattr(pool, "_available_connections") else max_connections
+        )
+        active_connections = max(0, created_connections - available_connections)
+        idle_connections = available_connections
+
+        # Get circuit breaker metrics
+        cb_metrics = pubsub.circuit_breaker_metrics
+        circuit_breaker_status = CircuitBreakerStatus(
+            state=cb_metrics["state"].upper(),
+            failure_count=cb_metrics["failure_count"],
+            last_failure_time=datetime.fromtimestamp(cb_metrics["last_failure_time"]).isoformat() + "Z"
+            if cb_metrics["last_failure_time"]
+            else None,
+            next_attempt_time=datetime.fromtimestamp(cb_metrics["next_attempt_time"]).isoformat() + "Z"
+            if cb_metrics["next_attempt_time"]
+            else None,
+        )
+
+        # Build response components
+        connection_pool_status = ConnectionPoolStatus(
+            max_connections=max_connections,
+            active_connections=active_connections,
+            idle_connections=idle_connections,
+            status="connected",
+        )
+
+        performance_metrics = RedisPerformanceMetrics(
+            ping_latency_ms=ping_latency_ms,
+            last_successful_operation=current_time.isoformat() + "Z",
+            operations_per_second=cb_metrics.get("total_successes", 0) / max(1, time.perf_counter() - check_start_time),
+            error_rate=cb_metrics.get("failure_rate", 0.0) * 100,
+        )
+
+        # Determine overall health status
+        overall_status = "healthy"
+        if circuit_breaker_status.state == "OPEN":
+            overall_status = "offline"
+        elif (
+            circuit_breaker_status.state == "HALF_OPEN"
+            or ping_latency_ms > 50
+            or cb_metrics.get("failure_rate", 0.0) > 0.05
+        ):
+            overall_status = "degraded"
+
+        return RedisHealthResponse(
+            status=overall_status,
+            timestamp=current_time.isoformat() + "Z",
+            connection_pool=connection_pool_status,
+            performance_metrics=performance_metrics,
+            redis_info={
+                "redis_version": redis_info.get("redis_version", "unknown"),
+                "connected_clients": redis_info.get("connected_clients", "unknown"),
+                "used_memory": redis_info.get("used_memory", "unknown"),
+                "keyspace_hits": redis_info.get("keyspace_hits", "unknown"),
+                "keyspace_misses": redis_info.get("keyspace_misses", "unknown"),
+            },
+            circuit_breaker=circuit_breaker_status,
+        )
+
+    except Exception as exc:
+        # Redis is unavailable - return offline status with error details
+        circuit_breaker_status = CircuitBreakerStatus(
+            state="OPEN",
+            failure_count=999,
+            last_failure_time=current_time.isoformat() + "Z",
+            next_attempt_time=None,
+        )
+
+        connection_pool_status = ConnectionPoolStatus(
+            max_connections=0,
+            active_connections=0,
+            idle_connections=0,
+            status="disconnected",
+        )
+
+        performance_metrics = RedisPerformanceMetrics(
+            ping_latency_ms=None,
+            last_successful_operation=None,
+            operations_per_second=0.0,
+            error_rate=100.0,
+        )
+
+        return RedisHealthResponse(
+            status="offline",
+            timestamp=current_time.isoformat() + "Z",
+            connection_pool=connection_pool_status,
+            performance_metrics=performance_metrics,
+            redis_info={"error": "Unable to connect to Redis"},
+            circuit_breaker=circuit_breaker_status,
+            error=str(exc),
+        )
 
 
 # Module CRUD Endpoints

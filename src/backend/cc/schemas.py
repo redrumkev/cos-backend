@@ -312,17 +312,126 @@ class DebugLogResponse(BaseModel):
     message: str = Field(..., description="Human-readable status message")
     log_ids: dict[str, UUID] = Field(..., description="UUIDs of created log records")
     performance_ms: float = Field(..., description="Execution time in milliseconds")
+    redis_validation: "RedisValidationInfo" = Field(..., description="Redis publishing validation results")
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "success": True,
-                "message": "Debug log created successfully",
+                "message": "Debug log created successfully for event_type: test_event",
                 "log_ids": {
                     "base_log_id": "123e4567-e89b-12d3-a456-426614174000",
-                    "event_log_id": "987fcdeb-51a2-43d7-b456-426614174001",
+                    "event_log_id": "123e4567-e89b-12d3-a456-426614174001",
                 },
-                "performance_ms": 1.26,
+                "performance_ms": 25.5,
+                "redis_validation": {
+                    "publish_success": True,
+                    "published_message": {"type": "debug_log", "data": "..."},
+                    "redis_latency_ms": 2.3,
+                    "connection_status": "connected",
+                },
+            }
+        }
+    )
+
+
+class RedisValidationInfo(BaseModel):
+    """Redis validation information for debug endpoints."""
+
+    publish_success: bool = Field(..., description="Whether Redis message publishing succeeded")
+    published_message: dict[str, Any] | None = Field(None, description="The actual message published to Redis")
+    redis_latency_ms: float | None = Field(None, description="Redis operation latency in milliseconds")
+    connection_status: Literal["connected", "disconnected", "error"] = Field(..., description="Redis connection status")
+    error_details: str | None = Field(None, description="Error details if publishing failed")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "publish_success": True,
+                "published_message": {
+                    "event_type": "debug_log",
+                    "timestamp": "2025-01-14T10:00:00Z",
+                    "payload": {"test": "data"},
+                },
+                "redis_latency_ms": 2.3,
+                "connection_status": "connected",
+                "error_details": None,
+            }
+        }
+    )
+
+
+class ConnectionPoolStatus(BaseModel):
+    """Redis connection pool status information."""
+
+    max_connections: int = Field(..., description="Maximum number of connections in the pool")
+    active_connections: int = Field(..., description="Number of currently active connections")
+    idle_connections: int = Field(..., description="Number of idle connections available")
+    status: Literal["connected", "disconnected", "error"] = Field(..., description="Overall pool status")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {"max_connections": 10, "active_connections": 2, "idle_connections": 8, "status": "connected"}
+        }
+    )
+
+
+class RedisPerformanceMetrics(BaseModel):
+    """Redis performance metrics for monitoring."""
+
+    ping_latency_ms: float | None = Field(None, description="Redis ping latency in milliseconds")
+    last_successful_operation: str | None = Field(None, description="ISO-8601 timestamp of last successful operation")
+    operations_per_second: float | None = Field(None, description="Recent operations per second")
+    error_rate: float | None = Field(None, description="Error rate as a percentage")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "ping_latency_ms": 1.2,
+                "last_successful_operation": "2025-01-14T10:00:00Z",
+                "operations_per_second": 150.5,
+                "error_rate": 0.01,
+            }
+        }
+    )
+
+
+class RedisHealthResponse(BaseModel):
+    """Comprehensive Redis health status response."""
+
+    status: Literal["healthy", "degraded", "offline"] = Field(..., description="Overall Redis health status")
+    timestamp: str = Field(..., description="ISO-8601 timestamp when health check was performed")
+    connection_pool: ConnectionPoolStatus = Field(..., description="Connection pool status information")
+    performance_metrics: RedisPerformanceMetrics = Field(..., description="Performance metrics and benchmarks")
+    redis_info: dict[str, Any] = Field(..., description="Redis server information and statistics")
+    circuit_breaker: "CircuitBreakerStatus" = Field(..., description="Circuit breaker status for Redis operations")
+    error: str | None = Field(None, description="Error message if Redis is unavailable")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "status": "healthy",
+                "timestamp": "2025-01-14T10:00:00Z",
+                "connection_pool": {
+                    "max_connections": 10,
+                    "active_connections": 2,
+                    "idle_connections": 8,
+                    "status": "connected",
+                },
+                "performance_metrics": {
+                    "ping_latency_ms": 1.2,
+                    "last_successful_operation": "2025-01-14T10:00:00Z",
+                    "operations_per_second": 150.5,
+                    "error_rate": 0.01,
+                },
+                "redis_info": {"redis_version": "7.0.0", "connected_clients": "5", "used_memory": "1048576"},
+                "circuit_breaker": {
+                    "state": "CLOSED",
+                    "failure_count": 0,
+                    "last_failure_time": None,
+                    "next_attempt_time": None,
+                },
+                "error": None,
             }
         }
     )
