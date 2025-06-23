@@ -30,10 +30,11 @@ dependencies = [
     "coverage>=7.8.0",
     "psycopg2-binary>=2.9.10",
     "async-timeout>=5.0.1",
-    "fakeredis>=2.20.0",  # Fast in-memory Redis for testing
-    "prometheus-client>=0.21.0",  # Prometheus metrics client
-    "testcontainers[redis]>=3.7.0",  # Real Redis containers for integration tests
-    "freezegun>=1.2.2",  # Time manipulation for deterministic tests
+    "fakeredis>=2.20.0", # Fast in-memory Redis for testing
+    "prometheus-client>=0.21.0", # Prometheus metrics client
+    "testcontainers[redis]>=3.7.0", # Real Redis containers for integration tests
+    "freezegun>=1.2.2", # Time manipulation for deterministic tests
+    "pytest-benchmark>=5.1.0",
 ]
 
 [project.optional-dependencies]
