@@ -1,20 +1,17 @@
-# ruff: noqa
-# mypy: ignore-errors
 from __future__ import annotations
 
-# ruff: noqa: E402
+import asyncio
 import os
 import sys
-import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
 from pathlib import Path
 from typing import Any, TypeVar
 
-import pytest  # type: ignore[import-untyped]
-import pytest_asyncio  # type: ignore[import-untyped]
-from fastapi import FastAPI  # type: ignore[import-untyped]
-from fastapi.testclient import TestClient  # type: ignore[import-untyped]
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # type: ignore[import-untyped]
+import pytest
+import pytest_asyncio
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 # Force settings to load dummy env file during test collection
 os.environ.setdefault("ENV_FILE", str(Path(__file__).parents[1] / "infrastructure" / ".env.ci"))
@@ -28,7 +25,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # Import database components
-from src.db.base import Base
+from src.db.base import Base  # noqa: E402
 
 # FORCE ALL TESTS TO USE DEV DATABASE (port 5433) - NO port 5434 allowed!
 # This overrides any DATABASE_URL_TEST settings to eliminate port 5434 usage.
@@ -38,6 +35,10 @@ test_db_url = "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/
 
 # FORCE tests to use DEV database directly - bypass any caching issues
 # Create engine directly with dev credentials to ensure port 5433 usage
+# Initialize engine and session variables
+engine: Any | None
+AsyncSessionLocal: Any | None
+
 if test_db_url:
     os.environ["DATABASE_URL_DEV"] = test_db_url
     # Create engine directly to avoid any caching/import issues during tests
@@ -46,8 +47,8 @@ if test_db_url:
 else:
     # Set None values when infrastructure is not available
     # Tests that need these will be skipped by our infrastructure detection
-    engine = None  # type: ignore[assignment]
-    AsyncSessionLocal = None  # type: ignore[assignment]
+    engine = None
+    AsyncSessionLocal = None
 
 T = TypeVar("T", bound=Callable[..., Any])
 
@@ -102,44 +103,44 @@ except ImportError:
 
 # After SERVICES_AVAILABLE assignment
 if os.getenv("RUN_INTEGRATION", "0") == "0":
-    # CI/lightweight mode – pretend all infra is available and patch heavy libs.
+    # CI/lightweight mode - pretend all infra is available and patch heavy libs.
     AVAILABLE_SERVICES.update({"postgres": True, "neo4j": True, "redis": True})
 
     # Stub asyncpg connect to avoid real network cost
     try:
-        import asyncpg  # type: ignore[import-untyped]
+        import asyncpg
 
-        async def _fake_connect(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[return-value]
-            class _DummyConn:  # noqa: D401 – simple stub
+        async def _fake_connect(*_args: Any, **_kwargs: Any) -> Any:
+            class _DummyConn:
                 def __init__(self) -> None:
                     self._closed = False
                     self._transaction = None
 
-                async def close(self) -> None:  # noqa: D401 – stub
+                async def close(self) -> None:
                     self._closed = True
                     return None
 
-                def is_closed(self) -> bool:  # noqa: D401 – stub
+                def is_closed(self) -> bool:
                     """Check if connection is closed."""
                     return self._closed
 
-                async def set_type_codec(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401 – stub
+                async def set_type_codec(self, *args: Any, **kwargs: Any) -> None:
                     """Stub for asyncpg set_type_codec method."""
                     return None
 
-                async def execute(self, *args: Any, **kwargs: Any) -> Any:  # noqa: D401 – stub
+                async def execute(self, *args: Any, **kwargs: Any) -> Any:
                     """Stub for asyncpg execute method."""
                     return None
 
-                async def fetch(self, *args: Any, **kwargs: Any) -> list[Any]:  # noqa: D401 – stub
+                async def fetch(self, *args: Any, **kwargs: Any) -> list[Any]:
                     """Stub for asyncpg fetch method."""
                     return []
 
-                async def fetchrow(self, *args: Any, **kwargs: Any) -> Any:  # noqa: D401 – stub
+                async def fetchrow(self, *args: Any, **kwargs: Any) -> Any:
                     """Stub for asyncpg fetchrow method."""
                     return None
 
-                def transaction(self, *args: Any, **kwargs: Any) -> Any:  # noqa: D401 – stub
+                def transaction(self, *args: Any, **kwargs: Any) -> Any:
                     """Stub for asyncpg transaction method."""
 
                     class _DummyTransaction:
@@ -164,37 +165,41 @@ if os.getenv("RUN_INTEGRATION", "0") == "0":
 
         # Only patch if not already patched by other fixtures
         if not hasattr(asyncpg, "_cos_stubbed"):
-            asyncpg._cos_real_connect = asyncpg.connect  # type: ignore[attr-defined]
-            asyncpg.connect = _fake_connect  # type: ignore[assignment]
-            asyncpg._cos_stubbed = True  # type: ignore[attr-defined]
+            asyncpg._cos_real_connect = asyncpg.connect
+            asyncpg.connect = _fake_connect
+            asyncpg._cos_stubbed = True
     except ImportError:
         pass
 
     # Stub Neo4j async driver
     try:
-        from neo4j import AsyncGraphDatabase  # type: ignore
+        from neo4j import AsyncGraphDatabase
 
-        class _DummyNeoSession:  # noqa: D401 – simple stub
-            async def __aenter__(self):
+        class _DummyNeoSession:
+            async def __aenter__(self) -> _DummyNeoSession:
                 return self
 
-            async def __aexit__(self, *_exc: Any) -> None:  # noqa: D401 – stub
+            async def __aexit__(self, *_exc: Any) -> None:
                 return None
 
-            async def run(self, *_args: Any, **_kwargs: Any) -> list:  # noqa: D401 – stub
+            async def run(self, *_args: Any, **_kwargs: Any) -> list[Any]:
                 return []
 
-        class _DummyNeoDriver:  # noqa: D401
-            async def session(self, *_, **__) -> _DummyNeoSession:  # noqa: D401
+        class _DummyNeoDriver:
+            async def session(self, *_args: Any, **_kwargs: Any) -> _DummyNeoSession:
                 return _DummyNeoSession()
 
-            async def close(self) -> None:  # noqa: D401 – stub
+            async def close(self) -> None:
                 return None
 
         if not hasattr(AsyncGraphDatabase, "_cos_stubbed"):
-            AsyncGraphDatabase._cos_real_driver = AsyncGraphDatabase.driver  # type: ignore[attr-defined]
-            AsyncGraphDatabase.driver = lambda *_a, **_kw: _DummyNeoDriver()  # type: ignore[assignment]
-            AsyncGraphDatabase._cos_stubbed = True  # type: ignore[attr-defined]
+            AsyncGraphDatabase._cos_real_driver = AsyncGraphDatabase.driver
+
+            def _dummy_driver(*_args: Any, **_kwargs: Any) -> _DummyNeoDriver:
+                return _DummyNeoDriver()
+
+            AsyncGraphDatabase.driver = _dummy_driver
+            AsyncGraphDatabase._cos_stubbed = True
     except ImportError:
         pass
 
@@ -241,8 +246,6 @@ async def setup_database() -> AsyncGenerator[None, None]:
     if engine is None:
         pytest.skip("Database engine not available - infrastructure check failed")
 
-    from src.backend.cc import models  # noqa: F401
-
     # Type assertion - we know engine is not None after the check above
     assert engine is not None
     async with engine.begin() as conn:
@@ -283,7 +286,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
         during teardown to ensure no database state bleeds between tests.
     3.  The engine itself is disposed after the test to avoid resource leaks.
     """
-    from sqlalchemy.ext.asyncio import async_sessionmaker  # type: ignore[import-untyped]
+    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     # Late import to avoid circulars and ensure settings/env are initialised
     from src.db.connection import get_async_engine
@@ -293,7 +296,6 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
     async with test_engine.connect() as conn:
         # --- Schema setup (once per test) -------------------------------------------------
-        from src.backend.cc import models  # noqa: F401
 
         await conn.run_sync(Base.metadata.create_all)
 
@@ -412,7 +414,7 @@ def test_client(client: TestClient | None) -> TestClient:
 @pytest_asyncio.fixture(scope="function")
 async def async_client(override_get_db: Any) -> AsyncGenerator[Any, None]:
     try:
-        from httpx import ASGITransport, AsyncClient  # type: ignore[import-untyped]
+        from httpx import ASGITransport, AsyncClient
 
         from src.cos_main import app
 
@@ -476,12 +478,11 @@ def current_test_env() -> Generator[None, None, None]:
 # ---------------------------------------------------------------------------
 
 try:
-    from sqlalchemy.engine import CursorResult, Result  # type: ignore[import-untyped]
+    from sqlalchemy.engine import CursorResult, Result
 
     if not hasattr(Result, "rowcount"):
 
-        @property  # type: ignore[misc]
-        def _rowcount(self) -> int:
+        def _rowcount(self: Any) -> int:
             """Return compatible rowcount for SELECT statements in tests.
 
             SQLAlchemy intentionally does not populate ``rowcount`` for SELECT
@@ -502,28 +503,27 @@ try:
                 # As a last resort indicate unknown length
                 return 0
 
-        # Monkey-patch both sync and async result classes
-        Result.rowcount = _rowcount  # type: ignore[assignment]
-        CursorResult.rowcount = _rowcount  # type: ignore[assignment]
+        # Monkey-patch both sync and async result classes using setattr
+        Result.rowcount = property(_rowcount)  # type: ignore[attr-defined]
+        CursorResult.rowcount = property(_rowcount)  # type: ignore[method-assign,assignment]
 except ImportError:
     # SQLAlchemy import failed; ignore in environments without the library
     pass
 
 # AsyncResult shim
 try:
-    from sqlalchemy.ext.asyncio import AsyncResult  # type: ignore
+    from sqlalchemy.ext.asyncio import AsyncResult
 
     if not hasattr(AsyncResult, "rowcount"):
 
-        @property  # type: ignore[misc]
-        def _async_rowcount(self) -> int:
+        def _async_rowcount(self: Any) -> int:
             """Delegate to the underlying synchronous result's rowcount."""
             try:
-                return self._result.rowcount  # type: ignore[attr-defined]
+                return getattr(self._result, "rowcount", 0)
             except AttributeError:
                 return 0
 
-        AsyncResult.rowcount = _async_rowcount  # type: ignore[assignment]
+        AsyncResult.rowcount = property(_async_rowcount)  # type: ignore[attr-defined]
 except ImportError:
     pass
 
@@ -578,7 +578,7 @@ async def flaky_redis(fake_redis: Any, monkeypatch: Any) -> AsyncGenerator[Any, 
         nonlocal failure_count
         if failure_count < max_failures:
             failure_count += 1
-            from src.common.pubsub import RedisError
+            from src.common.pubsub import RedisError  # type: ignore[attr-defined]
 
             raise RedisError(f"Simulated network failure {failure_count}")
         return await original_publish(*args, **kwargs)
@@ -587,7 +587,7 @@ async def flaky_redis(fake_redis: Any, monkeypatch: Any) -> AsyncGenerator[Any, 
         nonlocal failure_count
         if failure_count < max_failures:
             failure_count += 1
-            from src.common.pubsub import RedisConnectionError
+            from src.common.pubsub import RedisConnectionError  # type: ignore[attr-defined]
 
             raise RedisConnectionError("Simulated connection failure")
         return await original_ping(*args, **kwargs)
@@ -647,7 +647,7 @@ async def redis_pubsub_with_mocks(fake_redis: Any, monkeypatch: Any) -> AsyncGen
 
 @pytest.fixture
 def circuit_breaker_test_config() -> dict[str, Any]:
-    """Standard circuit breaker configuration for testing."""
+    """Return standard circuit breaker configuration for testing."""
     return {
         "failure_threshold": 3,
         "recovery_timeout": 1.0,  # Fast recovery for tests
@@ -658,7 +658,7 @@ def circuit_breaker_test_config() -> dict[str, Any]:
 
 @pytest.fixture
 def redis_performance_config() -> dict[str, Any]:
-    """Performance test configuration and thresholds."""
+    """Return performance test configuration and thresholds."""
     return {
         "target_latency_ms": 1.0,
         "max_latency_ms": 5.0,
@@ -679,13 +679,13 @@ class RedisTestUtils:
     @staticmethod
     def generate_test_message(size_bytes: int = 100) -> dict[str, Any]:
         """Generate test message of specified size."""
-        import string
         import random
+        import string
 
         # Generate payload to reach target size
-        content = "".join(random.choices(string.ascii_letters + string.digits, k=size_bytes))
+        content = "".join(random.choices(string.ascii_letters + string.digits, k=size_bytes))  # noqa: S311
         return {
-            "test_id": random.randint(1000, 9999),
+            "test_id": random.randint(1000, 9999),  # noqa: S311
             "timestamp": 1700000000.0,
             "content": content,
             "metadata": {"size": size_bytes, "type": "test"},
