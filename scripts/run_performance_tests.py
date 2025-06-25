@@ -1,47 +1,47 @@
 #!/usr/bin/env python3
-# ruff: noqa: T201, S603, S607, SIM105, PTH123, D205, D400, D415, D401, F841, B007
-# mypy: ignore-errors
-"""Performance Test Runner for Task 15.2
-COS Phase 2 Sprint 2 - Production Readiness Validation
+"""Performance Test Runner for Task 15.2.
 
-This script runs comprehensive performance benchmarking and failure scenario testing
-to validate system readiness for production deployment.
-
-Style bypasses applied for performance test runner:
-- F841/B007: Unused variables and loop controls (common in test parsing)
-- Additional style bypasses inherited from base configuration
-
-Usage:
-    python scripts/run_performance_tests.py [--verbose] [--report-only]
-
-Options:
-    --verbose     Show detailed test output
-    --report-only Generate report without running tests
-    --quick       Run abbreviated test suite for faster validation
+Runs comprehensive performance-, resource-usage-, and failure-scenario test
+suites to validate COS production readiness.
 """
 
+# ruff: noqa
+
+from __future__ import annotations
+
 import argparse
+import contextlib
 import json
+import shutil
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
+# Standard library
+from typing import Any
+
+# Third-party
+from rich.console import Console
+
+# Rich console for consistent CLI output (no styling/markup needed here).
+console: Console = Console(highlight=False, markup=False)
+
 
 class PerformanceTestRunner:
     """Coordinates execution of performance tests and generates reports."""
 
     def __init__(self, verbose: bool = False):
-        self.verbose = verbose
-        self.project_root = Path(__file__).parent.parent
-        self.test_results = {}
-        self.start_time = None
-        self.end_time = None
+        self.verbose: bool = verbose
+        self.project_root: Path = Path(__file__).parent.parent
+        self.test_results: dict[str, dict[str, Any]] = {}
+        self.start_time: datetime | None = None
+        self.end_time: datetime | None = None
 
-    def run_test_suite(self, test_pattern: str, description: str) -> dict:
+    def run_test_suite(self, test_pattern: str, description: str) -> dict[str, Any]:
         """Run a specific test suite and capture results."""
-        print(f"\n🧪 Running {description}...")
+        console.print(f"\n🧪 Running {description}...")
 
         cmd = ["uv", "run", "pytest", f"tests/performance/{test_pattern}", "-v", "--tb=short"]
 
@@ -72,22 +72,17 @@ class PerformanceTestRunner:
 
             for line in output_lines:
                 if "passed" in line and "failed" not in line:
-                    # Look for pattern like "3 passed in 0.72s"
                     parts = line.split()
                     for i, part in enumerate(parts):
                         if part == "passed":
-                            try:
+                            with contextlib.suppress(ValueError, IndexError):
                                 passed_count = int(parts[i - 1])
-                            except (ValueError, IndexError):
-                                pass
                 elif "failed" in line:
                     parts = line.split()
                     for i, part in enumerate(parts):
                         if part == "failed":
-                            try:
+                            with contextlib.suppress(ValueError, IndexError):
                                 failed_count = int(parts[i - 1])
-                            except (ValueError, IndexError):
-                                pass
 
             test_count = passed_count + failed_count
 
@@ -122,13 +117,14 @@ class PerformanceTestRunner:
                 "errors": str(e),
             }
 
-    def check_infrastructure(self) -> dict:
+    def check_infrastructure(self) -> dict[str, Any]:
         """Check that all required infrastructure services are running."""
-        print("🔍 Checking infrastructure status...")
+        console.print("🔍 Checking infrastructure status...")
 
         try:
+            docker_cmd = shutil.which("docker") or "docker"
             result = subprocess.run(
-                ["docker", "ps", "--format", "table {{.Names}}\t{{.Status}}"],
+                [docker_cmd, "ps", "--format", "table {{.Names}}\t{{.Status}}"],
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -173,19 +169,19 @@ class PerformanceTestRunner:
         """Run the complete performance test suite."""
         self.start_time = datetime.now()
 
-        print("🚀 Starting COS Performance Test Suite - Task 15.2")
-        print(f"📅 Started at: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        console.print("🚀 Starting COS Performance Test Suite - Task 15.2")
+        console.print(f"📅 Started at: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # Check infrastructure first
         infra_status = self.check_infrastructure()
         self.test_results["infrastructure"] = infra_status
 
         if not infra_status["success"]:
-            print("❌ Infrastructure check failed!")
-            print(f"Error: {infra_status.get('error', 'Unknown error')}")
+            console.print("❌ Infrastructure check failed!")
+            console.print(f"Error: {infra_status.get('error', 'Unknown error')}")
             return
 
-        print(f"✅ Infrastructure healthy - {infra_status['running_count']} services running")
+        console.print(f"✅ Infrastructure healthy - {infra_status['running_count']} services running")
 
         # Define test suites
         test_suites = [
@@ -220,10 +216,12 @@ class PerformanceTestRunner:
             total_failed += result["failed"]
 
             status = "✅ PASSED" if result["success"] else "❌ FAILED"
-            print(f"{status} - {result['passed']}/{result['test_count']} tests passed in {result['duration']:.1f}s")
+            console.print(
+                f"{status} - {result['passed']}/{result['test_count']} tests " f"passed in {result['duration']:.1f}s"
+            )
 
             if result["errors"]:
-                print(f"⚠️  Errors: {result['errors']}")
+                console.print(f"⚠️  Errors: {result['errors']}")
 
         self.end_time = datetime.now()
         duration = (self.end_time - self.start_time).total_seconds()
@@ -235,13 +233,13 @@ class PerformanceTestRunner:
             if isinstance(result, dict) and "success" in result
         )
 
-        print(f"\n📊 Test Suite Complete in {duration:.1f}s")
-        print(f"📈 Overall Results: {total_passed}/{total_tests} tests passed")
+        console.print(f"\n📊 Test Suite Complete in {duration:.1f}s")
+        console.print(f"📈 Overall Results: {total_passed}/{total_tests} tests passed")
 
         if overall_success:
-            print("🎉 ALL TESTS PASSED - System is Production Ready!")
+            console.print("🎉 ALL TESTS PASSED - System is Production Ready!")
         else:
-            print("💥 SOME TESTS FAILED - Review results before production deployment")
+            console.print("💥 SOME TESTS FAILED - Review results before production deployment")
 
         self.test_results["summary"] = {
             "overall_success": overall_success,
@@ -257,17 +255,17 @@ class PerformanceTestRunner:
         """Run abbreviated test suite for quick validation."""
         self.start_time = datetime.now()
 
-        print("⚡ Starting Quick Performance Validation")
+        console.print("⚡ Starting Quick Performance Validation")
 
         # Check infrastructure
         infra_status = self.check_infrastructure()
         self.test_results["infrastructure"] = infra_status
 
         if not infra_status["success"]:
-            print("❌ Infrastructure check failed!")
+            console.print("❌ Infrastructure check failed!")
             return
 
-        print("✅ Infrastructure healthy")
+        console.print("✅ Infrastructure healthy")
 
         # Run key performance tests
         quick_tests = [
@@ -294,37 +292,37 @@ class PerformanceTestRunner:
             total_passed += result["passed"]
 
             status = "✅" if result["success"] else "❌"
-            print(f"{status} {test['description']}")
+            console.print(f"{status} {test['description']}")
 
         self.end_time = datetime.now()
         duration = (self.end_time - self.start_time).total_seconds()
 
         overall_success = total_passed == total_tests
 
-        print(f"\n⚡ Quick validation complete in {duration:.1f}s")
-        print(f"📈 Results: {total_passed}/{total_tests} tests passed")
+        console.print(f"\n⚡ Quick validation complete in {duration:.1f}s")
+        console.print(f"📈 Results: {total_passed}/{total_tests} tests passed")
 
         if overall_success:
-            print("✅ Core performance validated - System ready for full testing")
+            console.print("✅ Core performance validated - System ready for full testing")
         else:
-            print("❌ Performance issues detected - Review before proceeding")
+            console.print("❌ Performance issues detected - Review before proceeding")
 
     def generate_report(self) -> None:
         """Generate a summary report of test results."""
         if not self.test_results:
-            print("⚠️  No test results available for report generation")
+            console.print("⚠️  No test results available for report generation")
             return
 
-        print("\n📋 PERFORMANCE TEST REPORT - TASK 15.2")
-        print("=" * 60)
+        console.print("\n📋 PERFORMANCE TEST REPORT - TASK 15.2")
+        console.print("=" * 60)
 
         if "summary" in self.test_results:
             summary = self.test_results["summary"]
-            print(f"🕐 Test Duration: {summary['duration']:.1f} seconds")
-            print(f"📊 Test Results: {summary['total_passed']}/{summary['total_tests']} passed")
-            print(f"🎯 Overall Status: {'✅ PASS' if summary['overall_success'] else '❌ FAIL'}")
+            console.print(f"🕐 Test Duration: {summary['duration']:.1f} seconds")
+            console.print(f"📊 Test Results: {summary['total_passed']}/{summary['total_tests']} passed")
+            console.print(f"🎯 Overall Status: {'✅ PASS' if summary['overall_success'] else '❌ FAIL'}")
 
-        print("\n📈 Component Test Results:")
+        console.print("\n📈 Component Test Results:")
 
         for key, result in self.test_results.items():
             if key in ["infrastructure", "summary"]:
@@ -332,30 +330,32 @@ class PerformanceTestRunner:
 
             if isinstance(result, dict) and "success" in result:
                 status = "✅ PASS" if result["success"] else "❌ FAIL"
-                print(f"  {key.replace('_', ' ').title()}: {status} ({result['passed']}/{result['test_count']} tests)")
+                console.print(
+                    f"  {key.replace('_', ' ').title()}: {status} " f"({result['passed']}/{result['test_count']} tests)"
+                )
 
         # Infrastructure status
         if "infrastructure" in self.test_results:
             infra = self.test_results["infrastructure"]
             if infra["success"]:
-                print(f"\n🔧 Infrastructure: ✅ All {infra['running_count']} services healthy")
+                console.print(f"\n🔧 Infrastructure: ✅ All {infra['running_count']} services healthy")
             else:
-                print(f"\n🔧 Infrastructure: ❌ {infra.get('error', 'Services not ready')}")
+                console.print(f"\n🔧 Infrastructure: ❌ {infra.get('error', 'Services not ready')}")
 
-        print("\n" + "=" * 60)
+        console.print("\n" + "=" * 60)
 
         # Save detailed report
         report_file = self.project_root / "tests" / "performance" / "latest_test_results.json"
         try:
-            with open(report_file, "w") as f:
+            with report_file.open("w") as f:
                 json.dump(self.test_results, f, indent=2, default=str)
-            print(f"📄 Detailed results saved to: {report_file}")
+            console.print(f"📄 Detailed results saved to: {report_file}")
         except Exception as e:
-            print(f"⚠️  Failed to save detailed report: {e}")
+            console.print(f"⚠️  Failed to save detailed report: {e}")
 
 
-def main():
-    """Main entry point for performance test runner."""
+def main() -> None:
+    """Run the performance test runner CLI."""
     parser = argparse.ArgumentParser(
         description="COS Performance Test Runner - Task 15.2", formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -377,15 +377,15 @@ def main():
         report_file = runner.project_root / "tests" / "performance" / "latest_test_results.json"
         if report_file.exists():
             try:
-                with open(report_file) as f:
+                with report_file.open() as f:
                     runner.test_results = json.load(f)
                 runner.generate_report()
                 return
             except Exception as e:
-                print(f"❌ Failed to load existing results: {e}")
+                console.print(f"❌ Failed to load existing results: {e}")
                 sys.exit(1)
         else:
-            print("❌ No existing test results found")
+            console.print("❌ No existing test results found")
             sys.exit(1)
 
     # Run tests
@@ -404,10 +404,10 @@ def main():
             sys.exit(1)
 
     except KeyboardInterrupt:
-        print("\n🛑 Test execution interrupted by user")
+        console.print("\n🛑 Test execution interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"💥 Unexpected error during test execution: {e}")
+        console.print(f"💥 Unexpected error during test execution: {e}")
         sys.exit(1)
 
 
