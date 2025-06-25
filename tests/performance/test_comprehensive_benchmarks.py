@@ -1,6 +1,4 @@
-# ruff: noqa: T201, S603, S607, B007, SIM105, ASYNC101, D400, D415, S110, E501, D401
-# mypy: ignore-errors
-"""Comprehensive Performance Benchmarking & Failure Scenario Testing - Task 15.2
+"""Comprehensive Performance Benchmarking & Failure Scenario Testing - Task 15.2.
 
 This module implements extensive performance benchmarking and failure scenario testing
 for Phase 2 Sprint 2, validating production readiness across all system components.
@@ -25,12 +23,13 @@ Failure Scenarios:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import gc
 import json
 import logging
-import subprocess
 import time
 import tracemalloc
+from collections.abc import Callable
 from typing import Any
 from unittest.mock import patch
 
@@ -89,7 +88,7 @@ class TestAPIEndpointBenchmarks:
     @pytest.mark.asyncio
     async def test_api_percentile_validation(self, async_client: AsyncClient, perf_utils: PerformanceTestUtils) -> None:
         """Validate API response time percentiles meet SLA requirements."""
-        latencies = {"health": [], "create": [], "list": []}
+        latencies: dict[str, list[float]] = {"health": [], "create": [], "list": []}
 
         # Warmup
         for _ in range(50):
@@ -134,9 +133,9 @@ class TestAPIEndpointBenchmarks:
 
         async def concurrent_requests(client_id: int) -> dict[str, Any]:
             """Execute concurrent API requests."""
-            results = {"success": 0, "errors": 0, "latencies": []}
+            results: dict[str, Any] = {"success": 0, "errors": 0, "latencies": []}
 
-            for i in range(50):
+            for _ in range(50):
                 try:
                     start = time.perf_counter_ns()
                     response = await async_client.get("/cc/health")
@@ -184,7 +183,7 @@ class TestDatabasePerformanceBenchmarks:
 
         async def db_operations() -> dict[str, float]:
             """Execute database operations and measure performance."""
-            results = {}
+            results: dict[str, float] = {}
 
             # Create operation
             start = time.perf_counter_ns()
@@ -193,7 +192,7 @@ class TestDatabasePerformanceBenchmarks:
 
             # Read operation
             start = time.perf_counter_ns()
-            retrieved = await crud.get_module(db_session, module.id)
+            retrieved = await crud.get_module(db_session, str(module.id))
             results["read"] = (time.perf_counter_ns() - start) / 1_000_000
             assert retrieved is not None
 
@@ -222,7 +221,7 @@ class TestDatabasePerformanceBenchmarks:
             async with postgres_session() as session:
                 # Simulate work
                 module = await crud.create_module(session, f"pool_test_{task_id}", "1.0.0")
-                retrieved = await crud.get_module(session, module.id)
+                retrieved = await crud.get_module(session, str(module.id))
                 assert retrieved is not None
             return time.perf_counter() - start
 
@@ -275,7 +274,10 @@ class TestFailureScenarioTesting:
         # Simulate Redis service interruption
         try:
             # Stop Redis container
-            subprocess.run(["docker", "pause", "cos_redis"], check=True)
+            process = await asyncio.create_subprocess_exec(
+                "docker", "pause", "cos_redis", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            await process.communicate()
             logger.info("Redis container paused for failure simulation")
 
             # Test graceful degradation
@@ -290,7 +292,10 @@ class TestFailureScenarioTesting:
 
         finally:
             # Restore Redis service
-            subprocess.run(["docker", "unpause", "cos_redis"], check=True)
+            process = await asyncio.create_subprocess_exec(
+                "docker", "unpause", "cos_redis", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            await process.communicate()
             logger.info("Redis container restored")
 
             # Wait for service to be ready
@@ -328,7 +333,7 @@ class TestFailureScenarioTesting:
 
         try:
             # Consume most of the connection pool
-            for i in range(max_connections - 2):
+            for _ in range(max_connections - 2):
                 session = postgres_session()
                 await session.__aenter__()
                 held_sessions.append(session)
@@ -348,10 +353,8 @@ class TestFailureScenarioTesting:
         finally:
             # Release held connections
             for session in held_sessions:
-                try:
+                with contextlib.suppress(Exception):
                     await session.__aexit__(None, None, None)
-                except Exception:
-                    pass
 
     @pytest.mark.asyncio
     async def test_network_timeout_simulation(self, perf_client: redis.Redis) -> None:
@@ -452,17 +455,14 @@ class TestFailureScenarioTesting:
                 return False
 
         # Test circuit breaker pattern
-        for i in range(10):
-            try:
+        for _ in range(10):
+            with contextlib.suppress(Exception):
                 result = await simulate_operation()
                 if circuit_open and not result:
                     # Circuit breaker should fail fast
                     assert True  # Expected behavior
                 elif result:
                     assert True  # Successful operation
-            except Exception:
-                # Handle expected failures
-                pass
 
         # Validate circuit breaker opened after consecutive failures
         assert circuit_open, "Circuit breaker should have opened"
@@ -528,12 +528,12 @@ class TestResourceMonitoring:
             tasks = []
 
             # Create multiple clients from pool
-            for i in range(20):
+            for _ in range(20):
                 client = redis.Redis(connection_pool=perf_client_pool)
                 clients.append(client)
 
                 # Queue operations
-                for j in range(10):
+                for _ in range(10):
                     task = client.ping()
                     tasks.append(task)
 
@@ -545,7 +545,8 @@ class TestResourceMonitoring:
             max_in_use = max(max_in_use, current_in_use)
 
             logger.info(
-                f"Round {round_num}: Pool in-use={current_in_use}, available={len(perf_client_pool._available_connections)}"
+                f"Round {round_num}: Pool in-use={current_in_use}, "
+                f"available={len(perf_client_pool._available_connections)}"
             )
 
             # Cleanup clients
@@ -642,7 +643,7 @@ class TestRecoveryValidation:
         test_module = await crud.create_module(db_session, "recovery_test", "1.0.0")
         assert test_module is not None
 
-        retrieved = await crud.get_module(db_session, test_module.id)
+        retrieved = await crud.get_module(db_session, str(test_module.id))
         assert retrieved is not None
         assert retrieved.name == "recovery_test"
 
@@ -698,8 +699,8 @@ class TestRecoveryValidation:
 
 
 # Async helper function for benchmark compatibility
-async def run_with_db_session(coro_func):
-    """Helper to run async functions with proper session handling in benchmarks."""
+async def run_with_db_session(coro_func: Callable[[], Any]) -> Any:
+    """Run async functions with proper session handling in benchmarks."""
     return await coro_func()
 
 

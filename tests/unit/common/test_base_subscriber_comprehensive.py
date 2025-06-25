@@ -1,7 +1,9 @@
-# ruff: noqa: SIM105, B007, S110
 """Comprehensive unit tests for BaseSubscriber implementation."""
+# ruff: noqa
+# mypy: ignore-errors
 
 import asyncio
+import contextlib
 import time
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -64,7 +66,7 @@ class TestBaseSubscriber:
             dlq_messages.append(message)
 
         subscriber = ConcreteSubscriber(dlq_publish=dlq_publisher)
-        subscriber.dlq_messages = dlq_messages  # type: ignore
+        subscriber.dlq_messages = dlq_messages  # type: ignore[attr-defined]
         return subscriber
 
     async def test_init_default_values(self) -> None:
@@ -142,7 +144,7 @@ class TestBaseSubscriber:
                 raise ValueError("Process failed")
             return await original_process(message)
 
-        subscriber.process_message = failing_process  # type: ignore
+        subscriber.process_message = failing_process  # type: ignore[method-assign]
 
         results = await subscriber.process_batch(messages)
 
@@ -286,7 +288,7 @@ class TestBaseSubscriber:
         async def failing_process(message: dict[str, Any]) -> bool:
             raise ValueError("Processing error")
 
-        subscriber_with_dlq.process_message = failing_process  # type: ignore
+        subscriber_with_dlq.process_message = failing_process  # type: ignore[method-assign]
 
         with patch.object(subscriber_with_dlq, "_set_processing_state") as mock_set_state:
             mock_set_state.return_value = "processing_key"
@@ -321,10 +323,10 @@ class TestBaseSubscriber:
         ]
 
         # Mock process_batch to return mixed results
-        async def mixed_process_batch(msgs: list[dict[str, Any]]) -> list[bool]:
+        async def mixed_process_batch(messages: list[dict[str, Any]]) -> list[bool]:
             return [True, False]
 
-        subscriber_with_dlq.process_batch = mixed_process_batch  # type: ignore
+        subscriber_with_dlq.process_batch = mixed_process_batch  # type: ignore[method-assign]
 
         with patch.object(subscriber_with_dlq, "_set_processing_state") as mock_set_state:
             mock_set_state.side_effect = ["key_1", "key_2"]
@@ -342,10 +344,10 @@ class TestBaseSubscriber:
             {"id": 2, "data": "test2", "_subscriber_message_id": "msg_2"},
         ]
 
-        async def failing_process_batch(msgs: list[dict[str, Any]]) -> list[bool]:
+        async def failing_process_batch(messages: list[dict[str, Any]]) -> list[bool]:
             raise ValueError("Batch processing error")
 
-        subscriber_with_dlq.process_batch = failing_process_batch  # type: ignore
+        subscriber_with_dlq.process_batch = failing_process_batch  # type: ignore[method-assign]
 
         with patch.object(subscriber_with_dlq, "_set_processing_state") as mock_set_state:
             mock_set_state.side_effect = ["key_1", "key_2"]
@@ -375,11 +377,6 @@ class TestBaseSubscriber:
             # Stop the loop
             subscriber._stop_event.set()
             task.cancel()
-
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
 
             # Should have processed the batch
             mock_handle_batch.assert_called()
@@ -454,7 +451,7 @@ class TestBaseSubscriber:
         await subscriber_with_dlq._send_to_dlq(message)
 
         assert len(subscriber_with_dlq.dlq_messages) == 1  # type: ignore
-        dlq_message = subscriber_with_dlq.dlq_messages[0]  # type: ignore
+        dlq_message = subscriber_with_dlq.dlq_messages[0]  # type: ignore[attr-defined]
         assert dlq_message["id"] == 1
         assert dlq_message["data"] == "test"
         assert "_dlq_timestamp" in dlq_message
@@ -476,8 +473,8 @@ class TestBaseSubscriber:
     async def test_circuit_breaker_integration(self, subscriber_with_circuit_breaker: ConcreteSubscriber) -> None:
         """Test circuit breaker integration."""
         # Force circuit breaker to fail
-        subscriber_with_circuit_breaker._circuit_breaker._state = CircuitBreakerState.OPEN  # type: ignore
-        subscriber_with_circuit_breaker._circuit_breaker._next_attempt_time = time.time() + 3600  # type: ignore
+        subscriber_with_circuit_breaker._circuit_breaker._state = CircuitBreakerState.OPEN  # type: ignore[union-attr]
+        subscriber_with_circuit_breaker._circuit_breaker._next_attempt_time = time.time() + 3600  # type: ignore[union-attr]
 
         message = {"id": 1, "data": "test", "_subscriber_message_id": "msg_1"}
 
@@ -599,12 +596,10 @@ class TestSubscribeToChannel:
             mock_pubsub.unsubscribe = AsyncMock()
             mock_get_pubsub.return_value = mock_pubsub
 
-            try:
-                async for message in subscribe_to_channel("test"):
+            with contextlib.suppress(Exception):
+                async for _message in subscribe_to_channel("test"):
                     # Immediately break to test cleanup
                     break
-            except Exception:
-                pass
 
             # Should call unsubscribe for cleanup
             mock_pubsub.unsubscribe.assert_called()

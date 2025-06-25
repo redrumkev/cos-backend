@@ -1,6 +1,4 @@
-# ruff: noqa: D400, D415, S106, D401, B007, E501, ASYNC101, S603, S607
-# mypy: ignore-errors
-"""Production Readiness Performance Tests - Task 15.2
+"""Production Readiness Performance Tests - Task 15.2.
 
 Comprehensive performance benchmarking and failure scenario testing
 to validate Phase 2 Sprint 2 production readiness.
@@ -26,6 +24,10 @@ Failure Scenarios:
 - Network timeouts
 - Resource exhaustion
 - Circuit breaker validation
+
+# mypy: ignore-errors
+
+# ruff: noqa
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import logging
+import shutil
 import subprocess
 import time
 from typing import Any
@@ -54,7 +57,7 @@ async def redis_client() -> redis.Redis:
     client = redis.Redis(
         host="localhost",
         port=6379,
-        password="Police9119!!Red",
+        password="Police9119!!Red",  # noqa: S106
         decode_responses=True,
         socket_keepalive=True,
         socket_connect_timeout=5.0,
@@ -73,13 +76,40 @@ async def http_client() -> AsyncClient:
         yield client
 
 
+# ---------------------------------------------------------------------------
+# Docker helpers
+# ---------------------------------------------------------------------------
+
+
+async def run_docker_command(*args: str) -> None:
+    """Run a docker CLI command asynchronously.
+
+    This helper prevents blocking the event-loop (addresses ASYNC101) and also
+    ensures an absolute docker executable path is used (addresses S607).
+    """
+    docker_path = shutil.which("docker")
+    if docker_path is None:
+        raise RuntimeError("`docker` executable not found - required for integration tests.")
+
+    proc = await asyncio.create_subprocess_exec(
+        docker_path,
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        cmd_list = [docker_path, *args]
+        raise subprocess.CalledProcessError(proc.returncode, cmd_list, output=stdout, stderr=stderr)
+
+
 class PerformanceMetrics:
     """Simple performance metrics collector."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.measurements = {}
 
-    def record(self, metric_name: str, value: float, unit: str = "ms"):
+    def record(self, metric_name: str, value: float, unit: str = "ms") -> None:
         """Record a performance measurement."""
         if metric_name not in self.measurements:
             self.measurements[metric_name] = []
@@ -109,8 +139,8 @@ class PerformanceMetrics:
 
 
 @pytest.fixture
-def metrics():
-    """Performance metrics collector."""
+def metrics() -> PerformanceMetrics:
+    """Provide performance metrics collector."""
     return PerformanceMetrics()
 
 
@@ -126,7 +156,7 @@ class TestRedisPerformance:
 
         # Measure latency
         latencies = []
-        for i in range(1000):
+        for _ in range(1000):
             start = time.perf_counter_ns()
             await redis_client.ping()
             latency_ms = (time.perf_counter_ns() - start) / 1_000_000
@@ -183,7 +213,7 @@ class TestRedisPerformance:
         latencies = []
 
         # Measure pub/sub latency
-        for i in range(100):
+        for _ in range(100):
             # Publish message with timestamp
             publish_time = time.perf_counter_ns()
             await redis_client.publish("latency_test_channel", str(publish_time))
@@ -346,7 +376,7 @@ class TestAPIPerformance:
             """Execute concurrent API requests."""
             results = {"success": 0, "errors": 0, "latencies": []}
 
-            for i in range(20):
+            for _ in range(20):
                 try:
                     start = time.perf_counter_ns()
                     response = await http_client.get("/cc/health")
@@ -387,7 +417,8 @@ class TestAPIPerformance:
             assert concurrent_stats["p95"] < 1000.0, f"API concurrent P95 {concurrent_stats['p95']:.2f}ms > 1000ms"
 
         logger.info(
-            f"API Concurrent - {total_success} requests in {total_time:.2f}s, {throughput:.0f} req/s, {error_rate:.2%} errors"
+            f"API Concurrent - {total_success} requests in {total_time:.2f}s, "
+            f"{throughput:.0f} req/s, {error_rate:.2%} errors"
         )
 
 
@@ -488,7 +519,7 @@ class TestFailureScenarios:
 
         try:
             # Pause Redis service
-            subprocess.run(["docker", "pause", "cos_redis"], check=True)
+            await run_docker_command("pause", "cos_redis")
             logger.info("Redis service paused for failure simulation")
 
             # Test failure detection
@@ -505,7 +536,7 @@ class TestFailureScenarios:
 
         finally:
             # Restore Redis service
-            subprocess.run(["docker", "unpause", "cos_redis"], check=True)
+            await run_docker_command("unpause", "cos_redis")
             logger.info("Redis service restored")
 
             # Test recovery

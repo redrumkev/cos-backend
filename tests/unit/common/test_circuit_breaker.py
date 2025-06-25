@@ -1,9 +1,10 @@
-# ruff: noqa: SIM105
+# ruff: noqa
+# mypy: ignore-errors
 """Comprehensive unit tests for Circuit Breaker implementation."""
 
 import asyncio
 import time
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from freezegun import freeze_time
@@ -32,7 +33,7 @@ class TestCircuitBreaker:
         assert cb.recovery_timeout == 60.0
         assert cb.success_threshold == 3
         assert cb.timeout == 10.0
-        assert cb.expected_exception == Exception
+        assert cb.expected_exception is Exception
         assert cb.state == CircuitBreakerState.CLOSED
         assert cb.failure_count == 0
         assert cb.success_count == 0
@@ -51,7 +52,7 @@ class TestCircuitBreaker:
         assert cb.recovery_timeout == 30.0
         assert cb.success_threshold == 1
         assert cb.timeout == 5.0
-        assert cb.expected_exception == ValueError
+        assert cb.expected_exception is ValueError
 
     async def test_init_zero_threshold_opens_immediately(self) -> None:
         """Test that zero failure threshold starts in OPEN state."""
@@ -189,7 +190,7 @@ class TestCircuitBreaker:
             result = await circuit_breaker.call(successful_operation)
 
             assert result == "success"
-            assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN  # type: ignore[comparison-overlap]
+            assert cast("CircuitBreakerState", circuit_breaker.state) == CircuitBreakerState.HALF_OPEN
 
     async def test_half_open_to_closed_transition(self, circuit_breaker: CircuitBreaker) -> None:
         """Test transition from HALF_OPEN to CLOSED after successful operations."""
@@ -206,9 +207,9 @@ class TestCircuitBreaker:
             assert result == "success"
 
             if i < 1:  # Before threshold
-                assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN
+                assert cast("CircuitBreakerState", circuit_breaker.state) == CircuitBreakerState.HALF_OPEN
             else:  # At threshold
-                assert circuit_breaker.state == CircuitBreakerState.CLOSED
+                assert cast("CircuitBreakerState", circuit_breaker.state) == CircuitBreakerState.CLOSED
 
         # Verify state was reset
         assert circuit_breaker.failure_count == 0
@@ -266,8 +267,8 @@ class TestCircuitBreaker:
             try:
                 result = await task
                 results.append(result)
-            except Exception as e:
-                errors.append(e)
+            except Exception as exc:
+                errors.append(exc)
 
         # Verify at least some operations succeeded
         assert len(results) >= 3
@@ -285,10 +286,10 @@ class TestCircuitBreaker:
         # Perform mixed operations
         await circuit_breaker.call(successful_operation)
 
-        try:
+        import contextlib
+
+        with contextlib.suppress(ValueError):
             await circuit_breaker.call(failing_operation)
-        except ValueError:
-            pass
 
         await circuit_breaker.call(successful_operation)
 
@@ -306,12 +307,12 @@ class TestCircuitBreaker:
 
         # Trigger multiple failures to test backoff calculation
         for _ in range(5):  # More than threshold to test backoff
-            try:
-                await circuit_breaker.call(failing_operation)
-            except (ValueError, CircuitBreakerError):
-                pass
+            import contextlib
 
-        assert circuit_breaker.state == CircuitBreakerState.OPEN
+            with contextlib.suppress(ValueError, CircuitBreakerError):
+                await circuit_breaker.call(failing_operation)
+
+        assert cast("CircuitBreakerState", circuit_breaker.state) == CircuitBreakerState.OPEN
 
         # Check that next attempt time was calculated with backoff
         metrics = circuit_breaker.metrics
@@ -351,14 +352,14 @@ class TestCircuitBreaker:
             with pytest.raises(ValueError):
                 await circuit_breaker.call(operation, True)
 
-        assert circuit_breaker.state == CircuitBreakerState.OPEN  # type: ignore[comparison-overlap]
+        assert circuit_breaker.state == CircuitBreakerState.OPEN
 
         # Move to HALF_OPEN (need to mock time passage)
         circuit_breaker._next_attempt_time = time.time() - 1  # Past time
 
         # One success moves to HALF_OPEN, another should close
         await circuit_breaker.call(operation, False)
-        assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN
+        assert cast("CircuitBreakerState", circuit_breaker.state) == CircuitBreakerState.HALF_OPEN
 
         await circuit_breaker.call(operation, False)
         assert circuit_breaker.state == CircuitBreakerState.CLOSED

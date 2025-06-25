@@ -1,6 +1,4 @@
-# ruff: noqa: T201, S603, S607, D400, D415, RUF013, B007, F841
-# mypy: ignore-errors
-"""Performance Metrics Collection & Reporting - Task 15.2
+"""Performance Metrics Collection & Reporting - Task 15.2.
 
 This module implements comprehensive performance metrics collection,
 analysis, and reporting for production readiness validation.
@@ -35,6 +33,7 @@ import json
 import logging
 import statistics
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any
@@ -116,12 +115,12 @@ class SystemMetrics:
 class PerformanceCollector:
     """Collects and analyzes performance metrics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.metrics_history: list[PerformanceMetrics] = []
         self.system_metrics_history: list[SystemMetrics] = []
 
     def collect_latency_metrics(
-        self, latencies: list[float], test_name: str, metadata: dict[str, Any] = None
+        self, latencies: list[float], test_name: str, metadata: dict[str, Any] | None = None
     ) -> PerformanceMetrics:
         """Collect latency-based performance metrics."""
         if not latencies:
@@ -168,8 +167,8 @@ class PerformanceCollector:
         test_duration: float,
         error_count: int,
         test_name: str,
-        latencies: list[float] = None,
-        metadata: dict[str, Any] = None,
+        latencies: list[float] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> PerformanceMetrics:
         """Collect throughput-based performance metrics."""
         success_count = total_operations - error_count
@@ -255,7 +254,7 @@ class PerformanceCollector:
         db_latencies = []
         database_healthy = True
         try:
-            for i in range(5):
+            for _ in range(5):
                 start = time.perf_counter_ns()
                 await crud.get_modules(db_session, skip=0, limit=10)
                 latency = (time.perf_counter_ns() - start) / 1_000_000
@@ -288,7 +287,7 @@ class PerformanceCollector:
             # API throughput test
             start_time = time.perf_counter()
             tasks = [api_client.get("/cc/health") for _ in range(20)]
-            responses = await asyncio.gather(*tasks, return_exceptions=True)
+            _ = await asyncio.gather(*tasks, return_exceptions=True)  # Execute concurrent requests
             api_throughput = 20 / (time.perf_counter() - start_time)
 
         except Exception as e:
@@ -329,13 +328,13 @@ class PerformanceCollector:
             return {"error": "No metrics collected"}
 
         # Aggregate metrics by test name
-        test_groups = {}
+        test_groups: dict[str, list[PerformanceMetrics]] = {}
         for metric in self.metrics_history:
             if metric.test_name not in test_groups:
                 test_groups[metric.test_name] = []
             test_groups[metric.test_name].append(metric)
 
-        report = {
+        report: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "summary": {
                 "total_tests": len(test_groups),
@@ -478,7 +477,7 @@ class TestPerformanceMetricsCollection:
     """Test performance metrics collection and reporting."""
 
     @pytest.fixture
-    def metrics_collector(self):
+    def metrics_collector(self) -> PerformanceCollector:
         """Provide metrics collector instance."""
         return PerformanceCollector()
 
@@ -662,13 +661,13 @@ class TestPerformanceMetricsCollection:
     ) -> None:
         """Test performance report generation."""
         # Collect multiple metrics for different tests
-        test_scenarios = [
+        test_scenarios: list[tuple[str, Callable[[], Any]]] = [
             ("redis_latency", lambda: self._run_redis_latency_test(perf_client, metrics_collector)),
             ("database_throughput", lambda: self._run_database_throughput_test(db_session, metrics_collector)),
             ("api_stress", lambda: self._run_api_stress_test(async_client, metrics_collector)),
         ]
 
-        for test_name, test_func in test_scenarios:
+        for _, test_func in test_scenarios:
             await test_func()
 
         # Collect system metrics
@@ -712,8 +711,6 @@ class TestPerformanceMetricsCollection:
         # Log report for analysis
         logger.info(f"Performance Report Generated: {json.dumps(report, indent=2)}")
 
-        return report
-
     async def _run_redis_latency_test(self, client: redis.Redis, collector: PerformanceCollector) -> None:
         """Run Redis latency test."""
         latencies = []
@@ -746,7 +743,7 @@ class TestPerformanceMetricsCollection:
         operations = 30
         errors = 0
 
-        for i in range(operations):
+        for _ in range(operations):
             try:
                 response = await client.get("/cc/health")
                 if response.status_code != 200:
