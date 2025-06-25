@@ -11,6 +11,7 @@ import logging
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import IO
 
 # Gracefully handle optional python-dotenv dependency
 try:
@@ -18,9 +19,16 @@ try:
 except ImportError:  # pragma: no cover
     logging.getLogger(__name__).warning("python-dotenv not installed; environment files will be ignored.")
 
-    def load_dotenv(_path: str | os.PathLike[str] | None = None, *args: object, **kwargs: object) -> None:  # type: ignore[misc]
+    def load_dotenv(
+        dotenv_path: str | os.PathLike[str] | None = None,
+        stream: IO[str] | None = None,
+        verbose: bool = False,
+        override: bool = False,
+        interpolate: bool = True,
+        encoding: str | None = None,
+    ) -> bool:
         """Fallback no-op load_dotenv when dotenv is not available."""
-        return
+        return False
 
 
 from pydantic import Field, computed_field
@@ -86,8 +94,7 @@ class RedisConfig(BaseSettings):
         extra="forbid",  # Explicitly forbid extra fields for clarity
     )
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
+    @computed_field
     def redis_url(self) -> str:
         """Generate Redis URL from connection parameters.
 
@@ -101,8 +108,7 @@ class RedisConfig(BaseSettings):
         else:
             return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
+    @computed_field
     def connection_pool_config(self) -> dict[str, int | bool]:
         """Generate connection pool configuration dictionary.
 
@@ -119,8 +125,7 @@ class RedisConfig(BaseSettings):
             "health_check_interval": self.redis_health_check_interval,
         }
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
+    @computed_field
     def is_development(self) -> bool:
         """Determine if this is a development environment.
 
