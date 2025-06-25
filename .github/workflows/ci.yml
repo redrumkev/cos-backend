@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop, feat/cc-gold_Ph2 ]
+    branches: [ main, develop, feat/cc-gold_Ph2, feat/cc-goldPh2S2 ]
   pull_request:
     branches: [ main, develop ]
 
