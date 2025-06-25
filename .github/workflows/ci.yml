@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop, feat/cc-gold_Ph2, feat/cc-goldPh2S2 ]
+    branches: [ main, release/*, develop ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, release/* ]
 
 jobs:
   test:
