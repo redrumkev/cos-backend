@@ -1,3 +1,4 @@
+# ruff: noqa: S106  # Hardcoded passwords acceptable in test fixtures
 """Shared fixtures for performance testing."""
 
 from __future__ import annotations
@@ -23,10 +24,11 @@ async def perf_client(redis_url: str) -> AsyncGenerator[redis.Redis, None]:
     """High-performance Redis client optimized for benchmarking."""
     client = redis.from_url(
         redis_url,
+        password="Police9119!!Red",  # Redis auth password
         max_connections=50,  # Higher pool for stress testing
         encoding="utf-8",
         decode_responses=True,
-        protocol=3,  # RESP3 for better performance
+        protocol=2,  # RESP2 for compatibility
         socket_keepalive=True,
         socket_keepalive_options={},
         retry_on_timeout=True,
@@ -43,6 +45,7 @@ async def perf_client_pool() -> AsyncGenerator[redis.ConnectionPool, None]:
     """Dedicated connection pool for efficiency testing."""
     pool = redis.ConnectionPool.from_url(
         "redis://localhost:6379/0",
+        password="Police9119!!Red",  # Redis auth password
         max_connections=50,
         retry_on_timeout=True,
         socket_keepalive=True,

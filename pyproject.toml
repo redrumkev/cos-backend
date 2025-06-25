@@ -35,8 +35,9 @@ dependencies = [
     "testcontainers[redis]>=3.7.0", # Real Redis containers for integration tests
     "freezegun>=1.2.2", # Time manipulation for deterministic tests
     "pytest-benchmark>=5.1.0",
-    "psutil>=6.1.0",  # System and process monitoring for performance tests
-    "pytest-memray>=1.7.0",  # Memory profiling for leak detection
+    "psutil>=6.1.0", # System and process monitoring for performance tests
+    "pytest-memray>=1.7.0", # Memory profiling for leak detection
+    "bandit>=1.8.3",
 ]
 
 [project.optional-dependencies]

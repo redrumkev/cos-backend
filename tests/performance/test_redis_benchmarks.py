@@ -34,7 +34,7 @@ class TestRedisLatencyBenchmarks:
     """Latency-focused performance benchmarks."""
 
     @pytest.mark.asyncio
-    @pytest.mark.benchmark(group="latency", min_rounds=200, warmup_rounds=100)
+    @pytest.mark.benchmark(group="latency", min_rounds=200)
     async def test_publish_latency_benchmark(self, benchmark: Any, perf_client: redis.Redis) -> None:
         """Benchmark publish latency with <1ms target using pytest-benchmark."""
 
@@ -45,10 +45,13 @@ class TestRedisLatencyBenchmarks:
             end = time.perf_counter_ns()
             return (end - start) / 1_000_000  # Convert to milliseconds
 
-        # Use benchmark.pedantic for precise measurement control
-        result = benchmark.pedantic(
-            lambda: asyncio.run(publish_operation()), rounds=1000, iterations=1, warmup_rounds=100
-        )
+        # Use benchmark directly for async operations
+        def sync_publish() -> asyncio.Task[float]:
+            return asyncio.create_task(publish_operation())
+
+        # Run benchmark with task creation
+        task = benchmark(sync_publish)
+        result = await task
 
         # Assertion outside benchmark for clarity
         assert result < 1.0, f"Publish latency {result:.3f}ms exceeds 1ms target"

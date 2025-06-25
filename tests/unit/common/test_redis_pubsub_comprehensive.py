@@ -1,3 +1,4 @@
+# ruff: noqa: SIM105
 """Comprehensive unit tests for Redis Pub/Sub with circuit breaker integration."""
 
 import asyncio

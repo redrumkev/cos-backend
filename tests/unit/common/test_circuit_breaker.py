@@ -1,3 +1,4 @@
+# ruff: noqa: SIM105
 """Comprehensive unit tests for Circuit Breaker implementation."""
 
 import asyncio

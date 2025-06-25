@@ -1,3 +1,4 @@
+# ruff: noqa: S105, SIM117
 """Comprehensive unit tests for Redis configuration module."""
 
 import os

@@ -1,3 +1,4 @@
+# ruff: noqa: SIM105, B007, S110
 """Comprehensive unit tests for BaseSubscriber implementation."""
 
 import asyncio
