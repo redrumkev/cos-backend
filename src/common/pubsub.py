@@ -19,7 +19,10 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
+from collections.abc import Coroutine
+
+from .redis_config import get_redis_config
 
 # Import Redis with graceful degradation - use Any for type hints to avoid linter issues
 if TYPE_CHECKING:
@@ -35,7 +38,6 @@ try:
     _LOGFIRE_AVAILABLE = True
 except ImportError:
     logger.warning("Logfire package not available. Distributed tracing will be disabled.")
-    logfire = None
     _LOGFIRE_AVAILABLE = False
 
 # Context variable for correlation ID tracking
@@ -86,17 +88,11 @@ try:
     _REDIS_AVAILABLE = True
 except ImportError:
     logger.warning("Redis package not available. Pub/Sub functionality will be disabled.")
-    redis = None
-    ConnectionPool = None
-    RedisConnectionError = Exception
-    RedisError = Exception
-    RedisTimeoutError = Exception
     _REDIS_AVAILABLE = False
 
-from .redis_config import get_redis_config  # noqa: E402
 
 # Type aliases for clarity
-MessageHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
+MessageHandler = Callable[[str, dict[str, Any]], Coroutine[Any, Any, None]]
 MessageData = dict[str, Any]
 
 
@@ -285,7 +281,7 @@ class CircuitBreaker:
             self._failure_count = 0
 
         # Log circuit breaker metrics with Logfire if available
-        if _LOGFIRE_AVAILABLE and logfire:
+        if _LOGFIRE_AVAILABLE:
             logfire.debug(
                 "Circuit breaker success recorded",
                 state=self._state.value,
@@ -308,7 +304,7 @@ class CircuitBreaker:
             await self._transition_to_open()
 
         # Log circuit breaker metrics with Logfire if available
-        if _LOGFIRE_AVAILABLE and logfire:
+        if _LOGFIRE_AVAILABLE:
             logfire.warning(
                 "Circuit breaker failure recorded",
                 state=self._state.value,
@@ -423,8 +419,9 @@ class RedisPubSub:
         async def _connect_operation() -> None:
             # Create optimized connection pool
             assert ConnectionPool is not None, "Redis ConnectionPool not available"  # nosec B101
+            redis_url_str: str = cast(str, self._config.redis_url)
             self._pool = ConnectionPool.from_url(
-                self._config.redis_url,
+                redis_url_str,
                 max_connections=self._config.redis_max_connections,
                 socket_connect_timeout=self._config.redis_socket_connect_timeout,
                 socket_keepalive=self._config.redis_socket_keepalive,
@@ -527,8 +524,10 @@ class RedisPubSub:
 
         # Start Logfire span for complete observability
         span_name = f"Redis PUBLISH {channel}"
-        if _LOGFIRE_AVAILABLE and logfire:
-            span_context = logfire.span(span_name, channel=channel, correlation_id=correlation_id, operation="publish")
+        if _LOGFIRE_AVAILABLE:
+            span_context: Any = logfire.span(
+                span_name, channel=channel, correlation_id=correlation_id, operation="publish"
+            )
         else:
             span_context = contextlib.nullcontext()
 
@@ -567,7 +566,7 @@ class RedisPubSub:
                     # Log performance warning if >1ms
                     if elapsed > 1.0:
                         logger.warning(f"Publish latency {elapsed:.2f}ms exceeded 1ms target for channel '{channel}'")
-                        if _LOGFIRE_AVAILABLE and logfire:
+                        if _LOGFIRE_AVAILABLE:
                             logfire.warning(
                                 "Publish latency exceeded target",
                                 channel=channel,
@@ -758,8 +757,7 @@ class RedisPubSub:
 
             # Call all handlers for this channel
             tasks: list[asyncio.Task[None]] = [
-                asyncio.create_task(handler(channel, message_data))  # type: ignore[arg-type]
-                for handler in self._handlers[channel]
+                asyncio.create_task(handler(channel, message_data)) for handler in self._handlers[channel]
             ]
 
             if tasks:
@@ -877,8 +875,10 @@ class RedisPubSub:
         )
 
         # Start Logfire span for health check observability
-        if _LOGFIRE_AVAILABLE and logfire:
-            span_context = logfire.span("Redis Health Check", correlation_id=correlation_id, operation="health_check")
+        if _LOGFIRE_AVAILABLE:
+            span_context: Any = logfire.span(
+                "Redis Health Check", correlation_id=correlation_id, operation="health_check"
+            )
         else:
             span_context = contextlib.nullcontext()
 
@@ -929,7 +929,7 @@ class RedisPubSub:
 
                     except Exception as info_error:
                         health_status["redis_info"] = f"info_failed: {info_error}"
-                        if _LOGFIRE_AVAILABLE and logfire:
+                        if _LOGFIRE_AVAILABLE:
                             logfire.warning(
                                 "Redis INFO command failed during health check",
                                 correlation_id=correlation_id,
@@ -969,7 +969,7 @@ class RedisPubSub:
                 health_status["redis_ping"] = "not_connected"
                 health_status["ping_duration_ms"] = 0
 
-                if _LOGFIRE_AVAILABLE and logfire:
+                if _LOGFIRE_AVAILABLE:
                     logfire.warning(
                         "Redis health check skipped - not connected",
                         correlation_id=correlation_id,
@@ -1010,7 +1010,7 @@ class RedisPubSub:
             subscriber_count = await self.publish(channel, message, correlation_id)
             result.update({"success": True, "subscriber_count": subscriber_count})
 
-            if _LOGFIRE_AVAILABLE and logfire:
+            if _LOGFIRE_AVAILABLE:
                 logfire.info(
                     "Message published via primary Redis",
                     channel=channel,
@@ -1024,7 +1024,7 @@ class RedisPubSub:
             result["error"] = str(primary_error)
             result["fallback_used"] = True
 
-            if _LOGFIRE_AVAILABLE and logfire:
+            if _LOGFIRE_AVAILABLE:
                 logfire.warning(
                     "Primary Redis publish failed, using fallback strategy",
                     channel=channel,
@@ -1077,7 +1077,7 @@ class RedisPubSub:
                     logger.error(f"File queue fallback failed: {file_error}")
                     result["error"] = f"Primary and file fallback failed: {file_error}"
 
-            if _LOGFIRE_AVAILABLE and logfire:
+            if _LOGFIRE_AVAILABLE:
                 logfire.info("Fallback strategy applied", extra=result)
 
             return result
