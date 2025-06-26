@@ -10,12 +10,9 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest  # Phase 2: Remove for skip removal
+import pytest
 
 from src.backend.cc.schemas import ModuleCreate, ModuleUpdate
-
-# Phase 2: Remove this skip block for router implementation (P2-ROUTER-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Router implementation wiring needed. Trigger: P2-ROUTER-001")
 
 
 class TestRouterDirectCoverage:

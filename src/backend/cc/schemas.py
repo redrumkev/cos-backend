@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 
 # Health Check Schema
@@ -169,6 +169,12 @@ class Module(ModuleBase):
     id: str = Field(..., description="Unique identifier for the module.")
     active: bool = Field(..., description="Whether the module is active.")
     last_active: datetime = Field(..., description="Timestamp of when the module was last active.")
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def validate_id(cls, value: Any) -> str:
+        """Convert UUID to string if needed."""
+        return str(value)
 
     @field_serializer("last_active")
     def serialize_last_active(self, value: datetime) -> str:
