@@ -17,17 +17,17 @@
 | ✅ P2-MODELS-001 | **COMPLETED** | ~35 | tests/backend/cc/test_models.py | Fixed tests to expect custom UUID type wrapper |
 | ✅ P2-ALEMBIC-001 | **COMPLETED** | 7 | tests/db/test_alembic_migrations.py | Fixed migration idempotency and table creation |
 | ✅ P2-ROUTER-001 | **COMPLETED** | ~32 | tests/backend/cc/test_router*.py | Router tests working with async_client + UUID schema fix |
-| ⏳ P2-SERVICE-001 | PENDING | ~55 | tests/backend/cc/test_services.py | Waiting |
+| ✅ P2-SERVICE-001 | **COMPLETED** | 16 | tests/backend/cc/test_services.py | Fixed CRUD update_module() using UPDATE RETURNING approach |
 | ⏳ P2-MEM0-001 | PENDING | ~85 | tests/backend/cc/test_mem0_*.py | Waiting |
 | ⏳ P2-GRAPH-001 | PENDING | ~40 | tests/graph/test_base.py | Waiting |
 | ⏳ P2-INTEGRATION-001 | PENDING | ~165 | tests/integration/backend/cc/ | Waiting |
 
-**Progress**: 6/10 triggers complete (~174/565 tests restored) - 31% complete
+**Progress**: 7/10 triggers complete (~190/565 tests restored) - 34% complete
 
 ### 🎯 IMMEDIATE NEXT ACTION (Fresh Context Recovery)
 ```bash
 cd /Users/kevinmba/dev/cos
-# Current task: P2-ROUTER-001 - Router Implementation (~65 tests)
+# Current task: P2-MEM0-001 - Mem0 Integration (~85 tests)
 # File to examine: tests/backend/cc/test_router*.py
 # Look for skip decorators and router endpoint implementation issues
 # Environment: RUN_INTEGRATION=1 ENABLE_DB_INTEGRATION=1
