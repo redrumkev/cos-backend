@@ -455,15 +455,20 @@ class BaseSubscriber(ABC):
 
 
 # ----- Async iterator support for channel subscription -----------------
-async def subscribe_to_channel(channel: str) -> AsyncGenerator[MessageDict, None]:
+async def subscribe_to_channel(channel: str, *, max_idle_time: float = 30.0) -> AsyncGenerator[MessageDict, None]:
     """Async iterator for subscribing to Redis channel messages.
 
     This function provides the async iterator interface that BaseSubscriber
     expects for consuming messages from Redis channels.
 
+    SAFETY: Uses timeout-based approach to prevent infinite waiting that can
+    hang tests. The generator will exit gracefully if no messages are received
+    within max_idle_time seconds, allowing proper cleanup and test completion.
+
     Args:
     ----
         channel: Redis channel name to subscribe to
+        max_idle_time: Maximum seconds to wait for messages before exiting (default: 30.0)
 
     Yields:
     ------
@@ -484,12 +489,33 @@ async def subscribe_to_channel(channel: str) -> AsyncGenerator[MessageDict, None
 
     try:
         while True:
-            # Get message from queue
-            message = await message_queue.get()
-            yield message
+            try:
+                # Wait for message with timeout to prevent infinite hanging
+                if _ASYNC_TIMEOUT_AVAILABLE and async_timeout:
+                    async with async_timeout.timeout(max_idle_time):
+                        message = await message_queue.get()
+                else:
+                    message = await asyncio.wait_for(message_queue.get(), timeout=max_idle_time)
+
+                yield message
+
+            except TimeoutError:
+                # Timeout reached with no messages - exit gracefully
+                logger.debug(f"No messages received on channel '{channel}' for {max_idle_time}s, exiting iterator")
+                break
+            except Exception as e:
+                # Other errors - log and exit gracefully
+                logger.error(f"Error in subscribe_to_channel for '{channel}': {e}")
+                break
+
     finally:
-        # Clean up subscription
-        await pubsub.unsubscribe(channel, message_handler)
+        # Clean up subscription - this ensures proper cleanup even if generator
+        # is cancelled or exits due to timeout
+        try:
+            await pubsub.unsubscribe(channel, message_handler)
+            logger.debug(f"Unsubscribed from channel '{channel}'")
+        except Exception as e:
+            logger.error(f"Error during unsubscribe from '{channel}': {e}")
 
 
 # ----- DLQ helper function ---------------------------------------------

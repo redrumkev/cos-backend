@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 from collections.abc import Coroutine
 
 from .redis_config import get_redis_config
@@ -420,7 +420,7 @@ class RedisPubSub:
         async def _connect_operation() -> None:
             # Create optimized connection pool
             assert ConnectionPool is not None, "Redis ConnectionPool not available"  # nosec B101
-            redis_url_str: str = cast(str, self._config.redis_url)
+            redis_url_str = self._config.redis_url
             self._pool = ConnectionPool.from_url(
                 redis_url_str,
                 max_connections=self._config.redis_max_connections,

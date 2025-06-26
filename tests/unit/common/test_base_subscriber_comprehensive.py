@@ -596,8 +596,9 @@ class TestSubscribeToChannel:
             mock_pubsub.unsubscribe = AsyncMock()
             mock_get_pubsub.return_value = mock_pubsub
 
+            # Use short timeout to prevent hanging in tests
             with contextlib.suppress(Exception):
-                async for _message in subscribe_to_channel("test"):
+                async for _message in subscribe_to_channel("test", max_idle_time=0.1):
                     # Immediately break to test cleanup
                     break
 

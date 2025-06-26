@@ -665,46 +665,65 @@ class TestSubscribeToChannelIterator:
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub
 
-        messages = []
-
-        # Create a generator that simulates message reception
-        async def simulate_messages() -> None:
-            async for message in subscribe_to_channel("test_channel"):
-                messages.append(message)
-                if len(messages) >= 2:
-                    break
-
-        # We need to actually test this with a real async iterator
-        # For now, let's test the subscribe/unsubscribe calls
         channel = "test_channel"
 
-        # Start the async iterator (this will call subscribe)
-        iterator = subscribe_to_channel(channel)
+        # Start the async iterator with short timeout for testing
+        iterator = subscribe_to_channel(channel, max_idle_time=0.1)
 
         # Verify subscribe was called
+        await iterator.__anext__()  # This will trigger the subscription
         mock_pubsub.subscribe.assert_called_once()
 
-        # Clean up
-        await iterator.aclose()  # This should call unsubscribe
+        # Clean up - this should call unsubscribe
+        await iterator.aclose()
+        mock_pubsub.unsubscribe.assert_called_once()
+
+    @patch("src.common.base_subscriber.get_pubsub")
+    async def test_subscribe_to_channel_timeout_behavior(self, mock_get_pubsub: AsyncMock) -> None:
+        """Test that subscribe_to_channel exits gracefully on timeout."""
+        mock_pubsub = AsyncMock()
+        mock_get_pubsub.return_value = mock_pubsub
+
+        channel = "test_channel"
+        messages_received = []
+
+        # Use very short timeout for testing
+        try:
+            async for message in subscribe_to_channel(channel, max_idle_time=0.1):
+                messages_received.append(message)  # noqa: PERF401
+                # Should timeout after 0.1 seconds with no messages
+        except StopAsyncIteration:
+            pass  # Expected timeout behavior
+
+        # Verify that the iterator exited due to timeout (no messages received)
+        assert len(messages_received) == 0
+
+        # Verify proper cleanup occurred
+        mock_pubsub.subscribe.assert_called_once()
+        mock_pubsub.unsubscribe.assert_called_once()
 
     @patch("src.common.base_subscriber.get_pubsub")
     async def test_subscribe_to_channel_cleanup(self, mock_get_pubsub: AsyncMock) -> None:
-        """Test that subscribe_to_channel cleans up properly."""
+        """Test that subscribe_to_channel cleans up properly on manual exit."""
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub
 
         channel = "test_channel"
 
-        # Use the iterator in a context that ensures cleanup
+        # Use the iterator but exit immediately to test cleanup
+        iterator = subscribe_to_channel(channel, max_idle_time=5.0)
+
         try:
-            async for _message in subscribe_to_channel(channel):
-                break  # Exit immediately
-        except StopAsyncIteration:
-            pass
+            await iterator.__anext__()  # Start the iterator
+        except (TimeoutError, StopAsyncIteration):
+            pass  # Expected when no messages
+        finally:
+            await iterator.aclose()  # Ensure cleanup
 
         # Verify subscribe was called
         mock_pubsub.subscribe.assert_called_once()
-        # Note: unsubscribe might not be called due to how we exit the loop
+        # Cleanup should have been called
+        mock_pubsub.unsubscribe.assert_called_once()
 
 
 @pytest.mark.asyncio

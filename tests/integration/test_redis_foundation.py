@@ -181,7 +181,7 @@ class TestRedisConfig:
 
     def test_redis_url_generation(self, redis_config: RedisConfig) -> None:
         """Test Redis URL generation from config."""
-        url = cast(str, redis_config.redis_url)
+        url = redis_config.redis_url
         assert url.startswith("redis://")
         assert str(redis_config.redis_port) in url
         assert redis_config.redis_host in url
