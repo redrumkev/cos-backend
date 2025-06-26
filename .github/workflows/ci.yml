@@ -205,7 +205,7 @@ jobs:
           --cov-report=xml \
           --cov-report=term-missing \
           --cov-report=json:coverage.json \
-          --cov-fail-under=40 \
+          --cov-fail-under=90 \
           --continue-on-collection-errors \
           --tb=no || echo "⚠️  Tests failed as expected during Phase 2 Sprint 1 - database infrastructure pending"
 
@@ -234,8 +234,8 @@ jobs:
 
         echo "📊 Overall coverage: ${COVERAGE_PERCENT}%"
 
-        if (( $(echo "$COVERAGE_PERCENT < 40" | bc -l) )); then
-          echo "❌ Overall coverage ${COVERAGE_PERCENT}% below 40% minimum"
+        if (( $(echo "$COVERAGE_PERCENT < 90" | bc -l) )); then
+          echo "❌ Overall coverage ${COVERAGE_PERCENT}% below 90% minimum"
           exit 1
         fi
 

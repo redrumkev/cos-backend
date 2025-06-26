@@ -1,5 +1,9 @@
 # ruff: noqa: S105, SIM117
-"""Comprehensive unit tests for Redis configuration module."""
+"""Redis configuration comprehensive testing.
+
+This module provides comprehensive testing for Redis configuration
+with various environment setups, edge cases, and integration scenarios.
+"""
 
 import os
 from unittest.mock import patch
@@ -11,47 +15,67 @@ from src.common.redis_config import RedisConfig, get_redis_config, get_redis_con
 
 
 class TestRedisConfigComprehensive:
-    """Comprehensive test suite for RedisConfig class."""
+    """Comprehensive Redis configuration testing with environment variables."""
+
+    @pytest.fixture
+    def clean_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Clear Redis-related environment variables."""
+        redis_env_vars = [
+            "REDIS_URL",
+            "REDIS_HOST",
+            "REDIS_PORT",
+            "REDIS_PASSWORD",
+            "REDIS_DB",
+            "REDIS_MAX_CONNECTIONS",
+            "REDIS_SOCKET_CONNECT_TIMEOUT",
+            "REDIS_SOCKET_KEEPALIVE",
+            "REDIS_RETRY_ON_TIMEOUT",
+            "REDIS_HEALTH_CHECK_INTERVAL",
+            "TESTING",
+            "ENV",
+        ]
+
+        for var in redis_env_vars:
+            monkeypatch.delenv(var, raising=False)
+
+    @pytest.fixture(autouse=True)
+    def clear_cache(self) -> None:
+        """Clear the LRU cache before each test to ensure environment changes are picked up."""
+        get_redis_config.cache_clear()
 
     def test_default_initialization(self) -> None:
-        """Test RedisConfig initialization with all default values."""
-        config = RedisConfig()
+        """Test RedisConfig with default values."""
+        with patch.dict(os.environ, {}, clear=True):
+            config = RedisConfig()
 
-        # Basic connection settings
-        assert config.redis_host == "localhost"
-        assert config.redis_port == 6379
-        assert config.redis_password is None
-        assert config.redis_db == 0
+            # Check default values
+            assert config.redis_host == "localhost"
+            assert config.redis_port == 6379
+            assert config.redis_password is None
+            assert config.redis_db == 0
+            assert config.redis_max_connections == 20
+            assert config.redis_socket_connect_timeout == 5
+            assert config.redis_socket_keepalive is True
+            assert config.redis_retry_on_timeout is True
+            assert config.redis_health_check_interval == 30
 
-        # Connection pool settings
-        assert config.redis_max_connections == 20
-        assert config.redis_socket_connect_timeout == 5
-        assert config.redis_socket_keepalive is True
-        assert config.redis_retry_on_timeout is True
-        assert config.redis_health_check_interval == 30
-
-    def test_custom_initialization(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test RedisConfig with custom values from environment."""
-        env_vars = {
-            "REDIS_HOST": "redis-cluster.prod.com",
-            "REDIS_PORT": "6380",
-            "REDIS_PASSWORD": "super-secret-password-123",
-            "REDIS_DB": "2",
-            "REDIS_MAX_CONNECTIONS": "50",
-            "REDIS_SOCKET_CONNECT_TIMEOUT": "10",
-            "REDIS_SOCKET_KEEPALIVE": "false",
-            "REDIS_RETRY_ON_TIMEOUT": "false",
-            "REDIS_HEALTH_CHECK_INTERVAL": "60",
-        }
-
-        for key, value in env_vars.items():
-            monkeypatch.setenv(key, value)
+    def test_custom_initialization(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test RedisConfig with custom environment variables."""
+        monkeypatch.setenv("REDIS_HOST", "custom-redis")
+        monkeypatch.setenv("REDIS_PORT", "6380")
+        monkeypatch.setenv("REDIS_PASSWORD", "custom-password")
+        monkeypatch.setenv("REDIS_DB", "2")
+        monkeypatch.setenv("REDIS_MAX_CONNECTIONS", "50")
+        monkeypatch.setenv("REDIS_SOCKET_CONNECT_TIMEOUT", "10")
+        monkeypatch.setenv("REDIS_SOCKET_KEEPALIVE", "false")
+        monkeypatch.setenv("REDIS_RETRY_ON_TIMEOUT", "false")
+        monkeypatch.setenv("REDIS_HEALTH_CHECK_INTERVAL", "60")
 
         config = RedisConfig()
 
-        assert config.redis_host == "redis-cluster.prod.com"
+        assert config.redis_host == "custom-redis"
         assert config.redis_port == 6380
-        assert config.redis_password == "super-secret-password-123"
+        assert config.redis_password == "custom-password"
         assert config.redis_db == 2
         assert config.redis_max_connections == 50
         assert config.redis_socket_connect_timeout == 10
@@ -59,7 +83,7 @@ class TestRedisConfigComprehensive:
         assert config.redis_retry_on_timeout is False
         assert config.redis_health_check_interval == 60
 
-    def test_redis_url_without_password(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_redis_url_without_password(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test Redis URL generation without password."""
         monkeypatch.setenv("REDIS_HOST", "localhost")
         monkeypatch.setenv("REDIS_PORT", "6379")
@@ -71,7 +95,7 @@ class TestRedisConfigComprehensive:
 
         assert config.redis_url == expected_url
 
-    def test_redis_url_with_password(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_redis_url_with_password(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test Redis URL generation with password."""
         monkeypatch.setenv("REDIS_HOST", "redis.example.com")
         monkeypatch.setenv("REDIS_PORT", "6380")
@@ -83,7 +107,7 @@ class TestRedisConfigComprehensive:
 
         assert config.redis_url == expected_url
 
-    def test_redis_url_with_special_characters(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_redis_url_with_special_characters(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test Redis URL generation with special characters in password."""
         monkeypatch.setenv("REDIS_HOST", "redis.example.com")
         monkeypatch.setenv("REDIS_PORT", "6379")
@@ -91,11 +115,11 @@ class TestRedisConfigComprehensive:
         monkeypatch.setenv("REDIS_PASSWORD", "pass@word!#$%")
 
         config = RedisConfig()
-        expected_url = "redis://:pass@word!#$%@redis.example.com:6379/0"
+        expected_url = "redis://:pass%40word%21%23%24%25@redis.example.com:6379/0"
 
         assert config.redis_url == expected_url
 
-    def test_connection_pool_config_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_connection_pool_config_property(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test connection pool configuration dictionary generation."""
         monkeypatch.setenv("REDIS_MAX_CONNECTIONS", "30")
         monkeypatch.setenv("REDIS_SOCKET_CONNECT_TIMEOUT", "8")
@@ -116,7 +140,7 @@ class TestRedisConfigComprehensive:
 
         assert pool_config == expected_config
 
-    def test_is_development_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_is_development_property(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test development environment detection."""
         # Test localhost (development)
         monkeypatch.setenv("REDIS_HOST", "localhost")
@@ -138,7 +162,7 @@ class TestRedisConfigComprehensive:
         config_prod2 = RedisConfig()
         assert config_prod2.is_development is False
 
-    def test_str_representation(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_str_representation(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test string representation of RedisConfig."""
         monkeypatch.setenv("REDIS_HOST", "test-redis-server")
         monkeypatch.setenv("REDIS_PORT", "6380")
