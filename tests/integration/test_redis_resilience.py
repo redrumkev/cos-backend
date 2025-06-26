@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -120,7 +120,9 @@ class TestCircuitBreakerStateTransitions:
         # Third failure should trigger OPEN state
         with pytest.raises(RedisConnectionError):
             await circuit_breaker.call(failing_operation)
-        assert circuit_breaker.state == CircuitBreakerState.OPEN  # type: ignore[comparison-overlap] # Valid state transition test
+        assert (
+            cast(CircuitBreakerState, circuit_breaker.state) == CircuitBreakerState.OPEN
+        )  # Valid state transition test
         assert circuit_breaker.failure_count == 3
 
     async def test_open_blocks_requests(self, circuit_breaker: CircuitBreaker) -> None:
@@ -174,7 +176,9 @@ class TestCircuitBreakerStateTransitions:
 
         # Second success should close circuit
         await circuit_breaker.call(success_operation)
-        assert circuit_breaker.state == CircuitBreakerState.CLOSED  # type: ignore[comparison-overlap] # Valid state transition test
+        assert (
+            cast(CircuitBreakerState, circuit_breaker.state) == CircuitBreakerState.CLOSED
+        )  # Valid state transition test
         assert circuit_breaker.success_count == 0
         assert circuit_breaker.failure_count == 0
 

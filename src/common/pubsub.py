@@ -154,6 +154,7 @@ class CircuitBreaker:
         self._success_count = 0
         self._last_failure_time: float | None = None
         self._next_attempt_time: float | None = None
+        self._state: CircuitBreakerState
 
         # Special case: if failure_threshold is 0, start in OPEN state (always fail fast)
         if failure_threshold == 0:

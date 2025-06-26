@@ -20,7 +20,7 @@ import contextlib
 import json
 import time
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import fakeredis.aioredis
 import pytest
@@ -181,14 +181,14 @@ class TestRedisConfig:
 
     def test_redis_url_generation(self, redis_config: RedisConfig) -> None:
         """Test Redis URL generation from config."""
-        url = redis_config.redis_url
+        url = cast(str, redis_config.redis_url)
         assert url.startswith("redis://")
         assert str(redis_config.redis_port) in url
         assert redis_config.redis_host in url
 
     def test_connection_pool_config(self, redis_config: RedisConfig) -> None:
         """Test connection pool configuration generation."""
-        pool_config = redis_config.connection_pool_config
+        pool_config = cast(dict[str, int | bool], redis_config.connection_pool_config)
 
         expected_keys = {
             "max_connections",
@@ -452,7 +452,9 @@ class TestCircuitBreakerIntegration:
         # Second failure - should open circuit
         with pytest.raises(SimulatedRedisFailureError):
             await circuit_breaker.call(failing_operation)
-        assert circuit_breaker.state == CircuitBreakerState.OPEN  # type: ignore[comparison-overlap] # Valid state transition test
+        assert (
+            cast(CircuitBreakerState, circuit_breaker.state) == CircuitBreakerState.OPEN
+        )  # Valid state transition test
 
         # Third attempt - should fail fast with CircuitBreakerError
         with pytest.raises(CircuitBreakerError):
@@ -486,7 +488,9 @@ class TestCircuitBreakerIntegration:
 
         result = await circuit_breaker.call(success_operation)
         assert result == "success"
-        assert circuit_breaker.state == CircuitBreakerState.CLOSED  # type: ignore[comparison-overlap] # Valid state transition test
+        assert (
+            cast(CircuitBreakerState, circuit_breaker.state) == CircuitBreakerState.CLOSED
+        )  # Valid state transition test
 
     async def test_circuit_breaker_metrics(self, pubsub_client: RedisPubSub) -> None:
         """Test circuit breaker metrics are tracked correctly."""
