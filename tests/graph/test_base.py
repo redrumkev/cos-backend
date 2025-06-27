@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import contextlib
 import os
+from collections.abc import AsyncGenerator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest  # Phase 2: Remove for skip removal
@@ -21,8 +23,8 @@ from src.graph.base import (
     get_neo4j_client,
 )
 
-# Phase 2: Remove this skip block for Neo4j client implementation (P2-GRAPH-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Graph client implementation needed. Trigger: P2-GRAPH-001")
+# Phase 2: Graph client implementation ready - removing skip marker
+# pytestmark = pytest.mark.skip(reason="Phase 2: Graph client implementation needed. Trigger: P2-GRAPH-001")
 
 
 class TestNeo4jClient:
@@ -172,8 +174,14 @@ class TestNeo4jClient:
         with patch.object(client, "connect", new_callable=AsyncMock) as mock_connect:
             mock_session = AsyncMock()
             mock_driver = AsyncMock()
-            mock_driver.session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_driver.session.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            # Create proper async context manager mock
+            mock_session_cm = AsyncMock()
+            mock_session_cm.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_cm.__aexit__ = AsyncMock(return_value=None)
+
+            # Make session() return the context manager synchronously (not async)
+            mock_driver.session = MagicMock(return_value=mock_session_cm)
 
             # Set driver to None to force connection
             client.driver = None
@@ -198,7 +206,12 @@ class TestNeo4jClient:
         # Mock session and result
         mock_record = {"n": {"name": "test"}}
         mock_result = AsyncMock()
-        mock_result.data.return_value = [mock_record]
+
+        # Mock async iteration over result
+        async def mock_async_iter(self: Any) -> AsyncGenerator[dict[str, Any], None]:
+            yield mock_record
+
+        mock_result.__aiter__ = mock_async_iter
 
         mock_session = AsyncMock()
         mock_session.run.return_value = mock_result
@@ -210,7 +223,7 @@ class TestNeo4jClient:
             result = await client.execute_query("MATCH (n) RETURN n")
 
             assert result == [mock_record]
-            mock_session.run.assert_called_once_with("MATCH (n) RETURN n", None)
+            mock_session.run.assert_called_once_with("MATCH (n) RETURN n", {})
 
     @pytest.mark.asyncio
     async def test_execute_query_with_parameters(self) -> None:

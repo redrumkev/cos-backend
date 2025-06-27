@@ -189,7 +189,7 @@ class Neo4jClient:
                     tags=["query", "error"],
                     memo="Failed to execute Cypher query",
                 )
-                raise
+                raise Exception(f"Query failed: {e!s}") from e
 
     @property
     def is_connected(self) -> bool:
