@@ -45,16 +45,16 @@ Edit
 ------
 
 List to Fix:
-scripts/run_performance_tests.py
-src/common/base_subscriber.py
-src/common/message_format.py
-src/common/pubsub.py
-src/common/redis_config.py
-src/db/migrations/versions/07f2af238b83_fix_timezone_columns_for_cc_tables.py
-tests/backend/cc/test_debug_endpoints_enhanced.py
-tests/common/test_base_subscriber.py
-tests/common/test_message_format.py
-tests/common/test_pubsub.py
+[FIXED] scripts/run_performance_tests.py
+[FIXED] src/common/base_subscriber.py
+[FIXED] src/common/message_format.py
+[FIXED] src/common/pubsub.py
+[FIXED] src/common/redis_config.py
+[FIXED] src/db/migrations/versions/07f2af238b83_fix_timezone_columns_for_cc_tables.py
+[FIXED] tests/backend/cc/test_debug_endpoints_enhanced.py
+[FIXED] tests/common/test_base_subscriber.py
+[FIXED] tests/common/test_message_format.py
+[FIXED] tests/common/test_pubsub.py
 tests/common/test_pubsub_circuit_breaker.py
 tests/common/test_pubsub_simple.py
 tests/common/test_redis_config.py
