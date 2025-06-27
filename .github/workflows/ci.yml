@@ -73,6 +73,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
@@ -162,10 +164,12 @@ jobs:
 
         # Get list of modified files in this PR/commit
         if [ "${{ github.event_name }}" == "pull_request" ]; then
-          # For PRs, always compare against main to avoid release branch issues
-          git fetch origin main:main 2>/dev/null || echo "Main branch already available"
-          NEW_FILES=$(git diff --name-only --diff-filter=A origin/main...HEAD | grep '\.py$' || true)
-          MODIFIED_FILES=$(git diff --name-only origin/main...HEAD | grep '\.py$' || true)
+          # For PRs, compare against the actual base branch, not hard-coded main
+          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+          git fetch origin "$BASE_BRANCH":"$BASE_BRANCH" 2>/dev/null || echo "$BASE_BRANCH already available"
+
+          NEW_FILES=$(git diff --name-only --diff-filter=A "$BASE_BRANCH...HEAD" | grep '\.py$' || true)
+          MODIFIED_FILES=$(git diff --name-only "$BASE_BRANCH...HEAD" | grep '\.py$' || true)
         else
           # For push events, check files changed in last commit
           NEW_FILES=$(git diff --name-only --diff-filter=A HEAD~1..HEAD | grep '\.py$' || true)
@@ -237,15 +241,18 @@ jobs:
           # Install diff-cover for new code analysis
           pip install diff-cover
 
-          # Use main as baseline for all comparisons (avoids release branch issues)
-          echo "Using main as coverage baseline for consistent comparisons"
+          # Derive the base branch dynamically so the pipeline works for any
+          # target branch (release/*, develop, etc.)
+          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+          echo "Using $BASE_BRANCH as coverage baseline"
 
-          # Fetch main branch to ensure it's available for comparison
-          git fetch origin main:main 2>/dev/null || echo "Main branch already available"
+          # Ensure we have the full base branch locally (should already exist
+          # from earlier fetch step, but belt & braces)
+          git fetch --depth=0 origin "$BASE_BRANCH":"$BASE_BRANCH" 2>/dev/null || echo "$BASE_BRANCH already available"
 
-          # Check coverage for new/modified lines (90% threshold - practical for single dev)
+          # Check coverage for new/modified lines (90% threshold)
           diff-cover coverage.xml \
-            --compare-branch=origin/main \
+            --compare-branch="$BASE_BRANCH" \
             --fail-under=90 \
             --html-report=diff-coverage.html || {
             echo "❌ New code coverage below 90% threshold"
@@ -306,3 +313,11 @@ jobs:
         fail_ci_if_error: false
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Fetch base branch for diff-cover (PRs only)
+      if: github.event_name == 'pull_request'
+      run: |
+        # Fetch the *entire* history of the base branch so merge-base exists.
+        BASE="${{ github.event.pull_request.base.ref }}"
+        echo "Fetching base branch $BASE for diff coverage analysis"
+        git fetch --depth=0 origin "$BASE":"$BASE"
