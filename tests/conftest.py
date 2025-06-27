@@ -143,11 +143,46 @@ if os.getenv("RUN_INTEGRATION", "0") == "0":
 
                 async def fetch(self, *args: Any, **kwargs: Any) -> list[Any]:
                     """Stub for asyncpg fetch method."""
+                    # Return mock data for common PostgreSQL queries
+                    if args and "version()" in str(args[0]):
+                        return [("PostgreSQL 17.5 (Mock)",)]
                     return []
 
                 async def fetchrow(self, *args: Any, **kwargs: Any) -> Any:
                     """Stub for asyncpg fetchrow method."""
+                    # Return mock data for common PostgreSQL queries
+                    if args and "version()" in str(args[0]):
+                        return {"version": "PostgreSQL 17.5 (Mock)"}
                     return None
+
+                async def prepare(self, *args: Any, **kwargs: Any) -> Any:
+                    """Stub for asyncpg prepare method."""
+
+                    class _DummyPreparedStatement:
+                        async def fetch(self, *args: Any, **kwargs: Any) -> list[Any]:
+                            # Return mock data for common PostgreSQL queries
+                            if args and "version()" in str(args[0]):
+                                return [("PostgreSQL 17.5 (Mock)",)]
+                            return []
+
+                        async def fetchrow(self, *args: Any, **kwargs: Any) -> Any:
+                            # Return mock data for common PostgreSQL queries
+                            if args and "version()" in str(args[0]):
+                                return {"version": "PostgreSQL 17.5 (Mock)"}
+                            return None
+
+                        async def execute(self, *args: Any, **kwargs: Any) -> Any:
+                            return None
+
+                        def get_attributes(self) -> tuple[Any, ...]:
+                            """Stub for asyncpg get_attributes method."""
+                            return ()
+
+                        def get_statusmsg(self) -> str:
+                            """Stub for asyncpg get_statusmsg method."""
+                            return "SELECT 0"
+
+                    return _DummyPreparedStatement()
 
                 def transaction(self, *args: Any, **kwargs: Any) -> Any:
                     """Stub for asyncpg transaction method."""

@@ -17,8 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.backend.cc.crud import create_module, get_modules
 from src.backend.cc.services import create_module as service_create_module
 
-# Phase 2: Remove this skip block for end-to-end integration testing (P2-INTEGRATION-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: End-to-end integration testing needed. Trigger: P2-INTEGRATION-001")
+# Phase 2: Integration testing enabled
 
 
 @pytest.mark.xfail(reason="Savepoint issues - see Sprint 2 backlog for stabilization")

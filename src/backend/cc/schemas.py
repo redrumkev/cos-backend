@@ -32,6 +32,12 @@ class HealthStatusResponse(BaseModel):
     last_updated: datetime = Field(..., description="Timestamp of the last status update.")
     details: str | None = Field(None, description="Additional details about the status.")
 
+    @field_validator("id", mode="before")
+    @classmethod
+    def validate_id(cls, value: Any) -> str:
+        """Convert UUID to string if needed."""
+        return str(value)
+
     @field_serializer("last_updated")
     def serialize_last_updated(self, value: datetime) -> str:
         """Serialize datetime to ISO-8601 string."""
