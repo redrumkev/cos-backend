@@ -139,10 +139,10 @@ class BaseLog(Base):
 
     # Relationships to child tables
     prompt_traces: Mapped[list["PromptTrace"]] = relationship(
-        "PromptTrace", back_populates="base_log", cascade="all, delete-orphan"
+        lambda: PromptTrace, back_populates="base_log", cascade="all, delete-orphan"
     )
     event_logs: Mapped[list["EventLog"]] = relationship(
-        "EventLog", back_populates="base_log", cascade="all, delete-orphan"
+        lambda: EventLog, back_populates="base_log", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
@@ -210,7 +210,7 @@ class PromptTrace(Base):
     )
 
     # Relationship to parent BaseLog
-    base_log: Mapped["BaseLog"] = relationship("BaseLog", back_populates="prompt_traces")
+    base_log: Mapped["BaseLog"] = relationship(lambda: BaseLog, back_populates="prompt_traces")
 
     def __repr__(self) -> str:
         """Return string representation of PromptTrace."""
@@ -286,7 +286,7 @@ class EventLog(Base):
     )
 
     # Relationship to parent BaseLog
-    base_log: Mapped["BaseLog"] = relationship("BaseLog", back_populates="event_logs")
+    base_log: Mapped["BaseLog"] = relationship(lambda: BaseLog, back_populates="event_logs")
 
     def __repr__(self) -> str:
         """Return string representation of EventLog."""

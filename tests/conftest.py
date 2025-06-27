@@ -27,6 +27,15 @@ if str(project_root) not in sys.path:
 # Import database components
 from src.db.base import Base  # noqa: E402
 
+# Import all model modules to register them with Base metadata
+# This ensures that create_all() will create all necessary tables
+try:
+    from src.backend.cc import mem0_models  # noqa: F401
+    from src.backend.cc import models as cc_models  # noqa: F401
+except ImportError:
+    # Models may not be available in some test environments
+    pass
+
 # FORCE ALL TESTS TO USE DEV DATABASE (port 5433) - NO port 5434 allowed!
 # This overrides any DATABASE_URL_TEST settings to eliminate port 5434 usage.
 # During Phase 2, all database operations MUST go to cos_postgres_dev (port 5433).

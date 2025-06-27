@@ -15,8 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.mem0_models import ScratchNote
 
-# Phase 2: Remove this skip block for Mem0 module implementation (P2-MEM0-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Mem0 module implementation needed. Trigger: P2-MEM0-001")
+# Phase 2: P2-MEM0-001 skip removed - implementing complete mem0 router with PostgreSQL
 
 
 @pytest.mark.asyncio

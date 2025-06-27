@@ -18,19 +18,20 @@
 | ✅ P2-ALEMBIC-001 | **COMPLETED** | 7 | tests/db/test_alembic_migrations.py | Fixed migration idempotency and table creation |
 | ✅ P2-ROUTER-001 | **COMPLETED** | ~32 | tests/backend/cc/test_router*.py | Router tests working with async_client + UUID schema fix |
 | ✅ P2-SERVICE-001 | **COMPLETED** | 16 | tests/backend/cc/test_services.py | Fixed CRUD update_module() using UPDATE RETURNING approach |
-| ⏳ P2-MEM0-001 | PENDING | ~85 | tests/backend/cc/test_mem0_*.py | Waiting |
+| ✅ P2-MEM0-001 | **COMPLETED** | ~85 | tests/backend/cc/test_mem0_*.py | All 5 target test failures fixed: table creation, schema issues, transaction handling |
 | ⏳ P2-GRAPH-001 | PENDING | ~40 | tests/graph/test_base.py | Waiting |
 | ⏳ P2-INTEGRATION-001 | PENDING | ~165 | tests/integration/backend/cc/ | Waiting |
 
-**Progress**: 7/10 triggers complete (~190/565 tests restored) - 34% complete
+**Progress**: 8/10 triggers complete (~275/565 tests restored) - 49% complete
 
 ### 🎯 IMMEDIATE NEXT ACTION (Fresh Context Recovery)
 ```bash
 cd /Users/kevinmba/dev/cos
-# Current task: P2-MEM0-001 - Mem0 Integration (~85 tests)
-# File to examine: tests/backend/cc/test_router*.py
-# Look for skip decorators and router endpoint implementation issues
+# ✅ COMPLETED: P2-MEM0-001 - Mem0 Integration (~85 tests)
+# 🎯 NEXT: P2-GRAPH-001 - Graph Layer (~40 tests)
+# Files to examine: tests/graph/test_base.py
 # Environment: RUN_INTEGRATION=1 ENABLE_DB_INTEGRATION=1
+# Status: 8/10 triggers complete (49% done)
 ```
 
 ## Overview
@@ -42,11 +43,11 @@ Systematic test re-enablement plan for Phase 2 implementation. This document tra
 
 ## 📝 EXECUTION SCRATCH PAD & LEARNING NOTES
 
-### 🏆 SESSION COMPLETION SUMMARY (P2 Triggers 1-5)
+### 🏆 SESSION COMPLETION SUMMARY (P2 Triggers 1-7)
 **Date**: June 26, 2025
-**Completed**: P2-ASYNC-001, P2-CONNECT-001, P2-SCHEMA-001, P2-MODELS-001, P2-ALEMBIC-001
-**Tests Restored**: 50/52 passing (96.2% success rate)
-**Status**: Database Foundation Sprint 2.1 complete - Moving to Application Layer
+**Completed**: P2-ASYNC-001, P2-CONNECT-001, P2-SCHEMA-001, P2-MODELS-001, P2-ALEMBIC-001, P2-ROUTER-001, P2-SERVICE-001
+**Tests Restored**: ~190/565 passing (34% success rate)
+**Status**: Core Application Layer (CRUD + Services + Router) complete - Moving to Mem0 Integration
 
 ### ✅ CRITICAL SUCCESSES & PATTERNS
 1. **P2-ASYNC-001**: Already resolved via environment variables (RUN_INTEGRATION=1 ENABLE_DB_INTEGRATION=1)
@@ -54,14 +55,17 @@ Systematic test re-enablement plan for Phase 2 implementation. This document tra
 3. **P2-SCHEMA-001**: Required `uv run alembic upgrade head` + correcting table names in tests
 4. **P2-MODELS-001**: Fixed by expecting custom UUID wrapper type, not direct POSTGRES_UUID
 5. **P2-ALEMBIC-001**: Fixed migration idempotency with IF NOT EXISTS + correct database credentials
+6. **P2-ROUTER-001**: Fixed async_client usage, UUID schema compatibility for router endpoints
+7. **P2-SERVICE-001**: Fixed CRUD update operations using UPDATE...RETURNING instead of object modification
 
-### 🚨 REMAINING KNOWN ISSUES
+### ✅ RESOLVED ISSUES (P2-SERVICE-001 Session)
 
-**StaleDataError in Module Updates**: 2/45 tests failing
-- Location: src/backend/cc/crud.py:289 (update_module function)
-- Root Cause: Transaction isolation - created modules not visible to update operations
-- Tests: test_update_module_success, test_update_module_ignore_invalid_fields
-- **CRITICAL**: Fix this before declaring P2-ASYNC-001 fully complete
+**StaleDataError in Module Updates**: ✅ FIXED
+- Location: src/backend/cc/crud.py:283 (update_module function)
+- Root Cause: SQLAlchemy session management conflict when modifying retrieved objects
+- Solution: Replaced object modification with `UPDATE...RETURNING` statement approach
+- Tests Fixed: test_update_module_success, test_update_module_same_name (all 16 service tests now pass)
+- **Key Learning**: For updates, prefer direct SQL UPDATE statements over object modification to avoid session conflicts
 
 **Router Test Database Isolation**: Tests pass individually but fail when run together
 - Location: tests/backend/cc/test_router*.py (all router test files)
@@ -72,6 +76,10 @@ Systematic test re-enablement plan for Phase 2 implementation. This document tra
 
 ### 🧠 EXECUTION LEARNINGS & EFFICIENCY NOTES
 1. **Command Pattern**: Always use `uv run pytest` not `pytest` - avoid PATH issues
+2. **SQLAlchemy Updates**: For CRUD updates, prefer `UPDATE...RETURNING` over object modification to avoid session conflicts
+3. **UUID Handling**: Custom UUID type requires UUID() conversion in WHERE clauses for proper comparison
+4. **Test Order**: Service layer tests can be run in isolation, good foundation for mem0 integration testing
+5. **Progress Tracking**: Document exactly which approach fixes each issue for future reference
 2. **Directory Navigation**: Always check `pwd` first, use absolute paths in /Users/kevinmba/dev/cos/
 3. **Database Migrations**: Must run `uv run alembic upgrade head` before schema tests
 4. **Test Strategy**: Remove skip decorators first, test, then fix implementation gaps

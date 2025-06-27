@@ -183,12 +183,25 @@ class TestScratchNoteDatabase:
         # Query for expired notes (should use ix_scratch_expires_created index)
         # Use datetime.now(UTC) in Python instead of SQL NOW() for SQLite compatibility
         current_time_param = datetime.now(UTC)
-        result = await db_session.execute(
-            text("""
+        # Use schema-qualified table name for integration tests
+        import os
+
+        # Use safe schema qualification without f-string injection risk
+        if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
+            query = """
+            SELECT key FROM mem0_cc.scratch_note
+            WHERE expires_at IS NOT NULL AND expires_at <= :current_time
+            ORDER BY expires_at, created_at
+            """
+        else:
+            query = """
             SELECT key FROM scratch_note
             WHERE expires_at IS NOT NULL AND expires_at <= :current_time
             ORDER BY expires_at, created_at
-            """),
+            """
+
+        result = await db_session.execute(
+            text(query),
             {"current_time": current_time_param},
         )
         expired_keys = [row[0] for row in result.fetchall()]

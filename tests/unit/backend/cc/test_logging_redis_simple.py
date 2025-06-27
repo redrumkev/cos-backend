@@ -5,7 +5,7 @@ full database setup. This allows validation of the core Redis publishing logic.
 """
 
 import uuid
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, Mock, patch
 
 
 class TestPublishL1EventFunction:
@@ -43,10 +43,10 @@ class TestPublishL1EventFunction:
         await _publish_l1_event(log_id, event_data)
 
         # Verify Redis publish was called
-        mock_pubsub.publish.assert_called_once_with("mem0.recorded.cc", event_data)
+        mock_pubsub.publish.assert_called_once_with("mem0.recorded.cc", event_data, correlation_id=ANY)
 
-        # Verify Logfire span was created
-        mock_logfire.span.assert_called_once_with("publish_l1_event", kind="producer")
+        # Verify Logfire span was created with additional parameters
+        mock_logfire.span.assert_called_once_with("publish_l1_event", kind="producer", log_id=ANY, correlation_id=ANY)
 
         # Verify span attributes were set
         mock_span.set_attribute.assert_any_call("log_id", str(log_id))
@@ -203,7 +203,7 @@ class TestRedisChannelAndMessageFormat:
         await _publish_l1_event(log_id, event_data)
 
         # Verify correct channel is used
-        mock_pubsub.publish.assert_called_once_with("mem0.recorded.cc", event_data)
+        mock_pubsub.publish.assert_called_once_with("mem0.recorded.cc", event_data, correlation_id=ANY)
 
     @patch("src.backend.cc.logging.get_pubsub")
     @patch("src.backend.cc.logging.logfire")
@@ -234,7 +234,7 @@ class TestRedisChannelAndMessageFormat:
         await _publish_l1_event(log_id, complex_event_data)
 
         # Verify the exact data structure is passed to Redis
-        mock_pubsub.publish.assert_called_once_with("mem0.recorded.cc", complex_event_data)
+        mock_pubsub.publish.assert_called_once_with("mem0.recorded.cc", complex_event_data, correlation_id=ANY)
 
 
 class TestObservabilityIntegration:

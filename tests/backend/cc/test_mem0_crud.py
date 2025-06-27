@@ -217,10 +217,11 @@ class TestMem0CRUD:
         active_note.expires_at = current_time + timedelta(days=1)
         db_session.add(active_note)
 
-        await db_session.commit()
+        # Don't commit - let the test framework manage transactions
+        # await db_session.commit()
 
-        # Run cleanup
-        deleted_count = await mem0_crud.cleanup_expired_notes(db_session, batch_size=10)
+        # Run cleanup (disable auto_commit for test transaction management)
+        deleted_count = await mem0_crud.cleanup_expired_notes(db_session, batch_size=10, auto_commit=False)
 
         assert deleted_count == 3
 
@@ -238,20 +239,20 @@ class TestMem0CRUD:
             expired_note.expires_at = current_time - timedelta(days=1)
             db_session.add(expired_note)
 
-        await db_session.commit()
+        # Don't commit - let the test framework manage transactions
 
         # Run cleanup with small batch size - should only delete batch_size items
-        deleted_count = await mem0_crud.cleanup_expired_notes(db_session, batch_size=2)
+        deleted_count = await mem0_crud.cleanup_expired_notes(db_session, batch_size=2, auto_commit=False)
 
         # Should delete only 2 notes (the batch size)
         assert deleted_count == 2
 
         # Run again to delete remaining notes
-        deleted_count_2 = await mem0_crud.cleanup_expired_notes(db_session, batch_size=2)
+        deleted_count_2 = await mem0_crud.cleanup_expired_notes(db_session, batch_size=2, auto_commit=False)
         assert deleted_count_2 == 2
 
         # Run final cleanup
-        deleted_count_3 = await mem0_crud.cleanup_expired_notes(db_session, batch_size=2)
+        deleted_count_3 = await mem0_crud.cleanup_expired_notes(db_session, batch_size=2, auto_commit=False)
         assert deleted_count_3 == 1  # Last remaining note
 
     async def test_count_scratch_notes(self, db_session: AsyncSession) -> None:

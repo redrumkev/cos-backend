@@ -9,7 +9,7 @@ Following TDD methodology: RED → GREEN → REFACTOR
 import asyncio
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, Mock, patch
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -162,8 +162,8 @@ class TestPublishL1EventFunction:
         # Should complete without error
         await _publish_l1_event(log_id, event_data)
 
-        # Verify Redis publish was called
-        mock_pubsub.publish.assert_called_once_with("mem0.recorded.cc", event_data)
+        # Verify Redis publish was called with correlation_id
+        mock_pubsub.publish.assert_called_once_with("mem0.recorded.cc", event_data, correlation_id=ANY)
 
     @patch("src.backend.cc.logging.get_pubsub")
     async def test_publish_l1_event_redis_error_isolation(self, mock_get_pubsub: AsyncMock, caplog: Any) -> None:
@@ -203,8 +203,8 @@ class TestPublishL1EventFunction:
 
         await _publish_l1_event(log_id, event_data)
 
-        # Verify Logfire span was created
-        mock_logfire.span.assert_called_once_with("publish_l1_event", kind="producer")
+        # Verify Logfire span was created with additional parameters
+        mock_logfire.span.assert_called_once_with("publish_l1_event", kind="producer", log_id=ANY, correlation_id=ANY)
 
 
 class TestSQLAlchemyAfterCommitIntegration:
