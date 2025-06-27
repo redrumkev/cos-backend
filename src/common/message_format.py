@@ -108,9 +108,8 @@ class MessageEnvelope(BaseModel):
                 data["base_log_id"] = str(data["base_log_id"])
             json_bytes: bytes = orjson.dumps(data)
             return json_bytes.decode("utf-8")
-        else:
-            # Fall back to Pydantic's standard serialization
-            return super().model_dump_json(by_alias=True, **kwargs)
+        # Fall back to Pydantic's standard serialization
+        return super().model_dump_json(by_alias=True, **kwargs)
 
 
 def build_message(

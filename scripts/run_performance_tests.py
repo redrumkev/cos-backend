@@ -4,8 +4,7 @@
 Runs comprehensive performance-, resource-usage-, and failure-scenario test
 suites to validate COS production readiness.
 """
-
-# ruff: noqa
+# ruff: noqa: S603
 
 from __future__ import annotations
 
