@@ -19,7 +19,7 @@
 | ✅ P2-ROUTER-001 | **COMPLETED** | ~32 | tests/backend/cc/test_router*.py | Router tests working with async_client + UUID schema fix |
 | ✅ P2-SERVICE-001 | **COMPLETED** | 16 | tests/backend/cc/test_services.py | Fixed CRUD update_module() using UPDATE RETURNING approach |
 | ✅ P2-MEM0-001 | **COMPLETED** | ~85 | tests/backend/cc/test_mem0_*.py | All 5 target test failures fixed: table creation, schema issues, transaction handling |
-| ⏳ P2-GRAPH-001 | PENDING | ~40 | tests/graph/test_base.py | Waiting |
+| 🎯 P2-GRAPH-001 | **ACTIVE** | ~40 | tests/graph/test_base.py | Neo4j client implementation |
 | ⏳ P2-INTEGRATION-001 | PENDING | ~165 | tests/integration/backend/cc/ | Waiting |
 
 **Progress**: 8/10 triggers complete (~275/565 tests restored) - 49% complete
