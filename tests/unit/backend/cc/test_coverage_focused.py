@@ -16,8 +16,7 @@ from src.backend.cc import crud
 from src.backend.cc.models import HealthStatus, Module
 from src.common.logger import log_event
 
-# Phase 2: Remove this skip block for coverage testing (P2-COVERAGE-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Coverage testing needed. Trigger: P2-COVERAGE-001")
+# Phase 2: Skip block removed for coverage testing (P2-COVERAGE-001 completed)
 
 
 class TestConnectionCoverage:
@@ -37,7 +36,9 @@ class TestConnectionCoverage:
         from src.db.connection import _database_url_for_tests
 
         url = _database_url_for_tests()
-        assert "sqlite" in url
+        # Phase 2: All tests now use dev PostgreSQL database, not SQLite
+        assert "postgresql" in url
+        assert "5433" in url  # Dev database port
 
     @patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "test_something"})
     def test_database_url_for_tests_in_pytest(self) -> None:
@@ -45,7 +46,9 @@ class TestConnectionCoverage:
         from src.db.connection import _database_url_for_tests
 
         url = _database_url_for_tests()
-        assert "sqlite" in url
+        # Phase 2: All tests now use dev PostgreSQL database, not SQLite
+        assert "postgresql" in url
+        assert "5433" in url  # Dev database port
 
     def test_get_async_db_session_factory(self) -> None:
         """Test get_async_db function."""
@@ -61,8 +64,9 @@ class TestCrudErrorPaths:
     @pytest.mark.asyncio
     async def test_create_module_db_error(self, db_session: Any) -> None:
         """Test create_module with database error."""
+        # Mock the commit operation to raise an error (more realistic scenario)
         with (
-            patch.object(db_session, "add", side_effect=SQLAlchemyError("DB Error")),
+            patch.object(db_session, "commit", side_effect=SQLAlchemyError("DB Error")),
             pytest.raises(SQLAlchemyError),
         ):
             await crud.create_module(db_session, "test_module", "1.0.0")
@@ -79,11 +83,13 @@ class TestCrudErrorPaths:
     @pytest.mark.asyncio
     async def test_get_module_db_error(self, db_session: Any) -> None:
         """Test get_module with database error."""
+        # Use a valid UUID format
+        test_uuid = "12345678-1234-5678-9abc-123456789abc"
         with (
             patch.object(db_session, "execute", side_effect=SQLAlchemyError("DB Error")),
             pytest.raises(SQLAlchemyError),
         ):
-            await crud.get_module(db_session, "test-id")
+            await crud.get_module(db_session, test_uuid)
 
 
 class TestLoggingCoverage:

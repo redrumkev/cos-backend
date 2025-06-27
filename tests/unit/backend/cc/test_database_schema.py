@@ -2,12 +2,9 @@ from __future__ import annotations
 
 import os
 
-import pytest  # Phase 2: Remove for skip removal
+import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
-# Phase 2: Remove this skip block for schema creation (P2-SCHEMA-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Database schema creation needed. Trigger: P2-SCHEMA-001")
 
 
 @pytest.mark.asyncio
@@ -20,7 +17,7 @@ async def test_cc_tables_exist(test_db_session: AsyncSession) -> None:
             assert result.scalar(), f"{qualified} is missing"
     else:
         # SQLite without schemas
-        for table_name in ("cc_health_status", "cc_modules"):
+        for table_name in ("health_status", "modules"):
             result = await test_db_session.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' AND name=:table_name"),
                 {"table_name": table_name},

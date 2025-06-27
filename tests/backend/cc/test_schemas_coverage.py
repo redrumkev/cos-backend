@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest  # Phase 2: Remove for skip removal
+import pytest
 from pydantic import ValidationError
 
 from src.backend.cc.schemas import (
@@ -20,9 +20,6 @@ from src.backend.cc.schemas import (
     ModulePingResponse,
     ModuleUpdate,
 )
-
-# Phase 2: Remove this skip block for schema/migration creation (P2-SCHEMA-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Schema/migration creation needed. Trigger: P2-SCHEMA-001")
 
 
 class TestFieldSerializers:

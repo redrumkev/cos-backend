@@ -10,8 +10,7 @@ from fastapi.testclient import TestClient
 
 from src.backend.cc.cc_main import cc_app, cc_router, lifespan
 
-# Phase 2: Remove this skip block for main module testing (P2-MAIN-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Main module testing needed. Trigger: P2-MAIN-001")
+# Phase 2: Skip block removed - main module testing enabled (P2-MAIN-001)
 
 # Import the infrastructure skip marker from conftest
 

@@ -103,7 +103,7 @@ async def http_client() -> AsyncGenerator[AsyncClient, None]:
 # ---------------------------------------------------------------------------
 
 
-async def run_docker_command(*args: str, timeout: float = 30.0) -> None:
+async def run_docker_command(*args: str, command_timeout: float = 30.0) -> None:
     """Run a docker CLI command asynchronously with timeout protection.
 
     This helper prevents blocking the event-loop (addresses ASYNC101) and also
@@ -114,22 +114,20 @@ async def run_docker_command(*args: str, timeout: float = 30.0) -> None:
         raise RuntimeError("`docker` executable not found - required for integration tests.")
 
     try:
-        proc = await asyncio.wait_for(
-            asyncio.create_subprocess_exec(
+        async with asyncio.timeout(command_timeout):
+            proc = await asyncio.create_subprocess_exec(
                 docker_path,
                 *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-            ),
-            timeout=timeout,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            )
+            stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
             cmd_list = [docker_path, *args]
             return_code = proc.returncode or -1  # Handle None case
             raise subprocess.CalledProcessError(return_code, cmd_list, output=stdout, stderr=stderr)
     except TimeoutError as e:
-        raise TimeoutError(f"Docker command timed out after {timeout}s: {args}") from e
+        raise TimeoutError(f"Docker command timed out after {command_timeout}s: {args}") from e
 
 
 async def check_service_health(service_name: str) -> bool:

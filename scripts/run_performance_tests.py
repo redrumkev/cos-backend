@@ -217,7 +217,7 @@ class PerformanceTestRunner:
 
             status = "✅ PASSED" if result["success"] else "❌ FAILED"
             console.print(
-                f"{status} - {result['passed']}/{result['test_count']} tests " f"passed in {result['duration']:.1f}s"
+                f"{status} - {result['passed']}/{result['test_count']} tests passed in {result['duration']:.1f}s"
             )
 
             if result["errors"]:
@@ -331,7 +331,7 @@ class PerformanceTestRunner:
             if isinstance(result, dict) and "success" in result:
                 status = "✅ PASS" if result["success"] else "❌ FAIL"
                 console.print(
-                    f"  {key.replace('_', ' ').title()}: {status} " f"({result['passed']}/{result['test_count']} tests)"
+                    f"  {key.replace('_', ' ').title()}: {status} ({result['passed']}/{result['test_count']} tests)"
                 )
 
         # Infrastructure status

@@ -11,8 +11,7 @@ from fastapi.testclient import TestClient
 
 from src.graph.router import router as graph_router
 
-# Phase 2: Remove this skip block for Neo4j client implementation (P2-GRAPH-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Graph client implementation needed. Trigger: P2-GRAPH-001")
+# Phase 2: Skip block removed for Neo4j client implementation (P2-GRAPH-001 completed)
 
 
 @pytest.mark.xfail(reason="Flaky test - see Sprint 2 backlog for stabilization")

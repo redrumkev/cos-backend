@@ -336,7 +336,7 @@ class CircuitBreaker:
             # Check if request can be attempted
             if not await self._can_attempt_request():
                 raise CircuitBreakerError(
-                    f"Circuit breaker is {self._state.value}. " f"Next attempt at {self._next_attempt_time}"
+                    f"Circuit breaker is {self._state.value}. Next attempt at {self._next_attempt_time}"
                 )
 
         try:

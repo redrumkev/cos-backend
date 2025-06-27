@@ -14,8 +14,7 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Phase 2: Remove this skip block for dependency injection wiring (P2-DEPS-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Dependency injection wiring needed. Trigger: P2-DEPS-001")
+# Phase 2: Skip block removed - dependency injection wiring completed (P2-DEPS-001)
 
 
 def test_dependency_imports() -> None:

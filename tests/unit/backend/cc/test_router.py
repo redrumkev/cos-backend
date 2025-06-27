@@ -8,11 +8,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest  # Phase 2: Remove for skip removal
 from fastapi.testclient import TestClient
-
-# Phase 2: Remove this skip block for API router testing (P2-ROUTER-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: API router testing needed. Trigger: P2-ROUTER-001")
 
 
 class TestModuleRouterEndpoints:

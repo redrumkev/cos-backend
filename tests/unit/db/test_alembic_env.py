@@ -11,10 +11,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest  # Phase 2: Remove for skip removal
-
-# Phase 2: Remove this skip block for Alembic migration testing (P2-ALEMBIC-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Alembic migration testing needed. Trigger: P2-ALEMBIC-001")
+import pytest
 
 
 @pytest.mark.xfail(reason="Context.config monkey-patch issues - see Sprint 2 backlog for stabilization")
