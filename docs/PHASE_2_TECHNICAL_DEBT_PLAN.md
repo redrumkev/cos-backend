@@ -83,92 +83,61 @@ find tests/ -name "*.py" -exec grep -l "P2-INTEGRATION-001" {} \;
 - Fix underlying issues before proceeding to next sprint
 - Maintain branch stability at all times
 
-## Detailed P2 Trigger Definitions (Historical Reference)
+## Open P2 Trigger Cleanup Focus
 
-### P2-ASYNC-001: Async/SQLAlchemy Configuration
-- **Files**: `tests/backend/cc/test_crud.py`
-- **Issue**: Event loop mismatch in async database operations
-- **Root Cause**: pytest-asyncio fixtures and SQLAlchemy async operations not properly configured
-- **Solution**: Configure pytest-asyncio fixtures properly, ensure proper async session management
-- **Sprint**: Sprint 2.1 (Database Foundation)
-- **Estimated Tests**: ~45 tests
+Below are the **only** Phase-2 tags that still have live `pytest.mark.skip` lines in the codebase. Each row shows the grep pattern to search for and the exact files/lines that need attention. Once every file in a row is fixed (skip removed or converted to an assertion), the row should be deleted from this list.
 
-### P2-MEM0-001: Mem0 Module Implementation
-- **Files**: `tests/backend/cc/test_mem0_*.py`
-- **Issue**: Mem0 CRUD, router, service stubs need full implementation
-- **Root Cause**: ScratchNote model, TTL cleanup, background tasks are stubbed
-- **Solution**: Implement complete Mem0 CRUD operations, TTL cleanup service, background task orchestration
-- **Sprint**: Sprint 2.2 (Memory Layer)
-- **Estimated Tests**: ~85 tests
+| Trigger Pattern | Active Skip Locations |
+|-----------------|-----------------------|
+| `P2-SCHEMA-001` | tests/backend/cc/test_schemas_coverage.py:24<br/>tests/backend/cc/test_schemas.py:21<br/>tests/unit/backend/cc/test_schemas.py:22<br/>tests/unit/backend/cc/test_database_schema.py:9 |
+| `P2-MODELS-001` | tests/backend/cc/test_models_coverage.py:19<br/>tests/unit/backend/cc/test_models_coverage.py:19<br/>tests/unit/backend/cc/test_models.py:19 |
+| `P2-ALEMBIC-001` | tests/unit/db/test_alembic_env.py:16 |
+| `P2-ROUTER-001` | tests/unit/backend/cc/test_router.py:14 |
+| `P2-SERVICE-001` | tests/backend/cc/test_services_edge_cases.py:28<br/>tests/unit/backend/cc/test_services.py:23 |
+| `P2-GRAPH-001` | tests/graph/test_router.py:14<br/>tests/graph/test_registry.py:18<br/>tests/graph/test_service.py:13 |
 
-### P2-SCHEMA-001: Database Schema Creation
-- **Files**: `tests/backend/cc/test_database_schema.py`
-- **Issue**: cc_* tables not created by migrations
-- **Root Cause**: Alembic migration scripts incomplete
-- **Solution**: Write idempotent Alembic scripts for all cc module tables
-- **Sprint**: Sprint 2.1 (Database Foundation)
-- **Estimated Tests**: ~25 tests
+> **Goal:** Iterate until this table is empty—meaning **zero** `P2-*` skip markers remain in the repo.
 
-### P2-MODELS-001: SQLAlchemy Model Alignment
-- **Files**: `tests/backend/cc/test_models.py`
-- **Issue**: Column types don't match test expectations
-- **Root Cause**: UUID, JSON, Timestamp column definitions inconsistent
-- **Solution**: Align SQLAlchemy model definitions with test expectations
-- **Sprint**: Sprint 2.1 (Database Foundation)
-- **Estimated Tests**: ~35 tests
+---
 
-### P2-ROUTER-001: Router Implementation
-- **Files**: `tests/backend/cc/test_router*.py`
-- **Issue**: Router endpoints not fully wired
-- **Root Cause**: FastAPI router mounting, dependency injection incomplete
-- **Solution**: Mount /cc router, wire all dependencies, add request/response validation
-- **Sprint**: Sprint 2.2 (Application Layer)
-- **Estimated Tests**: ~65 tests
-
-### P2-SERVICE-001: Service Layer Implementation
-- **Files**: `tests/backend/cc/test_services.py`
-- **Issue**: Service functions are stubs
-- **Root Cause**: Business logic layer not implemented
-- **Solution**: Wire services to CRUD, implement error handling, pagination, validation
-- **Sprint**: Sprint 2.2 (Application Layer)
-- **Estimated Tests**: ~55 tests
-
-### P2-ALEMBIC-001: Migration Scripts
-- **Files**: `tests/db/test_alembic_migrations.py`
-- **Issue**: Non-idempotent migration scripts
-- **Root Cause**: Migration upgrade/downgrade logic incomplete
-- **Solution**: Fix upgrade/downgrade operations, ensure schema target consistency
-- **Sprint**: Sprint 2.1 (Database Foundation)
-- **Estimated Tests**: ~20 tests
-
-### P2-CONNECT-001: Database Connection Logic
-- **Files**: `tests/db/test_connection.py`
-- **Issue**: URL construction and pool settings failures
-- **Root Cause**: Test vs production mode configuration, async engine setup
-- **Solution**: Fix connection URL construction, async engine configuration, pool settings
-- **Sprint**: Sprint 2.1 (Database Foundation)
-- **Estimated Tests**: ~30 tests
-
-### P2-GRAPH-001: Neo4j Client Implementation
-- **Files**: `tests/graph/test_base.py`
-- **Issue**: Graph client auto-connect and error handling
-- **Root Cause**: Neo4j session management, transaction handling not implemented
-- **Solution**: Implement Neo4j session management, transaction handling, connection pooling
-- **Sprint**: Sprint 2.3 (Graph Layer)
-- **Estimated Tests**: ~40 tests
-
-### P2-INTEGRATION-001: End-to-End Integration
-- **Files**: `tests/integration/backend/cc/`
-- **Issue**: Real database integration not ready
-- **Root Cause**: Full stack wiring incomplete
-- **Solution**: Wire complete stack with test database, implement end-to-end workflows
-- **Sprint**: Sprint 2.4 (Integration Layer)
-- **Estimated Tests**: ~165 tests
+*The legacy, fully-resolved triggers (`P2-ASYNC-001`, `P2-CONNECT-001`, `P2-MEM0-001`, `P2-INTEGRATION-001`) have been removed from this document; their work is archived in the history file.*
 
 ## Total Test Impact
 - **Total Skipped Tests**: ~565 tests
 - **Current Passing Tests**: ~5-10 tests (basic unit tests)
 - **Phase 2 Target**: 570+ tests with 97% coverage
+
+## Current Technical Priorities
+
+*Phase 2 functional work is declared **100 % complete**, but only **~322 of 565** tests (≈ 57 %) execute green.  The remaining ~240 tests are still blocked by `pytest.skip` markers or lingering infrastructure gaps.*
+
+1. **Eliminate all active `P2-*` skip markers**
+   • Work through the two tables below (core triggers + other tags) and remove each skip.
+   • Re-run the suite after every small batch to surface real failures early.
+2. **Fix failing tests uncovered by skip removal**
+   • Prioritise database → models → router/service → graph to minimise cascading failures.
+3. **Drive coverage to ≥ 97 %**
+   • Once skips are gone, create new tests for any code still uncovered.
+4. **CI signal must stay green & < 10 min**
+   • Optimise fixtures where needed; watch for DB-locking or long-running integration cases.
+
+### Other Phase-2 Tags With Active `skip` Markers
+
+| Tag | Active Skip Locations |
+|-----|-----------------------|
+| `P2-DEPS-001` | tests/backend/cc/test_deps.py:10<br/>tests/backend/cc/test_deps_coverage.py:15<br/>tests/unit/backend/cc/test_deps_isolated.py:17<br/>tests/unit/backend/cc/test_deps.py:9 |
+| `P2-CRUD-001` | tests/backend/cc/test_crud_coverage.py:15 |
+| `P2-CONFIG-001` | tests/common/test_config.py:9 |
+| `P2-COVERAGE-001` | tests/unit/backend/cc/test_coverage_focused.py:19 |
+| `P2-MAIN-001` | tests/unit/backend/cc/test_cc_main.py:13 |
+
+> **Note:** Tags such as `P2-DB-001`, `P2-UTILS-001`, etc. now appear **only in commented lines**. Keep an eye out, but they no longer gate test execution.
+
+---
+
+- **Total Skipped Tests Remaining**: *dynamic* — equal to the count of rows in the two tables above.
+- **Passing Tests**: ~322 / 565
+- **Target**: 565 / 565 tests passing, ≥ 97 % coverage, zero `P2-*` strings in repo.
 
 ---
 
