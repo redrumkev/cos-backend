@@ -19,5 +19,20 @@ ignore = [
 "**/router.py" = ["B008"]
 "**/routers/*.py" = ["B008"]
 
+# Test files need more relaxed rules for common test patterns
+"tests/**/*.py" = [
+    "S101",     # Allow assert statements in tests
+    "PLR2004",  # Allow magic values in tests
+    "S105",     # Allow hardcoded passwords in tests
+    "S106",     # Allow hardcoded passwords in tests
+    "ARG001",   # Allow unused function arguments (fixtures)
+    "ARG002",   # Allow unused method arguments
+    "FBT001",   # Allow boolean positional args in tests
+    "FBT002",   # Allow boolean default args in tests
+    "PLC0415",  # Allow import outside top-level in tests
+    "TRY301",   # Allow simple raise statements in tests
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", # No docstrings required in tests
+]
+
 [format]
 # No specific format settings needed if defaults are fine

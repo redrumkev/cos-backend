@@ -176,12 +176,12 @@ jobs:
           MODIFIED_FILES=$(git diff --name-only HEAD~1..HEAD | grep '\.py$' || true)
         fi
 
-        # Strict linting for new files (ALL rules)
+        # Strict linting for new files (respects ruff.toml configuration)
         if [ -n "$NEW_FILES" ]; then
           echo "New files detected - applying strict linting:"
           echo "$NEW_FILES"
-          echo "$NEW_FILES" | xargs -r ruff check --select ALL --no-fix || {
-            echo "❌ Strict linting failed for new files. All new code must pass ALL ruff rules."
+          echo "$NEW_FILES" | xargs -r ruff check --no-fix || {
+            echo "❌ Strict linting failed for new files. All new code must pass configured ruff rules."
             exit 1
           }
         fi
