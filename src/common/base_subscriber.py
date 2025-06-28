@@ -35,12 +35,12 @@ except ImportError:
         """Dummy async_timeout class for type checking when module is not available."""
 
         @staticmethod
-        def timeout(seconds: float) -> object:
+        def timeout(_seconds: float) -> object:
             """Create a dummy timeout object.
 
             Args:
             ----
-                seconds: Timeout duration (unused in dummy implementation)
+                _seconds: Timeout duration (unused in dummy implementation)
 
             Returns:
             -------

@@ -256,7 +256,7 @@ class TestHelperFunctions:
 
         # Should be ≤ target performance budget per call
         performance_msg = (
-            f"Average time {avg_time_microseconds:.2f}µs exceeds " f"{PERFORMANCE_TARGET_MICROSECONDS}µs target"
+            f"Average time {avg_time_microseconds:.2f}µs exceeds {PERFORMANCE_TARGET_MICROSECONDS}µs target"
         )
         expected_performance = avg_time_microseconds <= PERFORMANCE_TARGET_MICROSECONDS
         pytest.assume(expected_performance, performance_msg)

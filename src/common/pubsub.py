@@ -584,7 +584,8 @@ class RedisPubSub:
                 # Use circuit breaker to protect publish operation
                 result = await self._circuit_breaker.call(_publish_operation)
                 if not isinstance(result, int):
-                    raise TypeError(f"Circuit breaker should return int from _publish_operation, got {type(result)}")
+                    error_msg = f"Circuit breaker should return int from _publish_operation, got {type(result)}"
+                    raise TypeError(error_msg)
 
                 # Mark operation as successful
                 metrics.mark_completed(success=True)
@@ -835,7 +836,8 @@ class RedisPubSub:
         try:
             result = await self._circuit_breaker.call(_get_count_operation)
             if not isinstance(result, int):
-                raise TypeError(f"Circuit breaker should return int from _get_count_operation, got {type(result)}")
+                error_msg = f"Circuit breaker should return int from _get_count_operation, got {type(result)}"
+                raise TypeError(error_msg)
             return result
         except (CircuitBreakerError, RedisError):
             logger.exception("Failed to get subscriber count for channel '%s'", channel)
@@ -933,9 +935,8 @@ class RedisPubSub:
 
                         result = await self._circuit_breaker.call(_info_operation)
                         if not isinstance(result, dict):
-                            raise TypeError(
-                                f"Circuit breaker should return dict from _info_operation, got {type(result)}"
-                            )
+                            error_msg = f"Circuit breaker should return dict from _info_operation, got {type(result)}"
+                            raise TypeError(error_msg)
                         redis_info: dict[str, Any] = result
                         health_status["redis_info"] = {
                             "connected_clients": redis_info.get("connected_clients", "unknown"),
