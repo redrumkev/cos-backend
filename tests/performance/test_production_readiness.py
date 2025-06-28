@@ -25,9 +25,8 @@ Failure Scenarios:
 - Resource exhaustion
 - Circuit breaker validation
 
-# mypy: ignore-errors
-
-# ruff: noqa
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107
+# ruff: noqa: PLR0913, PLR0915, C901, FBT003, COM812, BLE001, E501
 """
 
 from __future__ import annotations
@@ -39,15 +38,26 @@ import shutil
 import subprocess
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import psutil
 import pytest
 import redis.asyncio as redis
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc import crud
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+# Performance targets
+API_P50_MS = 100
+API_P95_MS = 500
+API_P99_MS = 1000
+REDIS_LATENCY_MS = 5
+REDIS_THROUGHPUT_MSG_S = 1000
+DB_QUERY_MS = 100
+RECOVERY_TIME_S = 10
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +143,9 @@ async def run_docker_command(*args: str, command_timeout: float = 30.0) -> None:
 async def check_service_health(service_name: str) -> bool:
     """Check if a Docker service is healthy."""
     try:
-        await run_docker_command("ps", "--filter", f"name={service_name}", "--filter", "health=healthy", timeout=10.0)
+        await run_docker_command(
+            "ps", "--filter", f"name={service_name}", "--filter", "health=healthy", command_timeout=10.0
+        )
         return True
     except Exception as e:
         logger.debug(f"Service {service_name} health check failed: {e}")
@@ -144,7 +156,7 @@ class PerformanceMetrics:
     """Simple performance metrics collector."""
 
     def __init__(self) -> None:
-        self.measurements = {}
+        self.measurements: dict[str, list[dict[str, Any]]] = {}
 
     def record(self, metric_name: str, value: float, unit: str = "ms") -> None:
         """Record a performance measurement."""
@@ -315,7 +327,7 @@ class TestDatabasePerformance:
         logger.info(f"Database Write - Mean: {write_stats['mean']:.2f}ms, P95: {write_stats['p95']:.2f}ms")
 
     @pytest.mark.asyncio
-    async def test_database_concurrent_performance(self, postgres_session, metrics: PerformanceMetrics) -> None:
+    async def test_database_concurrent_performance(self, postgres_session: Any, metrics: PerformanceMetrics) -> None:
         """Test database performance under concurrent load."""
 
         async def concurrent_operations(task_id: int) -> float:
@@ -411,7 +423,7 @@ class TestAPIPerformance:
 
         async def concurrent_requests(client_id: int) -> dict[str, Any]:
             """Execute concurrent API requests."""
-            results = {"success": 0, "errors": 0, "latencies": []}
+            results: dict[str, Any] = {"success": 0, "errors": 0, "latencies": []}
 
             for _ in range(10):  # Reduced from 20
                 try:
@@ -560,7 +572,7 @@ class TestFailureScenarios:
 
         try:
             # Pause Redis service
-            await run_docker_command("pause", "cos_redis", timeout=15.0)
+            await run_docker_command("pause", "cos_redis", command_timeout=15.0)
             logger.info("Redis service paused for failure simulation")
 
             # Test failure detection
@@ -577,7 +589,7 @@ class TestFailureScenarios:
 
         finally:
             # Restore Redis service
-            await run_docker_command("unpause", "cos_redis", timeout=15.0)
+            await run_docker_command("unpause", "cos_redis", command_timeout=15.0)
             logger.info("Redis service restored")
 
             # Test recovery with timeout
@@ -740,7 +752,7 @@ async def test_comprehensive_performance_report(
     cpu_percent = process.cpu_percent()
 
     # Performance Report
-    report = {
+    report: dict[str, Any] = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "test_duration_seconds": total_time,
         "service_readiness": services_ready,

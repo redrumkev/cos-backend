@@ -1,3 +1,4 @@
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, BLE001
 """Comprehensive tests for enhanced Redis error handling and Logfire integration.
 
 This module tests the new error handling features including:

@@ -1,3 +1,4 @@
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, TC006
 """Production-grade Redis integration test foundation using fakeredis.
 
 This module provides comprehensive Redis integration tests focusing on performance
@@ -36,6 +37,23 @@ from src.common.redis_config import RedisConfig
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+
+# Test constants
+DEFAULT_REDIS_PORT = 6379
+REDIS_MAJOR_VERSION = 7
+REDIS_MINOR_VERSION = 2
+REDIS_PATCH_VERSION = 0
+TEST_SLEEP_DURATION = 0.1
+SLEEP_RECOVERY_DURATION = 0.2
+WARMUP_SLEEP = 0.1
+TARGET_LATENCY_MS = 5.0
+CONNECTION_TIME_MS = 10.0
+BULK_OPERATION_TIME_MS = 50.0
+CIRCUIT_BREAKER_TIMEOUT = 0.1
+RECOVERY_TIMEOUT = 1.0
+SHORT_RECOVERY_TIMEOUT = 0.1
+BULK_OPERATIONS_COUNT = 100
+TEST_ID_VALUE = 12345
 
 
 class SimulatedRedisFailureError(Exception):

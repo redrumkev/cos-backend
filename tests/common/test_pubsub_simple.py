@@ -1,4 +1,4 @@
-# ruff: noqa: I001
+# ruff: noqa: I001, S101, SLF001, PLR2004, ANN401, ARG001, TRY003, EM101, TC005, F401, BLE001
 """Simplified test suite for Redis Pub/Sub wrapper focused on core functionality."""
 
 import asyncio

@@ -1,4 +1,4 @@
-# ruff: noqa: S105, SIM117
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, BLE001, S105, SIM117
 """Redis configuration comprehensive testing.
 
 This module provides comprehensive testing for Redis configuration

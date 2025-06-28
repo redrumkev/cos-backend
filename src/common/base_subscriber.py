@@ -1,4 +1,3 @@
-# ruff: noqa: I001
 """Base subscriber for Redis Pub/Sub with async iterator support and reliability features.
 
 This module provides the foundation for L2 consumers with:
@@ -33,8 +32,21 @@ except ImportError:
 
     # Create a dummy module for type checking
     class DummyAsyncTimeout:
+        """Dummy async_timeout class for type checking when module is not available."""
+
         @staticmethod
         def timeout(seconds: float) -> object:
+            """Create a dummy timeout object.
+
+            Args:
+            ----
+                seconds: Timeout duration (unused in dummy implementation)
+
+            Returns:
+            -------
+                None placeholder object
+
+            """
             return None
 
     async_timeout = DummyAsyncTimeout()
@@ -156,6 +168,7 @@ class BaseSubscriber(ABC):
                 result = await self.process_message(message)
                 results.append(result)
             except Exception:
+                # Catch all exceptions during message processing to prevent batch failure
                 results.append(False)
         return results
 
@@ -169,7 +182,7 @@ class BaseSubscriber(ABC):
 
         """
         if channel in self._channels:
-            logger.warning(f"Already consuming from channel '{channel}'")
+            logger.warning("Already consuming from channel '%s'", channel)
             return
 
         self._stop_event.clear()
@@ -183,7 +196,7 @@ class BaseSubscriber(ABC):
         if not self._batch_task or self._batch_task.done():
             self._batch_task = asyncio.create_task(self._batch_processing_loop(), name="batch-processor")
 
-        logger.info(f"Started consuming from channel '{channel}'")
+        logger.info("Started consuming from channel '%s'", channel)
 
     async def stop_consuming(self) -> None:
         """Stop consuming messages and clean up resources."""
@@ -245,13 +258,14 @@ class BaseSubscriber(ABC):
                     # Process immediately
                     task = asyncio.create_task(self._handle_single_message(message))
                     # Don't await, let it run in background
-                    task.add_done_callback(lambda t: None)
+                    task.add_done_callback(lambda _: None)
 
         except asyncio.CancelledError:
-            logger.debug(f"Consumer loop for channel '{channel}' was cancelled")
+            logger.debug("Consumer loop for channel '%s' was cancelled", channel)
             raise
-        except Exception as e:
-            logger.error(f"Error in consumer loop for channel '{channel}': {e}")
+        except Exception:
+            # Catch all exceptions to prevent consumer loop from crashing
+            logger.exception("Error in consumer loop for channel '%s'", channel)
         finally:
             if channel in self._channels:
                 self._channels.remove(channel)
@@ -269,8 +283,9 @@ class BaseSubscriber(ABC):
         except asyncio.CancelledError:
             logger.debug("Batch processing loop was cancelled")
             raise
-        except Exception as e:
-            logger.error(f"Error in batch processing loop: {e}")
+        except Exception:
+            # Catch all exceptions to prevent batch processing loop from crashing
+            logger.exception("Error in batch processing loop")
 
     async def _process_batch_buffer(self) -> None:
         """Process current batch buffer (must be called with _batch_lock held)."""
@@ -283,7 +298,7 @@ class BaseSubscriber(ABC):
         # Process batch in background
         task = asyncio.create_task(self._handle_message_batch(batch))
         # Don't await, let it run in background
-        task.add_done_callback(lambda t: None)
+        task.add_done_callback(lambda _: None)
 
     async def _handle_message_batch(self, messages: list[MessageDict]) -> None:
         """Handle a batch of messages."""
@@ -310,19 +325,20 @@ class BaseSubscriber(ABC):
                     results = await self._with_circuit_breaker(self.process_batch)(messages)
             else:
                 results = await asyncio.wait_for(
-                    self._with_circuit_breaker(self.process_batch)(messages), timeout=self._ack_timeout
+                    self._with_circuit_breaker(self.process_batch)(messages),
+                    timeout=self._ack_timeout,
                 )
 
             # Handle results
             for message, result, processing_key in zip(messages, results, processing_keys, strict=False):  # type: ignore[assignment]
-                await self._handle_message_result(message, result, processing_key)
+                await self._handle_message_result(message, success=result, processing_key=processing_key)
                 self._processed_count += 1
 
-        except Exception as e:
-            logger.exception(f"Error processing message batch: {e}")
+        except Exception:
+            logger.exception("Error processing message batch")
             # Handle all messages as failed
             for message, processing_key in zip(messages, processing_keys, strict=False):  # type: ignore[assignment]
-                await self._handle_message_result(message, False, processing_key)
+                await self._handle_message_result(message, success=False, processing_key=processing_key)
                 self._failed_count += 1
         finally:
             # Release all semaphores
@@ -345,20 +361,27 @@ class BaseSubscriber(ABC):
                     result = await self._with_circuit_breaker(self.process_message)(message)
             else:
                 result = await asyncio.wait_for(
-                    self._with_circuit_breaker(self.process_message)(message), timeout=self._ack_timeout
+                    self._with_circuit_breaker(self.process_message)(message),
+                    timeout=self._ack_timeout,
                 )
 
-            await self._handle_message_result(message, result, processing_key)
+            await self._handle_message_result(message, success=result, processing_key=processing_key)
             self._processed_count += 1
 
-        except Exception as e:
-            logger.exception(f"Error processing message: {e}", extra={"message": message})
-            await self._handle_message_result(message, False, processing_key)
+        except Exception:
+            logger.exception("Error processing message", extra={"msg_data": message})
+            await self._handle_message_result(message, success=False, processing_key=processing_key)
             self._failed_count += 1
         finally:
             self._sem.release()
 
-    async def _handle_message_result(self, message: MessageDict, success: bool, processing_key: str | None) -> None:
+    async def _handle_message_result(
+        self,
+        message: MessageDict,
+        *,
+        success: bool,
+        processing_key: str | None,
+    ) -> None:
         """Handle the result of message processing."""
         if success:
             # Acknowledge successful processing
@@ -378,10 +401,9 @@ class BaseSubscriber(ABC):
             redis_client = pubsub._redis
             if redis_client:
                 await redis_client.setex(processing_key, self._message_ttl, "1")
-            return processing_key
-        except Exception as e:
-            logger.error(f"Failed to set processing state for {message_id}: {e}")
-            return processing_key
+        except Exception:
+            logger.exception("Failed to set processing state for %s", message_id)
+        return processing_key
 
     async def _acknowledge_message(self, processing_key: str) -> None:
         """Acknowledge message processing by removing processing key."""
@@ -394,8 +416,8 @@ class BaseSubscriber(ABC):
                     self._ack_success_count += 1
                 else:
                     self._ack_failed_count += 1
-        except Exception as e:
-            logger.error(f"Failed to acknowledge message {processing_key}: {e}")
+        except Exception:
+            logger.exception("Failed to acknowledge message %s", processing_key)
             self._ack_failed_count += 1
 
     async def _send_to_dlq(self, message: MessageDict) -> None:
@@ -410,17 +432,17 @@ class BaseSubscriber(ABC):
                 }
                 await self._dlq_publish(dlq_message)
                 self._dlq_count += 1
-            except Exception as e:
-                logger.error(f"Failed to send message to DLQ: {e}", extra={"message": message})
+            except Exception:
+                logger.exception("Failed to send message to DLQ", extra={"msg_data": message})
 
     def _with_circuit_breaker(self, func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
         """Wrap function with circuit breaker if available."""
         if not self._circuit_breaker:
             return func
 
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        async def wrapper(*args: object, **kwargs: object) -> object:
             # We know _circuit_breaker is not None due to the check above
-            return await self._circuit_breaker.call(func, *args, **kwargs)  # type: ignore
+            return await self._circuit_breaker.call(func, *args, **kwargs)  # type: ignore[union-attr]
 
         return wrapper
 
@@ -480,7 +502,7 @@ async def subscribe_to_channel(channel: str, *, max_idle_time: float = 30.0) -> 
     # Use the existing subscription mechanism with a custom handler
     message_queue: asyncio.Queue[MessageDict] = asyncio.Queue()
 
-    async def message_handler(ch: str, message: MessageDict) -> None:
+    async def message_handler(_ch: str, message: MessageDict) -> None:
         """Put messages in the queue."""
         await message_queue.put(message)
 
@@ -501,11 +523,11 @@ async def subscribe_to_channel(channel: str, *, max_idle_time: float = 30.0) -> 
 
             except TimeoutError:
                 # Timeout reached with no messages - exit gracefully
-                logger.debug(f"No messages received on channel '{channel}' for {max_idle_time}s, exiting iterator")
+                logger.debug("No messages received on channel '%s' for %ss, exiting iterator", channel, max_idle_time)
                 break
-            except Exception as e:
+            except Exception:
                 # Other errors - log and exit gracefully
-                logger.error(f"Error in subscribe_to_channel for '{channel}': {e}")
+                logger.exception("Error in subscribe_to_channel for '%s'", channel)
                 break
 
     finally:
@@ -513,9 +535,9 @@ async def subscribe_to_channel(channel: str, *, max_idle_time: float = 30.0) -> 
         # is cancelled or exits due to timeout
         try:
             await pubsub.unsubscribe(channel, message_handler)
-            logger.debug(f"Unsubscribed from channel '{channel}'")
-        except Exception as e:
-            logger.error(f"Error during unsubscribe from '{channel}': {e}")
+            logger.debug("Unsubscribed from channel '%s'", channel)
+        except Exception:
+            logger.exception("Error during unsubscribe from '%s'", channel)
 
 
 # ----- DLQ helper function ---------------------------------------------
@@ -543,4 +565,4 @@ async def publish_to_dlq(channel: str, message: MessageDict) -> None:
     pubsub = await get_pubsub()
     await pubsub.publish(dlq_channel, dlq_message)
 
-    logger.info(f"Published message to DLQ channel '{dlq_channel}'")
+    logger.info("Published message to DLQ channel '%s'", dlq_channel)

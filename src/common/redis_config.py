@@ -68,8 +68,11 @@ class RedisConfig(BaseSettings):
     @classmethod
     def validate_port(cls, v: int) -> int:
         """Validate Redis port is in valid range."""
-        if not (1 <= v <= 65535):
-            raise ValueError(f"Port must be between 1 and 65535, got {v}")
+        min_port = 1
+        max_port = 65535
+        if not (min_port <= v <= max_port):
+            msg = f"Port must be between {min_port} and {max_port}, got {v}"
+            raise ValueError(msg)
         return v
 
     @field_validator("redis_db")
@@ -77,7 +80,8 @@ class RedisConfig(BaseSettings):
     def validate_db(cls, v: int) -> int:
         """Validate Redis database number."""
         if v < 0:
-            raise ValueError(f"Database number must be >= 0, got {v}")
+            msg = f"Database number must be >= 0, got {v}"
+            raise ValueError(msg)
         return v
 
     @field_validator("redis_max_connections")
@@ -85,7 +89,8 @@ class RedisConfig(BaseSettings):
     def validate_max_connections(cls, v: int) -> int:
         """Validate max connections is positive."""
         if v < 1:
-            raise ValueError(f"Max connections must be positive, got {v}")
+            msg = f"Max connections must be positive, got {v}"
+            raise ValueError(msg)
         return v
 
     @field_validator("redis_socket_connect_timeout")
@@ -93,7 +98,8 @@ class RedisConfig(BaseSettings):
     def validate_timeout(cls, v: int) -> int:
         """Validate connection timeout is positive."""
         if v < 1:
-            raise ValueError(f"Timeout must be positive, got {v}")
+            msg = f"Timeout must be positive, got {v}"
+            raise ValueError(msg)
         return v
 
     @field_validator("redis_health_check_interval")
@@ -101,7 +107,8 @@ class RedisConfig(BaseSettings):
     def validate_health_check_interval(cls, v: int) -> int:
         """Validate health check interval is positive."""
         if v < 1:
-            raise ValueError(f"Health check interval must be positive, got {v}")
+            msg = f"Health check interval must be positive, got {v}"
+            raise ValueError(msg)
         return v
 
     @property
@@ -148,11 +155,13 @@ class RedisConfig(BaseSettings):
         if self.redis_password and "@" in url:
             # Replace password with asterisks
             parts = url.split("://", 1)
-            if len(parts) == 2:
+            expected_protocol_parts = 2
+            if len(parts) == expected_protocol_parts:
                 protocol, rest = parts
                 if "@" in rest:
                     auth_and_host = rest.split("@", 1)
-                    if len(auth_and_host) == 2:
+                    expected_auth_parts = 2
+                    if len(auth_and_host) == expected_auth_parts:
                         auth, host_part = auth_and_host
                         if ":" in auth:
                             user, _ = auth.split(":", 1)

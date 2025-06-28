@@ -1,3 +1,4 @@
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, TC003
 """Simplified Redis performance benchmarking tests.
 
 This module implements focused performance benchmarking for Redis operations
@@ -9,11 +10,48 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import fakeredis.aioredis
 import pytest_asyncio
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+# Performance test constants
+REDIS_MAJOR_VERSION = 7
+REDIS_MINOR_VERSION = 2
+REDIS_PATCH_VERSION = 0
+BENCHMARK_ITERATIONS = 100
+BENCHMARK_ROUNDS = 10
+TARGET_OPERATIONS_COUNT = 2000
+TARGET_TIME_SECONDS = 2.0
+MIN_THROUGHPUT_OPS = 1000
+WARMUP_ITERATIONS = 10
+LATENCY_SAMPLE_SIZE = 100
+RELAXED_AVG_LATENCY_MS = 5.0
+RELAXED_P95_LATENCY_MS = 10.0
+CONCURRENT_OPERATIONS = 1000
+CONCURRENT_TIME_LIMIT = 3.0
+MEMORY_BATCHES = 50
+OPERATIONS_PER_BATCH = 100
+MEMORY_OPERATIONS_TOTAL = 5000
+MEMORY_GROWTH_LIMIT_MB = 50.0
+MIXED_SMALL_COUNT = 500
+MIXED_MEDIUM_COUNT = 300
+MIXED_LARGE_COUNT = 100
+MIXED_TOTAL_OPERATIONS = 900
+MIXED_TIME_LIMIT = 5.0
+BURST_COUNT = 5
+BURST_OPERATIONS = 200
+BURST_IDLE_TIME = 0.1
+BURST_TIME_LIMIT = 3.0
+SMALL_MESSAGE_SIZE = 50
+MEDIUM_MESSAGE_SIZE = 800
+LARGE_MESSAGE_SIZE = 4000
+LARGE_MESSAGE_ITEMS = 100
+MESSAGE_DATA_SIZE = 100
+TEST_TIMESTAMP = 1234567890
 
 
 @pytest_asyncio.fixture(scope="function")

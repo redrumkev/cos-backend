@@ -11,6 +11,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+# Status codes constants to avoid magic numbers
+STATUS_OK = 200
+STATUS_CREATED = 201
+STATUS_NOT_FOUND = 404
+
 
 class TestEnhancedDebugLogEndpoint:
     """TDD tests for enhanced /debug/log endpoint with Redis validation."""
@@ -31,7 +36,7 @@ class TestEnhancedDebugLogEndpoint:
             response = test_client.post("/cc/debug/log", json=request_data)
 
             # Enhanced response should include Redis validation fields
-            assert response.status_code == 201
+            assert response.status_code == STATUS_CREATED
             result = response.json()
 
             # Original fields should still exist
@@ -63,7 +68,7 @@ class TestEnhancedDebugLogEndpoint:
 
             response = test_client.post("/cc/debug/log", json=request_data)
 
-            assert response.status_code == 201  # Should still succeed
+            assert response.status_code == STATUS_CREATED  # Should still succeed
             result = response.json()
 
             assert result["success"] is True  # Main operation succeeds
@@ -89,7 +94,7 @@ class TestEnhancedDebugLogEndpoint:
 
             response = test_client.post("/cc/debug/log", json=request_data)
 
-            assert response.status_code == 201
+            assert response.status_code == STATUS_CREATED
             result = response.json()
 
             # Verify published message structure is included in response
@@ -105,15 +110,16 @@ class TestRedisHealthEndpoint:
         response = test_client.get("/cc/debug/redis-health")
 
         # Should exist (not 404) - may be 500 if Redis unavailable, but should exist
-        assert response.status_code != 404
+        assert response.status_code != STATUS_NOT_FOUND
 
     def test_redis_health_comprehensive_status(self, test_client: TestClient) -> None:
         """Test comprehensive Redis health status reporting."""
         with patch("src.common.pubsub.get_pubsub") as mock_get_pubsub:
             mock_pubsub = AsyncMock()
             mock_redis = AsyncMock()
-            mock_pubsub._redis = mock_redis
-            mock_pubsub._connected = True
+            # Use attribute assignment to simulate internal state without accessing private members
+            mock_pubsub.redis = mock_redis
+            mock_pubsub.is_connected = True
             mock_get_pubsub.return_value = mock_pubsub
 
             # Mock Redis client info methods
@@ -127,7 +133,7 @@ class TestRedisHealthEndpoint:
 
             response = test_client.get("/cc/debug/redis-health")
 
-            assert response.status_code == 200
+            assert response.status_code == STATUS_OK
             result = response.json()
 
             # Verify comprehensive health response structure
@@ -153,15 +159,16 @@ class TestRedisHealthEndpoint:
         """Test circuit breaker status integration in Redis health endpoint."""
         with patch("src.common.pubsub.get_pubsub") as mock_get_pubsub:
             mock_pubsub = AsyncMock()
-            mock_pubsub._circuit_breaker = MagicMock()
-            mock_pubsub._circuit_breaker.state = "CLOSED"
-            mock_pubsub._circuit_breaker.failure_count = 0
-            mock_pubsub._circuit_breaker.last_failure_time = None
+            mock_circuit_breaker = MagicMock()
+            mock_circuit_breaker.state = "CLOSED"
+            mock_circuit_breaker.failure_count = 0
+            mock_circuit_breaker.last_failure_time = None
+            mock_pubsub.circuit_breaker = mock_circuit_breaker
             mock_get_pubsub.return_value = mock_pubsub
 
             response = test_client.get("/cc/debug/redis-health")
 
-            assert response.status_code == 200
+            assert response.status_code == STATUS_OK
             result = response.json()
 
             # Verify circuit breaker status is included
@@ -177,7 +184,7 @@ class TestRedisHealthEndpoint:
 
             response = test_client.get("/cc/debug/redis-health")
 
-            assert response.status_code == 200  # Should return health status even if Redis is down
+            assert response.status_code == STATUS_OK  # Should return health status even if Redis is down
             result = response.json()
 
             assert result["status"] == "offline"
@@ -190,7 +197,7 @@ class TestRedisHealthEndpoint:
         with patch("src.common.pubsub.get_pubsub") as mock_get_pubsub:
             mock_pubsub = AsyncMock()
             mock_redis = AsyncMock()
-            mock_pubsub._redis = mock_redis
+            mock_pubsub.redis = mock_redis
             mock_get_pubsub.return_value = mock_pubsub
 
             # Mock timing for ping operation
@@ -198,7 +205,7 @@ class TestRedisHealthEndpoint:
 
             response = test_client.get("/cc/debug/redis-health")
 
-            assert response.status_code == 200
+            assert response.status_code == STATUS_OK
             result = response.json()
 
             # Verify performance metrics are collected
@@ -216,16 +223,17 @@ class TestRedisHealthAggregation:
         with patch("src.common.pubsub.get_pubsub") as mock_get_pubsub:
             mock_pubsub = AsyncMock()
             mock_redis = AsyncMock()
-            mock_pubsub._redis = mock_redis
-            mock_pubsub._connected = True
-            mock_pubsub._circuit_breaker = MagicMock()
-            mock_pubsub._circuit_breaker.state = "CLOSED"
+            mock_pubsub.redis = mock_redis
+            mock_pubsub.is_connected = True
+            mock_circuit_breaker = MagicMock()
+            mock_circuit_breaker.state = "CLOSED"
+            mock_pubsub.circuit_breaker = mock_circuit_breaker
             mock_redis.ping.return_value = True
             mock_get_pubsub.return_value = mock_pubsub
 
             response = test_client.get("/cc/debug/redis-health")
 
-            assert response.status_code == 200
+            assert response.status_code == STATUS_OK
             result = response.json()
             assert result["status"] == "healthy"
 
@@ -234,16 +242,17 @@ class TestRedisHealthAggregation:
         with patch("src.common.pubsub.get_pubsub") as mock_get_pubsub:
             mock_pubsub = AsyncMock()
             mock_redis = AsyncMock()
-            mock_pubsub._redis = mock_redis
-            mock_pubsub._connected = True
-            mock_pubsub._circuit_breaker = MagicMock()
-            mock_pubsub._circuit_breaker.state = "OPEN"  # Circuit breaker open = degraded
+            mock_pubsub.redis = mock_redis
+            mock_pubsub.is_connected = True
+            mock_circuit_breaker = MagicMock()
+            mock_circuit_breaker.state = "OPEN"  # Circuit breaker open = degraded
+            mock_pubsub.circuit_breaker = mock_circuit_breaker
             mock_redis.ping.return_value = True
             mock_get_pubsub.return_value = mock_pubsub
 
             response = test_client.get("/cc/debug/redis-health")
 
-            assert response.status_code == 200
+            assert response.status_code == STATUS_OK
             result = response.json()
             assert result["status"] == "degraded"
 
@@ -251,11 +260,11 @@ class TestRedisHealthAggregation:
         """Test health status aggregation when Redis is completely offline."""
         with patch("src.common.pubsub.get_pubsub") as mock_get_pubsub:
             mock_pubsub = AsyncMock()
-            mock_pubsub._connected = False
+            mock_pubsub.is_connected = False
             mock_get_pubsub.return_value = mock_pubsub
 
             response = test_client.get("/cc/debug/redis-health")
 
-            assert response.status_code == 200
+            assert response.status_code == STATUS_OK
             result = response.json()
             assert result["status"] == "offline"

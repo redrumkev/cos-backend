@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Standard library
@@ -27,26 +27,93 @@ from rich.console import Console
 # Rich console for consistent CLI output (no styling/markup needed here).
 console: Console = Console(highlight=False, markup=False)
 
+# Constants
+_MIN_DOCKER_STATUS_PARTS = 2
+
 
 class PerformanceTestRunner:
     """Coordinates execution of performance tests and generates reports."""
 
-    def __init__(self, verbose: bool = False):
+    def __init__(self, *, verbose: bool = False) -> None:
+        """Initialize the performance test runner.
+
+        Args:
+        ----
+            verbose: Enable verbose output for test execution
+
+        """
         self.verbose: bool = verbose
         self.project_root: Path = Path(__file__).parent.parent
         self.test_results: dict[str, dict[str, Any]] = {}
         self.start_time: datetime | None = None
         self.end_time: datetime | None = None
 
-    def run_test_suite(self, test_pattern: str, description: str) -> dict[str, Any]:
-        """Run a specific test suite and capture results."""
-        console.print(f"\n🧪 Running {description}...")
+    def _parse_pytest_results(self, output_lines: list[str]) -> tuple[int, int]:
+        """Parse pytest output to extract passed and failed test counts.
 
+        Args:
+        ----
+            output_lines: Lines from pytest stdout
+
+        Returns:
+        -------
+            Tuple of (passed_count, failed_count)
+
+        """
+        passed_count = 0
+        failed_count = 0
+
+        for line in output_lines:
+            if "passed" in line and "failed" not in line:
+                parts = line.split()
+                for i, part in enumerate(parts):
+                    if part == "passed":
+                        with contextlib.suppress(ValueError, IndexError):
+                            passed_count = int(parts[i - 1])
+            elif "failed" in line:
+                parts = line.split()
+                for i, part in enumerate(parts):
+                    if part == "failed":
+                        with contextlib.suppress(ValueError, IndexError):
+                            failed_count = int(parts[i - 1])
+
+        return passed_count, failed_count
+
+    def _build_pytest_command(self, test_pattern: str) -> list[str]:
+        """Build pytest command with appropriate options.
+
+        Args:
+        ----
+            test_pattern: Test pattern to run
+
+        Returns:
+        -------
+            Complete pytest command as list
+
+        """
         cmd = ["uv", "run", "pytest", f"tests/performance/{test_pattern}", "-v", "--tb=short"]
 
         if self.verbose:
             cmd.append("-s")
 
+        return cmd
+
+    def run_test_suite(self, test_pattern: str, description: str) -> dict[str, Any]:
+        """Run a specific test suite and capture results.
+
+        Args:
+        ----
+            test_pattern: Pattern for tests to run
+            description: Human-readable description of test suite
+
+        Returns:
+        -------
+            Dictionary with test results and metadata
+
+        """
+        console.print(f"\n🧪 Running {description}...")
+
+        cmd = self._build_pytest_command(test_pattern)
         start_time = time.time()
 
         try:
@@ -56,44 +123,15 @@ class PerformanceTestRunner:
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 minute timeout
+                check=False,
             )
 
             duration = time.time() - start_time
-
-            # Parse test results
             success = result.returncode == 0
             output_lines = result.stdout.split("\n")
 
-            # Extract test count from pytest output
-            test_count = 0
-            passed_count = 0
-            failed_count = 0
-
-            for line in output_lines:
-                if "passed" in line and "failed" not in line:
-                    parts = line.split()
-                    for i, part in enumerate(parts):
-                        if part == "passed":
-                            with contextlib.suppress(ValueError, IndexError):
-                                passed_count = int(parts[i - 1])
-                elif "failed" in line:
-                    parts = line.split()
-                    for i, part in enumerate(parts):
-                        if part == "failed":
-                            with contextlib.suppress(ValueError, IndexError):
-                                failed_count = int(parts[i - 1])
-
+            passed_count, failed_count = self._parse_pytest_results(output_lines)
             test_count = passed_count + failed_count
-
-            return {
-                "success": success,
-                "duration": duration,
-                "test_count": test_count,
-                "passed": passed_count,
-                "failed": failed_count,
-                "output": result.stdout if self.verbose else "",
-                "errors": result.stderr if result.stderr else "",
-            }
 
         except subprocess.TimeoutExpired:
             return {
@@ -105,7 +143,7 @@ class PerformanceTestRunner:
                 "output": "",
                 "errors": "Test suite timed out after 5 minutes",
             }
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             return {
                 "success": False,
                 "duration": time.time() - start_time,
@@ -115,9 +153,25 @@ class PerformanceTestRunner:
                 "output": "",
                 "errors": str(e),
             }
+        else:
+            return {
+                "success": success,
+                "duration": duration,
+                "test_count": test_count,
+                "passed": passed_count,
+                "failed": failed_count,
+                "output": result.stdout if self.verbose else "",
+                "errors": result.stderr if result.stderr else "",
+            }
 
     def check_infrastructure(self) -> dict[str, Any]:
-        """Check that all required infrastructure services are running."""
+        """Check that all required infrastructure services are running.
+
+        Returns
+        -------
+            Dictionary with infrastructure status and service details
+
+        """
         console.print("🔍 Checking infrastructure status...")
 
         try:
@@ -127,6 +181,7 @@ class PerformanceTestRunner:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                check=False,
             )
 
             if result.returncode != 0:
@@ -146,7 +201,7 @@ class PerformanceTestRunner:
             for line in output.split("\n")[1:]:  # Skip header
                 if line.strip():
                     parts = line.split("\t")
-                    if len(parts) >= 2:
+                    if len(parts) >= _MIN_DOCKER_STATUS_PARTS:
                         name = parts[0].strip()
                         status = parts[1].strip()
                         if any(req in name for req in required_services):
@@ -161,12 +216,12 @@ class PerformanceTestRunner:
                 "running_count": len(running_services),
             }
 
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
             return {"success": False, "error": str(e)}
 
     def run_full_test_suite(self) -> None:
         """Run the complete performance test suite."""
-        self.start_time = datetime.now()
+        self.start_time = datetime.now(UTC)
 
         console.print("🚀 Starting COS Performance Test Suite - Task 15.2")
         console.print(f"📅 Started at: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -216,13 +271,13 @@ class PerformanceTestRunner:
 
             status = "✅ PASSED" if result["success"] else "❌ FAILED"
             console.print(
-                f"{status} - {result['passed']}/{result['test_count']} tests passed in {result['duration']:.1f}s"
+                f"{status} - {result['passed']}/{result['test_count']} tests passed in {result['duration']:.1f}s",
             )
 
             if result["errors"]:
                 console.print(f"⚠️  Errors: {result['errors']}")
 
-        self.end_time = datetime.now()
+        self.end_time = datetime.now(UTC)
         duration = (self.end_time - self.start_time).total_seconds()
 
         # Overall results
@@ -252,7 +307,7 @@ class PerformanceTestRunner:
 
     def run_quick_test_suite(self) -> None:
         """Run abbreviated test suite for quick validation."""
-        self.start_time = datetime.now()
+        self.start_time = datetime.now(UTC)
 
         console.print("⚡ Starting Quick Performance Validation")
 
@@ -293,7 +348,7 @@ class PerformanceTestRunner:
             status = "✅" if result["success"] else "❌"
             console.print(f"{status} {test['description']}")
 
-        self.end_time = datetime.now()
+        self.end_time = datetime.now(UTC)
         duration = (self.end_time - self.start_time).total_seconds()
 
         overall_success = total_passed == total_tests
@@ -330,7 +385,7 @@ class PerformanceTestRunner:
             if isinstance(result, dict) and "success" in result:
                 status = "✅ PASS" if result["success"] else "❌ FAIL"
                 console.print(
-                    f"  {key.replace('_', ' ').title()}: {status} ({result['passed']}/{result['test_count']} tests)"
+                    f"  {key.replace('_', ' ').title()}: {status} ({result['passed']}/{result['test_count']} tests)",
                 )
 
         # Infrastructure status
@@ -349,20 +404,23 @@ class PerformanceTestRunner:
             with report_file.open("w") as f:
                 json.dump(self.test_results, f, indent=2, default=str)
             console.print(f"📄 Detailed results saved to: {report_file}")
-        except Exception as e:
+        except OSError as e:
             console.print(f"⚠️  Failed to save detailed report: {e}")
 
 
 def main() -> None:
     """Run the performance test runner CLI."""
     parser = argparse.ArgumentParser(
-        description="COS Performance Test Runner - Task 15.2", formatter_class=argparse.RawDescriptionHelpFormatter
+        description="COS Performance Test Runner - Task 15.2",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed test output")
 
     parser.add_argument(
-        "--report-only", action="store_true", help="Generate report from existing results without running tests"
+        "--report-only",
+        action="store_true",
+        help="Generate report from existing results without running tests",
     )
 
     parser.add_argument("--quick", "-q", action="store_true", help="Run abbreviated test suite for quick validation")
@@ -378,11 +436,12 @@ def main() -> None:
             try:
                 with report_file.open() as f:
                     runner.test_results = json.load(f)
-                runner.generate_report()
-                return
-            except Exception as e:
+            except OSError as e:
                 console.print(f"❌ Failed to load existing results: {e}")
                 sys.exit(1)
+            else:
+                runner.generate_report()
+                return
         else:
             console.print("❌ No existing test results found")
             sys.exit(1)
@@ -405,7 +464,7 @@ def main() -> None:
     except KeyboardInterrupt:
         console.print("\n🛑 Test execution interrupted by user")
         sys.exit(1)
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         console.print(f"💥 Unexpected error during test execution: {e}")
         sys.exit(1)
 

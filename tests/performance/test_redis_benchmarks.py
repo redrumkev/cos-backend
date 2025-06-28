@@ -1,3 +1,4 @@
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, BLE001
 """Redis Performance Benchmarking Suite - Task 011.
 
 This module implements comprehensive performance benchmarks for Redis operations
@@ -21,12 +22,20 @@ import gc
 import json
 import time
 import tracemalloc
+from typing import TYPE_CHECKING
 
 import psutil
 import pytest
 import redis.asyncio as redis
 
-from .conftest import PerformanceTestUtils
+if TYPE_CHECKING:
+    from .conftest import PerformanceTestUtils
+
+# Performance constants
+PUBLISH_LATENCY_MS = 1.0
+THROUGHPUT_MSG_S = 500
+PING_BATCH_TIME_S = 1.0
+MEMORY_LEAK_THRESHOLD_MB = 50
 
 
 class TestRedisLatencyBenchmarks:

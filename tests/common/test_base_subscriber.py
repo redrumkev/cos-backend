@@ -1,4 +1,4 @@
-# ruff: noqa: I001
+# ruff: noqa: I001, S101, SLF001
 """Comprehensive tests for BaseSubscriber implementation.
 
 Tests cover:
@@ -12,28 +12,81 @@ Tests cover:
 - Metrics and observability
 """
 
+from __future__ import annotations
+
 import asyncio
-import pytest
-from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
+
 from src.common.base_subscriber import (
+    DEFAULT_ACK_TIMEOUT,
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_MAX_CONCURRENCY,
     BaseSubscriber,
     MessageDict,
     publish_to_dlq,
     subscribe_to_channel,
-    DEFAULT_ACK_TIMEOUT,
-    DEFAULT_BATCH_SIZE,
-    DEFAULT_MAX_CONCURRENCY,
 )
 from src.common.pubsub import CircuitBreaker, CircuitBreakerError
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+    from typing import Any
+
+
+# Constants for test values
+EXPECTED_PROCESSED_MESSAGES = 5
+EXPECTED_DLQ_MESSAGES = 2
+EXPECTED_ACK_OPERATIONS = 5
+
+# Integration test constants
+INTEGRATION_TOTAL_MESSAGES = 5
+INTEGRATION_FAILED_MESSAGES = 2
+INTEGRATION_SUCCESSFUL_MESSAGES = 3
+INTEGRATION_BATCH_SIZE = 2
+INTEGRATION_CONCURRENCY = 4
+
+# Additional test constants
+TWO_MESSAGES = 2
+TEST_MESSAGE_ID = 123
+FOUR_MESSAGES = 4
+ASYNC_TIMEOUT_AVAILABLE_TRUE = True
+ASYNC_TIMEOUT_AVAILABLE_FALSE = False
+CUSTOM_CONCURRENCY = 16
+CUSTOM_ACK_TIMEOUT = 10.0
+CUSTOM_BATCH_SIZE = 50
+CUSTOM_BATCH_WINDOW = 1.0
+CUSTOM_MESSAGE_TTL = 600
+TEST_CONCURRENCY = 2
+TEST_ACK_TIMEOUT = 0.1
+TEST_PROCESSING_DELAY = 0.2
+TEST_BATCH_SIZE = 3
+SMALL_BATCH_WINDOW = 0.1
+LARGE_BATCH_SIZE = 10
+CIRCUIT_BREAKER_THRESHOLD = 1
+CIRCUIT_BREAKER_TIMEOUT = 1.0
+SHORT_TIMEOUT = 0.1
+PROCESSING_TIME = 0.1
+
+# Test error messages
+SIMULATED_FAILURE_MSG = "Simulated processing failure"
+DLQ_ERROR_MSG = "DLQ error"
+REDIS_ERROR_MSG = "Redis error"
 
 
 class ConcreteTestSubscriber(BaseSubscriber):
     """Concrete implementation of BaseSubscriber for testing."""
 
     def __init__(self, **kwargs: Any) -> None:
+        """Initialize test subscriber with tracking capabilities.
+
+        Args:
+        ----
+            **kwargs: Arguments passed to BaseSubscriber
+
+        """
         super().__init__(**kwargs)
         self.processed_messages: list[MessageDict] = []
         self.processing_results: list[bool] = []
@@ -41,14 +94,29 @@ class ConcreteTestSubscriber(BaseSubscriber):
         self.processing_delay = 0.0
 
     async def process_message(self, message: MessageDict) -> bool:
-        """Test implementation that records processed messages."""
+        """Test implementation that records processed messages.
+
+        Args:
+        ----
+            message: Message to process
+
+        Returns:
+        -------
+            Processing success status
+
+        Raises:
+        ------
+            ValueError: When should_fail is True
+
+        """
         if self.processing_delay > 0:
             await asyncio.sleep(self.processing_delay)
 
         self.processed_messages.append(message)
 
         if self.should_fail:
-            raise ValueError("Simulated processing failure")
+            msg = SIMULATED_FAILURE_MSG
+            raise ValueError(msg)
 
         # Use processing_results if available, otherwise succeed
         if self.processing_results:
@@ -56,7 +124,17 @@ class ConcreteTestSubscriber(BaseSubscriber):
         return True
 
     async def process_batch(self, messages: list[MessageDict]) -> list[bool]:
-        """Test batch implementation."""
+        """Test batch implementation.
+
+        Args:
+        ----
+            messages: List of messages to process
+
+        Returns:
+        -------
+            List of processing success statuses
+
+        """
         # Record all messages
         self.processed_messages.extend(messages)
 
@@ -76,23 +154,30 @@ class TestBaseSubscriberABC:
     def test_cannot_instantiate_abstract_class(self) -> None:
         """BaseSubscriber cannot be instantiated directly."""
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-            BaseSubscriber()  # type: ignore
+            BaseSubscriber()  # type: ignore[abstract]
 
     def test_must_implement_process_message(self) -> None:
         """Subclasses must implement process_message method."""
 
         class IncompleteSubscriber(BaseSubscriber):
-            pass
+            """Test class missing required abstract methods."""
 
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-            IncompleteSubscriber()  # type: ignore
+            IncompleteSubscriber()  # type: ignore[abstract]
 
     def test_concrete_implementation_works(self) -> None:
         """Concrete implementation with process_message can be instantiated."""
         subscriber = ConcreteTestSubscriber()
-        assert isinstance(subscriber, BaseSubscriber)
-        assert subscriber._concurrency == DEFAULT_MAX_CONCURRENCY
-        assert subscriber._ack_timeout == DEFAULT_ACK_TIMEOUT
+        # Test instance type
+        expected_instance = isinstance(subscriber, BaseSubscriber)
+        pytest.assume(expected_instance)
+
+        # Test configuration values
+        expected_concurrency = subscriber._concurrency == DEFAULT_MAX_CONCURRENCY
+        pytest.assume(expected_concurrency)
+
+        expected_timeout = subscriber._ack_timeout == DEFAULT_ACK_TIMEOUT
+        pytest.assume(expected_timeout)
 
 
 class TestBaseSubscriberConfiguration:
@@ -102,11 +187,21 @@ class TestBaseSubscriberConfiguration:
         """Test default configuration values."""
         subscriber = ConcreteTestSubscriber()
 
-        assert subscriber._concurrency == DEFAULT_MAX_CONCURRENCY
-        assert subscriber._ack_timeout == DEFAULT_ACK_TIMEOUT
-        assert subscriber._batch_size == DEFAULT_BATCH_SIZE
-        assert subscriber._circuit_breaker is None
-        assert subscriber._dlq_publish is None
+        # Test default values
+        expected_concurrency = subscriber._concurrency == DEFAULT_MAX_CONCURRENCY
+        pytest.assume(expected_concurrency)
+
+        expected_timeout = subscriber._ack_timeout == DEFAULT_ACK_TIMEOUT
+        pytest.assume(expected_timeout)
+
+        expected_batch_size = subscriber._batch_size == DEFAULT_BATCH_SIZE
+        pytest.assume(expected_batch_size)
+
+        expected_circuit_breaker = subscriber._circuit_breaker is None
+        pytest.assume(expected_circuit_breaker)
+
+        expected_dlq_publish = subscriber._dlq_publish is None
+        pytest.assume(expected_dlq_publish)
 
     def test_custom_configuration(self) -> None:
         """Test custom configuration values."""
@@ -114,32 +209,56 @@ class TestBaseSubscriberConfiguration:
         dlq_func = AsyncMock()
 
         subscriber = ConcreteTestSubscriber(
-            concurrency=16,
-            ack_timeout=10.0,
-            batch_size=50,
-            batch_window=1.0,
+            concurrency=CUSTOM_CONCURRENCY,
+            ack_timeout=CUSTOM_ACK_TIMEOUT,
+            batch_size=CUSTOM_BATCH_SIZE,
+            batch_window=CUSTOM_BATCH_WINDOW,
             circuit_breaker=circuit_breaker,
             dlq_publish=dlq_func,
-            message_ttl=600,
+            message_ttl=CUSTOM_MESSAGE_TTL,
         )
 
-        assert subscriber._concurrency == 16
-        assert subscriber._ack_timeout == 10.0
-        assert subscriber._batch_size == 50
-        assert subscriber._batch_window == 1.0
-        assert subscriber._circuit_breaker is circuit_breaker
-        assert subscriber._dlq_publish is dlq_func
-        assert subscriber._message_ttl == 600
+        # Test custom values
+        expected_concurrency = subscriber._concurrency == CUSTOM_CONCURRENCY
+        pytest.assume(expected_concurrency)
+
+        expected_timeout = subscriber._ack_timeout == CUSTOM_ACK_TIMEOUT
+        pytest.assume(expected_timeout)
+
+        expected_batch_size = subscriber._batch_size == CUSTOM_BATCH_SIZE
+        pytest.assume(expected_batch_size)
+
+        expected_batch_window = subscriber._batch_window == CUSTOM_BATCH_WINDOW
+        pytest.assume(expected_batch_window)
+
+        expected_circuit_breaker = subscriber._circuit_breaker is circuit_breaker
+        pytest.assume(expected_circuit_breaker)
+
+        expected_dlq_publish = subscriber._dlq_publish is dlq_func
+        pytest.assume(expected_dlq_publish)
+
+        expected_message_ttl = subscriber._message_ttl == CUSTOM_MESSAGE_TTL
+        pytest.assume(expected_message_ttl)
 
     def test_initial_state(self) -> None:
         """Test initial subscriber state."""
         subscriber = ConcreteTestSubscriber()
 
-        assert not subscriber.is_consuming
-        assert len(subscriber._channels) == 0
-        assert len(subscriber._consuming_tasks) == 0
-        assert subscriber._stop_event.is_set() is False
-        assert subscriber.metrics["processed_count"] == 0
+        # Test initial state
+        expected_not_consuming = not subscriber.is_consuming
+        pytest.assume(expected_not_consuming)
+
+        expected_empty_channels = len(subscriber._channels) == 0
+        pytest.assume(expected_empty_channels)
+
+        expected_empty_tasks = len(subscriber._consuming_tasks) == 0
+        pytest.assume(expected_empty_tasks)
+
+        expected_stop_event = subscriber._stop_event.is_set() is False
+        pytest.assume(expected_stop_event)
+
+        expected_processed_count = subscriber.metrics["processed_count"] == 0
+        pytest.assume(expected_processed_count)
 
 
 @pytest.mark.asyncio
@@ -162,19 +281,31 @@ class TestLifecycleManagement:
         # Start consuming
         await subscriber.start_consuming("test_channel")
 
-        assert subscriber.is_consuming
-        assert "test_channel" in subscriber._channels
-        assert len(subscriber._consuming_tasks) == 1
+        # Verify consuming state
+        expected_consuming = subscriber.is_consuming
+        pytest.assume(expected_consuming)
+
+        expected_channel_present = "test_channel" in subscriber._channels
+        pytest.assume(expected_channel_present)
+
+        expected_task_count = len(subscriber._consuming_tasks) == 1
+        pytest.assume(expected_task_count)
 
         # Allow some processing time
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(PROCESSING_TIME)
 
         # Stop consuming
         await subscriber.stop_consuming()
 
-        assert not subscriber.is_consuming
-        assert len(subscriber._channels) == 0
-        assert len(subscriber._consuming_tasks) == 0
+        # Test lifecycle state
+        expected_not_consuming = not subscriber.is_consuming
+        pytest.assume(expected_not_consuming)
+
+        expected_empty_channels = len(subscriber._channels) == 0
+        pytest.assume(expected_empty_channels)
+
+        expected_empty_tasks = len(subscriber._consuming_tasks) == 0
+        pytest.assume(expected_empty_tasks)
 
     async def test_start_consuming_duplicate_channel(self) -> None:
         """Test starting consumption from same channel twice."""
@@ -260,13 +391,13 @@ class TestMessageProcessing:
         await subscriber.stop_consuming()
 
         # Verify messages were processed
-        assert len(subscriber.processed_messages) == 2
+        assert len(subscriber.processed_messages) == TWO_MESSAGES
         assert subscriber.processed_messages[0]["content"] == "message1"
         assert subscriber.processed_messages[1]["content"] == "message2"
 
         # Verify ACK operations were called
-        assert mock_redis.setex.call_count == 2  # Set processing state
-        assert mock_redis.delete.call_count == 2  # Acknowledge messages
+        assert mock_redis.setex.call_count == TWO_MESSAGES  # Set processing state
+        assert mock_redis.delete.call_count == TWO_MESSAGES  # Acknowledge messages
 
     @patch("src.common.base_subscriber.get_pubsub")
     async def test_message_processing_failure(self, mock_get_pubsub: AsyncMock) -> None:
@@ -328,7 +459,7 @@ class TestBatchProcessing:
         await asyncio.sleep(0.1)
 
         # Verify batch was processed
-        assert len(subscriber.processed_messages) == 3
+        assert len(subscriber.processed_messages) == TEST_BATCH_SIZE
         assert subscriber._batch_buffer == []  # Buffer should be empty
 
     @patch("src.common.base_subscriber.get_pubsub")
@@ -379,7 +510,7 @@ class TestBatchProcessing:
 
         # Verify results
         assert results == [True, False, True]
-        assert len(subscriber.processed_messages) == 3
+        assert len(subscriber.processed_messages) == TEST_BATCH_SIZE
 
 
 @pytest.mark.asyncio
@@ -398,7 +529,7 @@ class TestCircuitBreakerIntegration:
         test_message = {"content": "test"}
 
         # First message should fail and open circuit breaker
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=SIMULATED_FAILURE_MSG):
             await subscriber.process_message(test_message)
 
         # Second message should be blocked by circuit breaker
@@ -500,7 +631,7 @@ class TestDeadLetterQueue:
 
         # Check the message structure passed to DLQ
         dlq_message = mock_dlq.call_args[0][0]
-        assert dlq_message["id"] == 123
+        assert dlq_message["id"] == TEST_MESSAGE_ID
         assert dlq_message["content"] == "test message"
         assert "_dlq_timestamp" in dlq_message
         assert "_dlq_failure_reason" in dlq_message
@@ -566,7 +697,7 @@ class TestConcurrencyControl:
             concurrent_calls.pop()
             return result
 
-        subscriber.process_message = tracking_process  # type: ignore
+        subscriber.process_message = tracking_process  # type: ignore[method-assign]
 
         # Process multiple messages concurrently
         messages = [{"id": i} for i in range(4)]
@@ -581,7 +712,7 @@ class TestConcurrencyControl:
         # Verify semaphore was effective (max 2 concurrent)
         # This is a bit tricky to test deterministically, but we can verify
         # that all messages were processed
-        assert len(subscriber.processed_messages) == 4
+        assert len(subscriber.processed_messages) == FOUR_MESSAGES
 
     @patch("src.common.base_subscriber.get_pubsub")
     async def test_timeout_handling(self, mock_get_pubsub: AsyncMock) -> None:
@@ -630,8 +761,8 @@ class TestMetricsAndObservability:
         subscriber._channels.add("test_channel")
 
         metrics = subscriber.metrics
-        assert metrics["processed_count"] == 5
-        assert metrics["failed_count"] == 2
+        assert metrics["processed_count"] == EXPECTED_PROCESSED_MESSAGES
+        assert metrics["failed_count"] == EXPECTED_DLQ_MESSAGES
         assert metrics["dlq_count"] == 1
         assert metrics["active_channels"] == 1
 
@@ -730,7 +861,7 @@ class TestSubscribeToChannelIterator:
 class TestAsyncTimeoutIntegration:
     """Test async_timeout integration when available."""
 
-    @patch("src.common.base_subscriber._ASYNC_TIMEOUT_AVAILABLE", True)
+    @patch("src.common.base_subscriber._ASYNC_TIMEOUT_AVAILABLE", ASYNC_TIMEOUT_AVAILABLE_TRUE)
     @patch("src.common.base_subscriber.async_timeout")
     async def test_async_timeout_used_when_available(self, mock_async_timeout: Mock) -> None:
         """Test that async_timeout is used when available."""
@@ -755,7 +886,7 @@ class TestAsyncTimeoutIntegration:
             # Verify async_timeout was used
             mock_async_timeout.timeout.assert_called_once_with(5.0)
 
-    @patch("src.common.base_subscriber._ASYNC_TIMEOUT_AVAILABLE", False)
+    @patch("src.common.base_subscriber._ASYNC_TIMEOUT_AVAILABLE", ASYNC_TIMEOUT_AVAILABLE_FALSE)
     async def test_asyncio_wait_for_fallback(self) -> None:
         """Test fallback to asyncio.wait_for when async_timeout not available."""
         subscriber = ConcreteTestSubscriber(ack_timeout=0.1)
@@ -802,7 +933,10 @@ class TestIntegrationScenarios:
         subscriber.processing_results = [True, False, True, False, True]
 
         # Simulate batch processing
-        messages = [{"id": i, "content": f"message_{i}", "_subscriber_message_id": f"msg_{i}"} for i in range(5)]
+        messages = [
+            {"id": i, "content": f"message_{i}", "_subscriber_message_id": f"msg_{i}"}
+            for i in range(INTEGRATION_TOTAL_MESSAGES)
+        ]
 
         # Process messages in batches
         batch1 = messages[:2]
@@ -818,11 +952,11 @@ class TestIntegrationScenarios:
         await asyncio.sleep(0.1)
 
         # Verify results
-        assert len(subscriber.processed_messages) == 5
-        assert len(dlq_messages) == 2  # Failed messages
-        assert subscriber.metrics["processed_count"] == 5
-        assert subscriber.metrics["dlq_count"] == 2
+        assert len(subscriber.processed_messages) == INTEGRATION_TOTAL_MESSAGES
+        assert len(dlq_messages) == INTEGRATION_FAILED_MESSAGES  # Failed messages
+        assert subscriber.metrics["processed_count"] == INTEGRATION_TOTAL_MESSAGES
+        assert subscriber.metrics["dlq_count"] == INTEGRATION_FAILED_MESSAGES
 
         # Verify Redis ACK operations
-        assert mock_redis.setex.call_count == 5  # Set processing state
-        assert mock_redis.delete.call_count == 5  # Acknowledge all messages
+        assert mock_redis.setex.call_count == INTEGRATION_TOTAL_MESSAGES  # Set processing state
+        assert mock_redis.delete.call_count == INTEGRATION_TOTAL_MESSAGES  # Acknowledge all messages

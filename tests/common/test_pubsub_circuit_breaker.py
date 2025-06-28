@@ -1,3 +1,4 @@
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, TRY003, EM101, FBT003
 """Tests for Circuit Breaker functionality in pubsub.py.
 
 This module tests the circuit breaker implementation for Redis resilience,

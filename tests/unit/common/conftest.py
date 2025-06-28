@@ -7,6 +7,10 @@ from typing import Any
 import pytest
 import pytest_asyncio
 
+# Error messages
+SIMULATED_FAILURE_MSG = "Simulated connection failure"
+MAX_FAILURES = 3
+
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
@@ -43,27 +47,27 @@ async def fake_redis() -> AsyncGenerator[Any, None]:
 async def flaky_redis(fake_redis: Any) -> AsyncGenerator[Any, None]:
     """Redis client that simulates failures."""
     failure_count = 0
-    max_failures = 3
 
     original_publish = fake_redis.publish
     original_ping = fake_redis.ping
 
     async def failing_publish(*args: Any, **kwargs: Any) -> Any:
         nonlocal failure_count
-        if failure_count < max_failures:
+        if failure_count < MAX_FAILURES:
             failure_count += 1
             from redis.exceptions import RedisError
 
-            raise RedisError(f"Simulated failure {failure_count}")
+            error_msg = f"Simulated failure {failure_count}"
+            raise RedisError(error_msg)
         return await original_publish(*args, **kwargs)
 
     async def failing_ping(*args: Any, **kwargs: Any) -> Any:
         nonlocal failure_count
-        if failure_count < max_failures:
+        if failure_count < MAX_FAILURES:
             failure_count += 1
             from redis.exceptions import ConnectionError as RedisConnectionError
 
-            raise RedisConnectionError("Simulated connection failure")
+            raise RedisConnectionError(SIMULATED_FAILURE_MSG)
         return await original_ping(*args, **kwargs)
 
     fake_redis.publish = failing_publish

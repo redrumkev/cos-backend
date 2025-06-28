@@ -1,4 +1,3 @@
-# ruff: noqa: I001
 """High-performance Redis Pub/Sub wrapper for COS.
 
 This module provides a lightweight, high-performance Redis Pub/Sub wrapper designed for
@@ -14,20 +13,16 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
-from collections.abc import Coroutine
+from typing import Any
 
 from .redis_config import get_redis_config
 
 # Import Redis with graceful degradation - use Any for type hints to avoid linter issues
-if TYPE_CHECKING:
-    # These imports are only for type checking and won't be resolved by linter
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +56,7 @@ class RedisOperationMetrics:
     message_size_bytes: int | None = None
     circuit_breaker_state: str | None = None
 
-    def mark_completed(self, success: bool = True, error: Exception | None = None) -> None:
+    def mark_completed(self, *, success: bool = True, error: Exception | None = None) -> None:
         """Mark operation as completed and calculate duration."""
         self.duration_ms = (time.perf_counter() - self.start_time) * 1000
         self.success = success
@@ -81,7 +76,11 @@ try:
     from redis.asyncio import ConnectionPool
     from redis.exceptions import (
         ConnectionError as RedisConnectionError,
+    )
+    from redis.exceptions import (
         RedisError,
+    )
+    from redis.exceptions import (
         TimeoutError as RedisTimeoutError,
     )
 
@@ -214,17 +213,13 @@ class CircuitBreaker:
 
         if self._state == CircuitBreakerState.CLOSED:
             return True
-        elif self._state == CircuitBreakerState.OPEN:
+        if self._state == CircuitBreakerState.OPEN:
             # Check if recovery timeout has elapsed
             if self._next_attempt_time is not None and current_time >= self._next_attempt_time:
                 await self._transition_to_half_open()
                 return True
             return False
-        elif self._state == CircuitBreakerState.HALF_OPEN:
-            # Allow limited requests in half-open state
-            return True
-
-        return False
+        return self._state == CircuitBreakerState.HALF_OPEN
 
     async def _transition_to_open(self) -> None:
         """Transition circuit breaker to OPEN state."""
@@ -245,8 +240,9 @@ class CircuitBreaker:
                 self._state_transitions["half_open_to_open"] += 1
 
             logger.warning(
-                f"Circuit breaker opened after {self._failure_count} failures. "
-                f"Next attempt at {self._next_attempt_time}"
+                "Circuit breaker opened after %d failures. Next attempt at %s",
+                self._failure_count,
+                self._next_attempt_time,
             )
 
     async def _transition_to_half_open(self) -> None:
@@ -313,7 +309,7 @@ class CircuitBreaker:
                 failure_threshold=self.failure_threshold,
             )
 
-    async def call(self, func: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
+    async def call(self, func: Callable[..., Awaitable[Any]], *args: object, **kwargs: object) -> object:
         """Execute a function with circuit breaker protection.
 
         Args:
@@ -335,9 +331,8 @@ class CircuitBreaker:
         async with self._lock:
             # Check if request can be attempted
             if not await self._can_attempt_request():
-                raise CircuitBreakerError(
-                    f"Circuit breaker is {self._state.value}. Next attempt at {self._next_attempt_time}"
-                )
+                msg = f"Circuit breaker is {self._state.value}. Next attempt at {self._next_attempt_time}"
+                raise CircuitBreakerError(msg)
 
         try:
             # Execute the function with timeout
@@ -346,8 +341,6 @@ class CircuitBreaker:
             # Record success
             async with self._lock:
                 await self._record_success()
-
-            return result
 
         except self.expected_exception:
             # Record failure for expected exceptions
@@ -365,6 +358,8 @@ class CircuitBreaker:
             async with self._lock:
                 self._total_requests += 1
             raise
+        else:
+            return result
 
 
 class PubSubError(Exception):
@@ -389,7 +384,8 @@ class RedisPubSub:
     def __init__(self) -> None:
         """Initialize Redis Pub/Sub client with optimized connection pool and circuit breaker."""
         if not _REDIS_AVAILABLE:
-            raise PubSubError("Redis package is required for pub/sub functionality. Install with: pip install redis")
+            msg = "Redis package is required for pub/sub functionality. Install with: pip install redis"
+            raise PubSubError(msg)
 
         self._config = get_redis_config()
         self._pool: Any = None  # Redis connection pool
@@ -415,7 +411,8 @@ class RedisPubSub:
             return
 
         if not _REDIS_AVAILABLE:
-            raise PubSubError("Redis package is required for connection")
+            msg = "Redis package is required for connection"
+            raise PubSubError(msg)
 
         async def _connect_operation() -> None:
             # Create optimized connection pool
@@ -441,7 +438,7 @@ class RedisPubSub:
             )
 
             # Test connection
-            assert self._redis is not None  # mypy assertion  # nosec B101  # nosec B101
+            assert self._redis is not None  # mypy assertion  # nosec B101
             await self._redis.ping()
 
         try:
@@ -451,11 +448,13 @@ class RedisPubSub:
             logger.info("Redis Pub/Sub connected successfully")
 
         except CircuitBreakerError as e:
-            logger.error(f"Circuit breaker prevented Redis connection: {e}")
-            raise PubSubError(f"Redis connection blocked by circuit breaker: {e}") from e
+            logger.exception("Circuit breaker prevented Redis connection")
+            msg = f"Redis connection blocked by circuit breaker: {e}"
+            raise PubSubError(msg) from e
         except RedisError as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            raise PubSubError(f"Redis connection failed: {e}") from e
+            logger.exception("Failed to connect to Redis")
+            msg = f"Redis connection failed: {e}"
+            raise PubSubError(msg) from e
 
     async def disconnect(self) -> None:
         """Gracefully disconnect from Redis."""
@@ -489,8 +488,8 @@ class RedisPubSub:
             self._handlers.clear()
             logger.info("Redis Pub/Sub disconnected")
 
-        except RedisError as e:
-            logger.error(f"Error during Redis disconnect: {e}")
+        except RedisError:
+            logger.exception("Error during Redis disconnect")
 
     async def publish(self, channel: str, message: MessageData, correlation_id: str | None = None) -> int:
         """Publish message to Redis channel with <1ms latency target and comprehensive observability.
@@ -527,7 +526,10 @@ class RedisPubSub:
         span_name = f"Redis PUBLISH {channel}"
         if _LOGFIRE_AVAILABLE:
             span_context: Any = logfire.span(
-                span_name, channel=channel, correlation_id=correlation_id, operation="publish"
+                span_name,
+                channel=channel,
+                correlation_id=correlation_id,
+                operation="publish",
             )
         else:
             span_context = contextlib.nullcontext()
@@ -544,8 +546,7 @@ class RedisPubSub:
                     serialized = json.dumps(message, separators=(",", ":"), ensure_ascii=False)
                     metrics.message_size_bytes = len(serialized.encode("utf-8"))
                 except (json.JSONDecodeError, TypeError) as e:
-                    error_msg = f"Failed to serialize message for channel '{channel}': {e}"
-                    logger.error(error_msg)
+                    logger.exception("Failed to serialize message for channel '%s'", channel)
                     metrics.mark_completed(success=False, error=e)
 
                     if _LOGFIRE_AVAILABLE and logfire and span:
@@ -553,7 +554,8 @@ class RedisPubSub:
                         span.set_attributes(metrics.to_dict())
                         logfire.error("Message serialization failed", extra=metrics.to_dict())
 
-                    raise PublishError(f"Failed to serialize message: {e}") from e
+                    msg = f"Failed to serialize message: {e}"
+                    raise PublishError(msg) from e
 
                 async def _publish_operation() -> int:
                     # Publish with timing measurement
@@ -566,7 +568,7 @@ class RedisPubSub:
 
                     # Log performance warning if >1ms
                     if elapsed > 1.0:
-                        logger.warning(f"Publish latency {elapsed:.2f}ms exceeded 1ms target for channel '{channel}'")
+                        logger.warning("Publish latency %.2fms exceeded 1ms target for channel '%s'", elapsed, channel)
                         if _LOGFIRE_AVAILABLE:
                             logfire.warning(
                                 "Publish latency exceeded target",
@@ -576,11 +578,13 @@ class RedisPubSub:
                                 correlation_id=correlation_id,
                             )
 
-                    logger.debug(f"Published to '{channel}' in {elapsed:.3f}ms, {result} subscribers")
+                    logger.debug("Published to '%s' in %.3fms, %d subscribers", channel, elapsed, result)
                     return int(result)
 
                 # Use circuit breaker to protect publish operation
                 result = await self._circuit_breaker.call(_publish_operation)
+                if not isinstance(result, int):
+                    raise TypeError(f"Circuit breaker should return int from _publish_operation, got {type(result)}")
 
                 # Mark operation as successful
                 metrics.mark_completed(success=True)
@@ -590,11 +594,10 @@ class RedisPubSub:
                     span.set_attributes(metrics.to_dict())
                     logfire.info("Message published successfully", extra=metrics.to_dict())
 
-                return int(result)
+                return result
 
             except CircuitBreakerError as e:
-                error_msg = f"Circuit breaker prevented publish to channel '{channel}': {e}"
-                logger.error(error_msg)
+                logger.exception("Circuit breaker prevented publish to channel '%s'", channel)
                 metrics.mark_completed(success=False, error=e)
 
                 if _LOGFIRE_AVAILABLE and logfire and span:
@@ -602,11 +605,11 @@ class RedisPubSub:
                     span.set_attributes(metrics.to_dict())
                     logfire.error("Publish blocked by circuit breaker", extra=metrics.to_dict())
 
-                raise PublishError(f"Publish blocked by circuit breaker: {e}") from e
+                msg = f"Publish blocked by circuit breaker: {e}"
+                raise PublishError(msg) from e
 
             except RedisError as e:
-                error_msg = f"Failed to publish to channel '{channel}': {e}"
-                logger.error(error_msg)
+                logger.exception("Failed to publish to channel '%s'", channel)
                 metrics.mark_completed(success=False, error=e)
 
                 if _LOGFIRE_AVAILABLE and logfire and span:
@@ -614,12 +617,12 @@ class RedisPubSub:
                     span.set_attributes(metrics.to_dict())
                     logfire.error("Redis publish operation failed", extra=metrics.to_dict())
 
-                raise PublishError(f"Failed to publish message: {e}") from e
+                msg = f"Failed to publish message: {e}"
+                raise PublishError(msg) from e
 
             except Exception as e:
                 # Handle unexpected errors
-                error_msg = f"Unexpected error publishing to channel '{channel}': {e}"
-                logger.error(error_msg)
+                logger.exception("Unexpected error publishing to channel '%s'", channel)
                 metrics.mark_completed(success=False, error=e)
 
                 if _LOGFIRE_AVAILABLE and logfire and span:
@@ -627,7 +630,8 @@ class RedisPubSub:
                     span.set_attributes(metrics.to_dict())
                     logfire.error("Unexpected publish error", extra=metrics.to_dict())
 
-                raise PublishError(f"Unexpected publish error: {e}") from e
+                msg = f"Unexpected publish error: {e}"
+                raise PublishError(msg) from e
 
     async def subscribe(self, channel: str, handler: MessageHandler) -> None:
         """Subscribe to Redis channel with message handler.
@@ -661,15 +665,16 @@ class RedisPubSub:
                 assert self._pubsub is not None  # mypy assertion  # nosec B101
                 await self._pubsub.subscribe(channel)
                 self._subscribers.add(channel)
-                logger.info(f"Subscribed to channel '{channel}'")
+                logger.info("Subscribed to channel '%s'", channel)
 
             # Start listening task if not already running
             if not self._listening_task or self._listening_task.done():
                 self._listening_task = asyncio.create_task(self._listen_loop())
 
         except RedisError as e:
-            logger.error(f"Failed to subscribe to channel '{channel}': {e}")
-            raise SubscribeError(f"Failed to subscribe: {e}") from e
+            logger.exception("Failed to subscribe to channel '%s'", channel)
+            msg = f"Failed to subscribe: {e}"
+            raise SubscribeError(msg) from e
 
     async def unsubscribe(self, channel: str, handler: MessageHandler | None = None) -> None:
         """Unsubscribe from Redis channel.
@@ -698,18 +703,19 @@ class RedisPubSub:
                     del self._handlers[channel]
                     await self._pubsub.unsubscribe(channel)
                     self._subscribers.remove(channel)
-                    logger.info(f"Unsubscribed from channel '{channel}'")
+                    logger.info("Unsubscribed from channel '%s'", channel)
             else:
                 # Remove all handlers and unsubscribe
                 if channel in self._handlers:
                     del self._handlers[channel]
                 await self._pubsub.unsubscribe(channel)
                 self._subscribers.remove(channel)
-                logger.info(f"Unsubscribed from channel '{channel}' (all handlers)")
+                logger.info("Unsubscribed from channel '%s' (all handlers)", channel)
 
         except RedisError as e:
-            logger.error(f"Failed to unsubscribe from channel '{channel}': {e}")
-            raise SubscribeError(f"Failed to unsubscribe: {e}") from e
+            logger.exception("Failed to unsubscribe from channel '%s'", channel)
+            msg = f"Failed to unsubscribe: {e}"
+            raise SubscribeError(msg) from e
 
     async def _listen_loop(self) -> None:
         """Process incoming messages in main listening loop."""
@@ -724,8 +730,8 @@ class RedisPubSub:
         except asyncio.CancelledError:
             logger.debug("Pub/Sub listening loop cancelled")
             raise
-        except RedisError as e:
-            logger.error(f"Error in Pub/Sub listening loop: {e}")
+        except RedisError:
+            logger.exception("Error in Pub/Sub listening loop")
             # Attempt reconnection
             try:
                 await self.connect()
@@ -733,8 +739,8 @@ class RedisPubSub:
                     # Re-subscribe to all channels
                     for channel in list(self._subscribers):
                         await self._pubsub.subscribe(channel)
-            except Exception as reconnect_error:
-                logger.error(f"Failed to reconnect: {reconnect_error}")
+            except Exception:
+                logger.exception("Failed to reconnect")
 
     async def _handle_message(self, message: dict[str, Any]) -> None:
         """Handle incoming Redis message by calling registered handlers.
@@ -764,14 +770,15 @@ class RedisPubSub:
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
 
-        except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            logger.error(f"Failed to decode message from channel '{channel}': {e}")
-        except Exception as e:
-            logger.error(f"Error handling message from channel '{channel}': {e}")
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.exception("Failed to decode message from channel '%s'", channel)
+        except Exception:
+            logger.exception("Error handling message from channel '%s'", channel)
 
     @asynccontextmanager
     async def channel_subscription(
-        self, channel: str
+        self,
+        channel: str,
     ) -> AsyncGenerator[Callable[[MessageHandler], Awaitable[None]], None]:
         """Context manager for temporary channel subscription.
 
@@ -827,9 +834,11 @@ class RedisPubSub:
 
         try:
             result = await self._circuit_breaker.call(_get_count_operation)
-            return int(result)
-        except (CircuitBreakerError, RedisError) as e:
-            logger.error(f"Failed to get subscriber count for channel '{channel}': {e}")
+            if not isinstance(result, int):
+                raise TypeError(f"Circuit breaker should return int from _get_count_operation, got {type(result)}")
+            return result
+        except (CircuitBreakerError, RedisError):
+            logger.exception("Failed to get subscriber count for channel '%s'", channel)
             return 0
 
     @property
@@ -878,7 +887,9 @@ class RedisPubSub:
         # Start Logfire span for health check observability
         if _LOGFIRE_AVAILABLE:
             span_context: Any = logfire.span(
-                "Redis Health Check", correlation_id=correlation_id, operation="health_check"
+                "Redis Health Check",
+                correlation_id=correlation_id,
+                operation="health_check",
             )
         else:
             span_context = contextlib.nullcontext()
@@ -920,7 +931,12 @@ class RedisPubSub:
                             info_result = await self._redis.info()
                             return dict(info_result) if info_result else {}
 
-                        redis_info = await self._circuit_breaker.call(_info_operation)
+                        result = await self._circuit_breaker.call(_info_operation)
+                        if not isinstance(result, dict):
+                            raise TypeError(
+                                f"Circuit breaker should return dict from _info_operation, got {type(result)}"
+                            )
+                        redis_info: dict[str, Any] = result
                         health_status["redis_info"] = {
                             "connected_clients": redis_info.get("connected_clients", "unknown"),
                             "used_memory": redis_info.get("used_memory", "unknown"),
@@ -980,7 +996,11 @@ class RedisPubSub:
             return health_status
 
     async def publish_with_fallback(
-        self, channel: str, message: MessageData, correlation_id: str | None = None, fallback_strategy: str = "log_only"
+        self,
+        channel: str,
+        message: MessageData,
+        correlation_id: str | None = None,
+        fallback_strategy: str = "log_only",
     ) -> dict[str, Any]:
         """Publish message with graceful degradation fallback strategies.
 
@@ -1018,10 +1038,8 @@ class RedisPubSub:
                     correlation_id=result["correlation_id"],
                     subscriber_count=subscriber_count,
                 )
-
-            return result
-
         except (PublishError, CircuitBreakerError, RedisError) as primary_error:
+            # Apply fallback strategy if we get here (exception occurred)
             result["error"] = str(primary_error)
             result["fallback_used"] = True
 
@@ -1038,8 +1056,9 @@ class RedisPubSub:
             if fallback_strategy == "log_only":
                 # Simply log the message for later replay
                 logger.warning(
-                    f"Redis unavailable - message logged for replay: "
-                    f"channel='{channel}', correlation_id='{result['correlation_id']}'"
+                    "Redis unavailable - message logged for replay: channel='%s', correlation_id='%s'",
+                    channel,
+                    result["correlation_id"],
                 )
                 result["success"] = True  # Consider log-only as success
 
@@ -1054,12 +1073,13 @@ class RedisPubSub:
                         "message": message,
                         "correlation_id": result["correlation_id"],
                         "timestamp": time.time(),
-                    }
+                    },
                 )
 
                 logger.info(
-                    f"Message queued in memory for later delivery: "
-                    f"channel='{channel}', correlation_id='{result['correlation_id']}'"
+                    "Message queued in memory for later delivery: channel='%s', correlation_id='%s'",
+                    channel,
+                    result["correlation_id"],
                 )
                 result["success"] = True
 
@@ -1069,18 +1089,21 @@ class RedisPubSub:
                     # This would need proper file queue implementation
                     # For now, just log the intent to queue
                     logger.info(
-                        f"Message would be queued to file: "
-                        f"channel='{channel}', correlation_id='{result['correlation_id']}'"
+                        "Message would be queued to file: channel='%s', correlation_id='%s'",
+                        channel,
+                        result["correlation_id"],
                     )
                     result["success"] = True
 
                 except Exception as file_error:
-                    logger.error(f"File queue fallback failed: {file_error}")
+                    logger.exception("File queue fallback failed")
                     result["error"] = f"Primary and file fallback failed: {file_error}"
 
             if _LOGFIRE_AVAILABLE:
                 logfire.info("Fallback strategy applied", extra=result)
 
+            return result
+        else:
             return result
 
 

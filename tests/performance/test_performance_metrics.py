@@ -1,3 +1,4 @@
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, COM812, BLE001
 """Performance Metrics Collection & Reporting - Task 15.2.
 
 This module implements comprehensive performance metrics collection,
@@ -36,15 +37,28 @@ import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import psutil
 import pytest
 import redis.asyncio as redis
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc import crud
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+# Performance thresholds
+REDIS_P95_LATENCY_MS = 10.0
+REDIS_P99_LATENCY_MS = 20.0
+DATABASE_P95_LATENCY_MS = 100.0
+API_P95_LATENCY_MS = 1000.0
+MAX_ERROR_RATE = 0.2
+SLA_MAX_LATENCY_MS = 1000
+SLA_MAX_P95_LATENCY_MS = 500
+SLA_MIN_THROUGHPUT = 100
+SLA_MAX_ERROR_RATE = 0.01
 
 logger = logging.getLogger(__name__)
 
@@ -411,10 +425,10 @@ class PerformanceCollector:
 
         # Define SLA targets
         sla_targets = {
-            "max_latency_ms": 1000,  # P99 should be < 1000ms
-            "max_p95_latency_ms": 500,  # P95 should be < 500ms
-            "min_throughput_ops_per_sec": 100,  # Minimum throughput
-            "max_error_rate": 0.01,  # Maximum 1% error rate
+            "max_latency_ms": SLA_MAX_LATENCY_MS,  # P99 should be < 1000ms
+            "max_p95_latency_ms": SLA_MAX_P95_LATENCY_MS,  # P95 should be < 500ms
+            "min_throughput_ops_per_sec": SLA_MIN_THROUGHPUT,  # Minimum throughput
+            "max_error_rate": SLA_MAX_ERROR_RATE,  # Maximum 1% error rate
         }
 
         compliance = {}
@@ -506,8 +520,8 @@ class TestPerformanceMetricsCollection:
         assert metrics.mean_latency > 0
 
         # Performance assertions
-        assert metrics.p95_latency < 10.0, f"Redis P95 latency {metrics.p95_latency:.2f}ms too high"
-        assert metrics.p99_latency < 20.0, f"Redis P99 latency {metrics.p99_latency:.2f}ms too high"
+        assert metrics.p95_latency < REDIS_P95_LATENCY_MS, f"Redis P95 latency {metrics.p95_latency:.2f}ms too high"
+        assert metrics.p99_latency < REDIS_P99_LATENCY_MS, f"Redis P99 latency {metrics.p99_latency:.2f}ms too high"
 
     @pytest.mark.asyncio
     async def test_database_performance_metrics_collection(
@@ -559,8 +573,10 @@ class TestPerformanceMetricsCollection:
         assert metrics.operations_per_second > 0
 
         # Performance assertions
-        assert metrics.p95_latency < 100.0, f"Database P95 latency {metrics.p95_latency:.2f}ms too high"
-        assert metrics.error_rate < 0.2, f"Database error rate {metrics.error_rate:.2%} too high"
+        assert (
+            metrics.p95_latency < DATABASE_P95_LATENCY_MS
+        ), f"Database P95 latency {metrics.p95_latency:.2f}ms too high"
+        assert metrics.error_rate < MAX_ERROR_RATE, f"Database error rate {metrics.error_rate:.2%} too high"
 
     @pytest.mark.asyncio
     async def test_api_performance_metrics_collection(
@@ -614,7 +630,7 @@ class TestPerformanceMetricsCollection:
         assert metrics.operations_per_second > 0
 
         # Performance assertions
-        assert metrics.p95_latency < 1000.0, f"API P95 latency {metrics.p95_latency:.2f}ms too high"
+        assert metrics.p95_latency < API_P95_LATENCY_MS, f"API P95 latency {metrics.p95_latency:.2f}ms too high"
         assert metrics.error_rate < 0.1, f"API error rate {metrics.error_rate:.2%} too high"
 
     @pytest.mark.asyncio

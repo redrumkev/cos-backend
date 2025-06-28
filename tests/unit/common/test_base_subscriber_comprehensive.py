@@ -1,16 +1,17 @@
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, BLE001
 """Comprehensive unit tests for BaseSubscriber implementation."""
-# ruff: noqa
-# mypy: ignore-errors
 
 import asyncio
 import contextlib
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from freezegun import freeze_time
+
+if TYPE_CHECKING:
+    from freezegun import freeze_time
 
 from src.common.base_subscriber import (
     DEFAULT_ACK_TIMEOUT,

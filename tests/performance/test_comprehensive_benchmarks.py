@@ -1,3 +1,4 @@
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, COM812, BLE001
 """Comprehensive Performance Benchmarking & Failure Scenario Testing - Task 15.2.
 
 This module implements extensive performance benchmarking and failure scenario testing
@@ -30,17 +31,32 @@ import logging
 import time
 import tracemalloc
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import psutil
 import pytest
 import redis.asyncio as redis
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc import crud
-from tests.performance.conftest import PerformanceTestUtils
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from tests.performance.conftest import PerformanceTestUtils
+
+# Performance targets
+API_LATENCY_P50_MS = 100
+API_LATENCY_P95_MS = 500
+API_LATENCY_P99_MS = 1000
+REDIS_LATENCY_MS = 1
+REDIS_THROUGHPUT_MSG_S = 1000
+DB_QUERY_LATENCY_MS = 50
+RECOVERY_TIME_S = 5
+CONNECTION_TIMEOUT_S = 2
+MEMORY_LIMIT_MB = 100
+CPU_LIMIT_PERCENT = 80
 
 logger = logging.getLogger(__name__)
 
@@ -123,9 +139,9 @@ class TestAPIEndpointBenchmarks:
                 continue
             stats = perf_utils.calculate_percentiles(times)
 
-            assert stats["p50"] < 100, f"{endpoint} P50 {stats['p50']:.1f}ms > 100ms"
-            assert stats["p95"] < 500, f"{endpoint} P95 {stats['p95']:.1f}ms > 500ms"
-            assert stats["p99"] < 1000, f"{endpoint} P99 {stats['p99']:.1f}ms > 1000ms"
+            assert stats["p50"] < API_LATENCY_P50_MS, f"{endpoint} P50 {stats['p50']:.1f}ms > {API_LATENCY_P50_MS}ms"
+            assert stats["p95"] < API_LATENCY_P95_MS, f"{endpoint} P95 {stats['p95']:.1f}ms > {API_LATENCY_P95_MS}ms"
+            assert stats["p99"] < API_LATENCY_P99_MS, f"{endpoint} P99 {stats['p99']:.1f}ms > {API_LATENCY_P99_MS}ms"
 
     @pytest.mark.asyncio
     async def test_concurrent_api_load(self, async_client: AsyncClient) -> None:
@@ -207,9 +223,9 @@ class TestDatabasePerformanceBenchmarks:
         result = benchmark(lambda: asyncio.run(run_with_db_session(db_operations)))
 
         # Validate database performance targets
-        assert result["create"] < 50, f"DB create {result['create']:.1f}ms > 50ms"
+        assert result["create"] < DB_QUERY_LATENCY_MS, f"DB create {result['create']:.1f}ms > {DB_QUERY_LATENCY_MS}ms"
         assert result["read"] < 25, f"DB read {result['read']:.1f}ms > 25ms"
-        assert result["list"] < 50, f"DB list {result['list']:.1f}ms > 50ms"
+        assert result["list"] < DB_QUERY_LATENCY_MS, f"DB list {result['list']:.1f}ms > {DB_QUERY_LATENCY_MS}ms"
 
     @pytest.mark.asyncio
     async def test_connection_pool_behavior(self, postgres_session: Any) -> None:
@@ -285,7 +301,7 @@ class TestFailureScenarioTesting:
 
             # Operations should fail quickly, not hang
             with pytest.raises((redis.ConnectionError, redis.TimeoutError)):
-                await asyncio.wait_for(perf_client.ping(), timeout=2.0)
+                await asyncio.wait_for(perf_client.ping(), timeout=CONNECTION_TIMEOUT_S)
 
             failure_detection_time = time.perf_counter() - start_time
             assert failure_detection_time < 2.5, f"Failure detection took {failure_detection_time:.2f}s"
@@ -317,7 +333,7 @@ class TestFailureScenarioTesting:
                     await asyncio.sleep(0.5)
 
             # Validate recovery time
-            assert recovery_time < 5.0, f"Recovery time {recovery_time:.2f}s > 5s"
+            assert recovery_time < RECOVERY_TIME_S, f"Recovery time {recovery_time:.2f}s > {RECOVERY_TIME_S}s"
 
             # Validate full functionality restored
             await perf_client.publish("recovery_test", "recovery_message")
@@ -500,7 +516,7 @@ class TestResourceMonitoring:
                 logger.info(f"Batch {batch}: Memory usage {current_memory:.1f}MB (+{memory_growth:.1f}MB)")
 
                 # Validate memory growth is reasonable
-                assert memory_growth < 100, f"Excessive memory growth: {memory_growth:.1f}MB"
+                assert memory_growth < MEMORY_LIMIT_MB, f"Excessive memory growth: {memory_growth:.1f}MB"
 
         # Final memory analysis
         final_snapshot = tracemalloc.take_snapshot()
@@ -593,7 +609,7 @@ class TestResourceMonitoring:
 
         # Validate performance efficiency
         assert total_time < 30.0, f"CPU-intensive operations took {total_time:.2f}s"
-        assert avg_cpu < 80.0, f"Average CPU usage {avg_cpu:.1f}% too high"
+        assert avg_cpu < CPU_LIMIT_PERCENT, f"Average CPU usage {avg_cpu:.1f}% too high"
 
 
 class TestRecoveryValidation:

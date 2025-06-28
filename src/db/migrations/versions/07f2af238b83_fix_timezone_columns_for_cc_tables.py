@@ -1,4 +1,5 @@
 """Fix timezone columns for cc tables."""
+# ruff: noqa: INP001 # Migration files don't need __init__.py
 
 from collections.abc import Sequence
 

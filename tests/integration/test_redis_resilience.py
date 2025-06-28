@@ -1,3 +1,4 @@
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, TC003, BLE001
 """Redis resilience and circuit breaker integration tests.
 
 This module tests Redis resilience, circuit breaker state transitions,
@@ -8,8 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import AsyncGenerator
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -35,6 +35,28 @@ from src.common.pubsub import (
     RedisPubSub,
     SubscribeError,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+# Test constants
+REDIS_MAJOR_VERSION = 7
+REDIS_MINOR_VERSION = 2
+REDIS_PATCH_VERSION = 0
+CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3
+CIRCUIT_BREAKER_RECOVERY_TIMEOUT = 30.0
+CIRCUIT_BREAKER_SUCCESS_THRESHOLD = 2
+CIRCUIT_BREAKER_TIMEOUT = 5.0
+TEST_RECOVERY_TIMEOUT = 5.0
+TEST_CIRCUIT_TIMEOUT = 2.0
+SECOND_FAILURE_COUNT = 2
+OVERHEAD_SAMPLE_SIZE = 100
+MAX_OVERHEAD_MS = 1.0
+MAX_DETECTION_TIME_MS = 10.0
+MAX_REJECTION_TIME_MS = 1.0
+STRESS_OPERATIONS_COUNT = 10
+LONG_FUTURE_TIME = 3600  # 1 hour
+SHORT_SLEEP_TIME = 1.0
 
 # Test fixtures for circuit breaker resilience testing
 
@@ -121,7 +143,7 @@ class TestCircuitBreakerStateTransitions:
         with pytest.raises(RedisConnectionError):
             await circuit_breaker.call(failing_operation)
         assert (
-            cast(CircuitBreakerState, circuit_breaker.state) == CircuitBreakerState.OPEN
+            cast("CircuitBreakerState", circuit_breaker.state) == CircuitBreakerState.OPEN
         )  # Valid state transition test
         assert circuit_breaker.failure_count == 3
 
@@ -177,7 +199,7 @@ class TestCircuitBreakerStateTransitions:
         # Second success should close circuit
         await circuit_breaker.call(success_operation)
         assert (
-            cast(CircuitBreakerState, circuit_breaker.state) == CircuitBreakerState.CLOSED
+            cast("CircuitBreakerState", circuit_breaker.state) == CircuitBreakerState.CLOSED
         )  # Valid state transition test
         assert circuit_breaker.success_count == 0
         assert circuit_breaker.failure_count == 0

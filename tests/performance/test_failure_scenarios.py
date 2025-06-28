@@ -21,8 +21,7 @@ Failure Scenarios Tested:
 7. Recovery Time Validation
 """
 
-# mypy: ignore-errors
-# ruff: noqa
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, COM812, BLE001
 
 from __future__ import annotations
 
@@ -36,19 +35,24 @@ from asyncio import create_subprocess_exec
 from asyncio import subprocess as aio_subprocess
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import redis.asyncio as redis
-from httpx import AsyncClient
-from sqlalchemy.exc import DisconnectionError, OperationalError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc import crud
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import AsyncSession
 
-# ruff: noqa
+# Timeout constants
+CONNECTION_TIMEOUT_S = 3.0
+FAILURE_DETECTION_TIMEOUT_S = 4.0
+RECOVERY_TIMEOUT_S = 5.0
+OPERATION_TIMEOUT_S = 2.0
+
+logger = logging.getLogger(__name__)
 
 
 class ServiceController:
@@ -83,7 +87,7 @@ class ServiceController:
         if proc.returncode != 0:
             cmd_list = [docker_path, *args]
             raise subprocess.CalledProcessError(
-                proc.returncode,
+                proc.returncode or -1,
                 cmd_list,
                 output=stdout,
                 stderr=stderr,
@@ -158,17 +162,21 @@ class TestRedisFailureScenarios:
             start_time = time.perf_counter()
 
             with pytest.raises((redis.ConnectionError, redis.TimeoutError, asyncio.TimeoutError)):
-                await asyncio.wait_for(perf_client.ping(), timeout=3.0)
+                await asyncio.wait_for(perf_client.ping(), timeout=CONNECTION_TIMEOUT_S)
 
             failure_detection_time = time.perf_counter() - start_time
 
             # Should detect failure quickly, not hang
-            assert failure_detection_time < 4.0, f"Failure detection took {failure_detection_time:.2f}s"
+            assert (
+                failure_detection_time < FAILURE_DETECTION_TIMEOUT_S
+            ), f"Failure detection took {failure_detection_time:.2f}s"
 
             # Test multiple operations fail consistently
             for i in range(5):
                 with pytest.raises((redis.ConnectionError, redis.TimeoutError, asyncio.TimeoutError)):
-                    await asyncio.wait_for(perf_client.publish(f"test_channel_{i}", f"message_{i}"), timeout=2.0)
+                    await asyncio.wait_for(
+                        perf_client.publish(f"test_channel_{i}", f"message_{i}"), timeout=OPERATION_TIMEOUT_S
+                    )
 
         # Validate recovery after service restoration
         await asyncio.sleep(2)  # Allow time for reconnection
@@ -186,7 +194,9 @@ class TestRedisFailureScenarios:
                     raise
                 await asyncio.sleep(0.5)
 
-        assert recovery_time < 5.0, f"Recovery took {recovery_time:.2f}s, exceeds 5s target"
+        assert (
+            recovery_time < RECOVERY_TIMEOUT_S
+        ), f"Recovery took {recovery_time:.2f}s, exceeds {RECOVERY_TIMEOUT_S}s target"
 
         # Validate full functionality restored
         await perf_client.publish("recovery_validation", "success")
@@ -312,6 +322,8 @@ class TestDatabaseFailureScenarios:
 
         async with service_interruption("cos_postgres_dev", "pause"):
             # Database operations should fail with appropriate errors
+            from sqlalchemy.exc import DisconnectionError, OperationalError
+
             with pytest.raises((OperationalError, DisconnectionError)):
                 await crud.create_module(db_session, "fail_test", "1.0.0")
 
@@ -342,6 +354,8 @@ class TestDatabaseFailureScenarios:
             assert module1 is not None
 
             # Force a transaction error by attempting duplicate creation
+            from sqlalchemy.exc import DisconnectionError, OperationalError
+
             with pytest.raises((OperationalError, DisconnectionError)):  # Database integrity or connection errors
                 await crud.create_module(db_session, "transaction_test_1", "2.0.0")  # Same name, different version
 

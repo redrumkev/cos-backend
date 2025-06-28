@@ -1,3 +1,4 @@
+# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, COM812
 """Test suite for Redis configuration module."""
 
 from __future__ import annotations
