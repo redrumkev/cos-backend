@@ -228,7 +228,12 @@ async def test_async_engine_connection_failure_logs_rich_error() -> None:
         found = False
         for call in mock_print.call_args_list:
             text_arg = call[0][0]
-            if isinstance(text_arg, Text) and "❌" in text_arg.plain and text_arg.style and "red" in text_arg.style:
+            if (
+                isinstance(text_arg, Text)
+                and "❌" in text_arg.plain
+                and text_arg.style
+                and "red" in str(text_arg.style)
+            ):
                 found = True
         assert found, "No rich error log with emoji/color found."
 
@@ -269,7 +274,7 @@ async def test_async_session_pool_exhaustion_logs_rich_error() -> None:
                         isinstance(text_arg, Text)
                         and "❌" in text_arg.plain
                         and text_arg.style
-                        and "red" in text_arg.style
+                        and "red" in str(text_arg.style)
                     ):
                         found = True
                 assert found, "No rich error log with emoji/color found."
@@ -293,7 +298,12 @@ async def test_async_session_pool_exhaustion_logs_rich_error() -> None:
             found = False
             for call in mock_print.call_args_list:
                 text_arg = call[0][0]
-                if isinstance(text_arg, Text) and "❌" in text_arg.plain and text_arg.style and "red" in text_arg.style:
+                if (
+                    isinstance(text_arg, Text)
+                    and "❌" in text_arg.plain
+                    and text_arg.style
+                    and "red" in str(text_arg.style)
+                ):
                     found = True
             assert found, "No rich error log with emoji/color found."
 
@@ -307,7 +317,9 @@ def test_rich_log_output_includes_color_and_emoji() -> None:
         found = False
         for call in mock_print.call_args_list:
             text_arg = call[0][0]
-            if isinstance(text_arg, Text) and ("✅" in text_arg.plain and text_arg.style and "green" in text_arg.style):
+            if isinstance(text_arg, Text) and (
+                "✅" in text_arg.plain and text_arg.style and "green" in str(text_arg.style)
+            ):
                 found = True
         assert found, "No rich log with green color and emoji found."
 
