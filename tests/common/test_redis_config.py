@@ -68,7 +68,7 @@ class TestRedisConfig:
 
         assert config.redis_host == "redis-server"
         assert config.redis_port == 6380
-        assert config.redis_password == "test-secret-123"  # noqa: S105
+        assert config.redis_password == "test-secret-123"
         assert config.redis_db == 1
         assert config.redis_max_connections == 50
 
@@ -293,7 +293,7 @@ class TestRedisConfigIntegration:
 
         assert config.redis_host == "env-redis"
         assert config.redis_port == 6381
-        assert config.redis_password == "env-test-password"  # noqa: S105
+        assert config.redis_password == "env-test-password"
         assert config.redis_db == 2
         assert config.redis_max_connections == 30
         assert config.redis_socket_connect_timeout == 10

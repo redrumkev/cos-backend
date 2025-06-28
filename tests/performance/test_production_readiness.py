@@ -68,7 +68,7 @@ async def redis_client() -> AsyncGenerator[redis.Redis, None]:
     client = redis.Redis(
         host="localhost",
         port=6379,
-        password="Police9119!!Red",  # noqa: S106
+        password="Police9119!!Red",
         decode_responses=True,
         socket_keepalive=True,
         socket_connect_timeout=5.0,
