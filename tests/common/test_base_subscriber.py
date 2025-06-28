@@ -30,7 +30,7 @@ from src.common.base_subscriber import (
 from src.common.pubsub import CircuitBreaker, CircuitBreakerError
 
 
-class TestSubscriber(BaseSubscriber):
+class ConcreteTestSubscriber(BaseSubscriber):
     """Concrete implementation of BaseSubscriber for testing."""
 
     def __init__(self, **kwargs: Any) -> None:
@@ -89,7 +89,7 @@ class TestBaseSubscriberABC:
 
     def test_concrete_implementation_works(self) -> None:
         """Concrete implementation with process_message can be instantiated."""
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
         assert isinstance(subscriber, BaseSubscriber)
         assert subscriber._concurrency == DEFAULT_MAX_CONCURRENCY
         assert subscriber._ack_timeout == DEFAULT_ACK_TIMEOUT
@@ -100,7 +100,7 @@ class TestBaseSubscriberConfiguration:
 
     def test_default_configuration(self) -> None:
         """Test default configuration values."""
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         assert subscriber._concurrency == DEFAULT_MAX_CONCURRENCY
         assert subscriber._ack_timeout == DEFAULT_ACK_TIMEOUT
@@ -113,7 +113,7 @@ class TestBaseSubscriberConfiguration:
         circuit_breaker = CircuitBreaker()
         dlq_func = AsyncMock()
 
-        subscriber = TestSubscriber(
+        subscriber = ConcreteTestSubscriber(
             concurrency=16,
             ack_timeout=10.0,
             batch_size=50,
@@ -133,7 +133,7 @@ class TestBaseSubscriberConfiguration:
 
     def test_initial_state(self) -> None:
         """Test initial subscriber state."""
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         assert not subscriber.is_consuming
         assert len(subscriber._channels) == 0
@@ -157,7 +157,7 @@ class TestLifecycleManagement:
 
         mock_subscribe.return_value = mock_message_generator()
 
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         # Start consuming
         await subscriber.start_consuming("test_channel")
@@ -178,7 +178,7 @@ class TestLifecycleManagement:
 
     async def test_start_consuming_duplicate_channel(self) -> None:
         """Test starting consumption from same channel twice."""
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         with patch("src.common.base_subscriber.subscribe_to_channel") as mock_subscribe:
             mock_subscribe.return_value = AsyncMock()
@@ -193,7 +193,7 @@ class TestLifecycleManagement:
 
     async def test_stop_consuming_cleans_up_resources(self) -> None:
         """Test that stop_consuming properly cleans up all resources."""
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         with patch("src.common.base_subscriber.subscribe_to_channel") as mock_subscribe:
             # Mock async generator that yields indefinitely
@@ -247,7 +247,7 @@ class TestMessageProcessing:
 
         mock_subscribe.return_value = message_generator()
 
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
         subscriber._batch_size = 1  # Disable batching
 
         # Start consuming
@@ -280,7 +280,7 @@ class TestMessageProcessing:
         mock_pubsub._redis = mock_redis
         mock_get_pubsub.return_value = mock_pubsub
 
-        subscriber = TestSubscriber(dlq_publish=mock_dlq)
+        subscriber = ConcreteTestSubscriber(dlq_publish=mock_dlq)
         subscriber.should_fail = True
         subscriber._batch_size = 1  # Disable batching
 
@@ -309,7 +309,7 @@ class TestBatchProcessing:
         mock_pubsub._redis = mock_redis
         mock_get_pubsub.return_value = mock_pubsub
 
-        subscriber = TestSubscriber(batch_size=3)
+        subscriber = ConcreteTestSubscriber(batch_size=3)
 
         # Create test messages
         messages = [{"id": i} for i in range(3)]
@@ -340,7 +340,7 @@ class TestBatchProcessing:
         mock_pubsub._redis = mock_redis
         mock_get_pubsub.return_value = mock_pubsub
 
-        subscriber = TestSubscriber(batch_size=10, batch_window=0.1)  # Small window
+        subscriber = ConcreteTestSubscriber(batch_size=10, batch_window=0.1)  # Small window
 
         # Start batch processing loop
         subscriber._batch_task = asyncio.create_task(subscriber._batch_processing_loop())
@@ -364,7 +364,7 @@ class TestBatchProcessing:
 
     async def test_custom_batch_processing(self) -> None:
         """Test custom batch processing implementation."""
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         # Set up batch processing results
         subscriber.processing_results = [True, False, True]  # Mixed results
@@ -391,7 +391,7 @@ class TestCircuitBreakerIntegration:
         # Create circuit breaker that opens immediately
         circuit_breaker = CircuitBreaker(failure_threshold=1, timeout=1.0)
 
-        subscriber = TestSubscriber(circuit_breaker=circuit_breaker)
+        subscriber = ConcreteTestSubscriber(circuit_breaker=circuit_breaker)
         subscriber.should_fail = True
 
         # Process messages to trigger circuit breaker
@@ -408,7 +408,7 @@ class TestCircuitBreakerIntegration:
     async def test_circuit_breaker_metrics_included(self) -> None:
         """Test that circuit breaker metrics are included in subscriber metrics."""
         circuit_breaker = CircuitBreaker()
-        subscriber = TestSubscriber(circuit_breaker=circuit_breaker)
+        subscriber = ConcreteTestSubscriber(circuit_breaker=circuit_breaker)
 
         metrics = subscriber.metrics
         assert "circuit_breaker_metrics" in metrics
@@ -416,7 +416,7 @@ class TestCircuitBreakerIntegration:
 
     async def test_no_circuit_breaker_metrics(self) -> None:
         """Test metrics when no circuit breaker is configured."""
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         metrics = subscriber.metrics
         assert metrics["circuit_breaker_metrics"] is None
@@ -438,7 +438,7 @@ class TestAcknowledgementPattern:
         mock_pubsub._redis = mock_redis
         mock_get_pubsub.return_value = mock_pubsub
 
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         # Test message processing
         message_id = "test_message_123"
@@ -466,7 +466,7 @@ class TestAcknowledgementPattern:
         mock_pubsub._redis = mock_redis
         mock_get_pubsub.return_value = mock_pubsub
 
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         # Test setting processing state with error
         message_id = "test_message_123"
@@ -489,7 +489,7 @@ class TestDeadLetterQueue:
     async def test_dlq_message_structure(self) -> None:
         """Test that DLQ messages have correct structure."""
         mock_dlq = AsyncMock()
-        subscriber = TestSubscriber(dlq_publish=mock_dlq)
+        subscriber = ConcreteTestSubscriber(dlq_publish=mock_dlq)
 
         original_message = {"id": 123, "content": "test message"}
 
@@ -510,7 +510,7 @@ class TestDeadLetterQueue:
         """Test DLQ error handling when DLQ publishing fails."""
         # Mock DLQ function that raises an exception
         mock_dlq = AsyncMock(side_effect=Exception("DLQ error"))
-        subscriber = TestSubscriber(dlq_publish=mock_dlq)
+        subscriber = ConcreteTestSubscriber(dlq_publish=mock_dlq)
 
         original_message = {"content": "test"}
 
@@ -553,7 +553,7 @@ class TestConcurrencyControl:
 
     async def test_concurrency_semaphore(self) -> None:
         """Test that semaphore limits concurrent processing."""
-        subscriber = TestSubscriber(concurrency=2)
+        subscriber = ConcreteTestSubscriber(concurrency=2)
         subscriber.processing_delay = 0.1  # Add delay to test concurrency
 
         # Track concurrent calls
@@ -592,7 +592,7 @@ class TestConcurrencyControl:
         mock_pubsub._redis = mock_redis
         mock_get_pubsub.return_value = mock_pubsub
 
-        subscriber = TestSubscriber(ack_timeout=0.1)  # Very short timeout
+        subscriber = ConcreteTestSubscriber(ack_timeout=0.1)  # Very short timeout
         subscriber.processing_delay = 0.2  # Longer than timeout
 
         message = {"content": "slow message"}
@@ -607,7 +607,7 @@ class TestMetricsAndObservability:
 
     def test_initial_metrics(self) -> None:
         """Test initial metrics state."""
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         metrics = subscriber.metrics
         assert metrics["processed_count"] == 0
@@ -621,7 +621,7 @@ class TestMetricsAndObservability:
 
     async def test_metrics_updates(self) -> None:
         """Test that metrics are updated during processing."""
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         # Simulate processing
         subscriber._processed_count = 5
@@ -637,7 +637,7 @@ class TestMetricsAndObservability:
 
     async def test_health_check(self) -> None:
         """Test health check functionality."""
-        subscriber = TestSubscriber()
+        subscriber = ConcreteTestSubscriber()
 
         # Test when not consuming
         health = await subscriber.health_check()
@@ -740,7 +740,7 @@ class TestAsyncTimeoutIntegration:
         mock_timeout_cm.__aenter__ = AsyncMock(return_value=None)
         mock_timeout_cm.__aexit__ = AsyncMock(return_value=None)
 
-        subscriber = TestSubscriber(ack_timeout=5.0)
+        subscriber = ConcreteTestSubscriber(ack_timeout=5.0)
 
         # Mock the wrapped function
         with patch.object(subscriber, "_with_circuit_breaker") as mock_wrap:
@@ -758,7 +758,7 @@ class TestAsyncTimeoutIntegration:
     @patch("src.common.base_subscriber._ASYNC_TIMEOUT_AVAILABLE", False)
     async def test_asyncio_wait_for_fallback(self) -> None:
         """Test fallback to asyncio.wait_for when async_timeout not available."""
-        subscriber = TestSubscriber(ack_timeout=0.1)
+        subscriber = ConcreteTestSubscriber(ack_timeout=0.1)
         subscriber.processing_delay = 0.2  # Longer than timeout
 
         message = {"content": "test"}
@@ -790,7 +790,7 @@ class TestIntegrationScenarios:
 
         # Create subscriber with all features enabled
         circuit_breaker = CircuitBreaker(failure_threshold=2)
-        subscriber = TestSubscriber(
+        subscriber = ConcreteTestSubscriber(
             concurrency=4,
             batch_size=2,
             batch_window=0.1,

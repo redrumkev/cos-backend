@@ -21,7 +21,7 @@ from src.common.pubsub import (
 )
 
 
-class TestError(Exception):
+class CircuitBreakerTestError(Exception):
     """Specific exception for testing circuit breaker behavior."""
 
 
@@ -58,17 +58,17 @@ class TestCircuitBreaker:
         """Test failure tracking and threshold behavior."""
 
         async def failing_func() -> None:
-            raise TestError("Test failure")
+            raise CircuitBreakerTestError("Test failure")
 
         # Should remain closed for failures below threshold
         for i in range(circuit_breaker.failure_threshold - 1):
-            with pytest.raises(TestError):
+            with pytest.raises(CircuitBreakerTestError):
                 await circuit_breaker.call(failing_func)
             assert circuit_breaker.state == CircuitBreakerState.CLOSED
             assert circuit_breaker.failure_count == i + 1
 
         # Should open after reaching failure threshold
-        with pytest.raises(TestError):
+        with pytest.raises(CircuitBreakerTestError):
             await circuit_breaker.call(failing_func)
         assert circuit_breaker.state == CircuitBreakerState.OPEN
 
@@ -76,11 +76,11 @@ class TestCircuitBreaker:
         """Test that open circuit breaker blocks requests."""
 
         async def failing_func() -> None:
-            raise TestError("Test failure")
+            raise CircuitBreakerTestError("Test failure")
 
         # Trigger circuit breaker to open
         for _ in range(circuit_breaker.failure_threshold):
-            with pytest.raises(TestError):
+            with pytest.raises(CircuitBreakerTestError):
                 await circuit_breaker.call(failing_func)
 
         assert circuit_breaker.state == CircuitBreakerState.OPEN
@@ -96,11 +96,11 @@ class TestCircuitBreaker:
         """Test transition from OPEN to HALF_OPEN after timeout."""
 
         async def failing_func() -> None:
-            raise TestError("Test failure")
+            raise CircuitBreakerTestError("Test failure")
 
         # Open the circuit breaker
         for _ in range(circuit_breaker.failure_threshold):
-            with pytest.raises(TestError):
+            with pytest.raises(CircuitBreakerTestError):
                 await circuit_breaker.call(failing_func)
 
         assert circuit_breaker.state == CircuitBreakerState.OPEN
@@ -142,10 +142,10 @@ class TestCircuitBreaker:
         circuit_breaker._state = CircuitBreakerState.HALF_OPEN
 
         async def failing_func() -> None:
-            raise TestError("Test failure")
+            raise CircuitBreakerTestError("Test failure")
 
         # Any failure in HALF_OPEN should return to OPEN
-        with pytest.raises(TestError):
+        with pytest.raises(CircuitBreakerTestError):
             await circuit_breaker.call(failing_func)
         assert circuit_breaker.state == CircuitBreakerState.OPEN
 
@@ -167,12 +167,12 @@ class TestCircuitBreaker:
             return "success"
 
         async def failing_func() -> None:
-            raise TestError("Test failure")
+            raise CircuitBreakerTestError("Test failure")
 
         # Execute some operations
         await circuit_breaker.call(success_func)
 
-        with pytest.raises(TestError):
+        with pytest.raises(CircuitBreakerTestError):
             await circuit_breaker.call(failing_func)
 
         metrics = circuit_breaker.metrics
@@ -186,11 +186,11 @@ class TestCircuitBreaker:
         """Test exponential backoff behavior."""
 
         async def failing_func() -> None:
-            raise TestError("Test failure")
+            raise CircuitBreakerTestError("Test failure")
 
         # Open the circuit breaker
         for _ in range(circuit_breaker.failure_threshold):
-            with pytest.raises(TestError):
+            with pytest.raises(CircuitBreakerTestError):
                 await circuit_breaker.call(failing_func)
 
         assert circuit_breaker.state == CircuitBreakerState.OPEN
@@ -201,7 +201,7 @@ class TestCircuitBreaker:
         # Trigger more failures after recovery timeout
         await asyncio.sleep(circuit_breaker.recovery_timeout + 0.1)
 
-        with pytest.raises(TestError):
+        with pytest.raises(CircuitBreakerTestError):
             await circuit_breaker.call(failing_func)
 
         second_next_attempt = circuit_breaker._next_attempt_time

@@ -117,7 +117,10 @@ markers = [
     "stress: marks tests for stress/load testing (optional for single-dev)",
     "infrastructure: marks tests requiring external services",
     "phase2: marks tests for Phase 2 implementation",
-    "requires_all_services: Tests requiring all infrastructure services"
+    "requires_all_services: Tests requiring all infrastructure services",
+    "timeout: marks tests with timeout requirements",
+    "failure_scenarios: marks tests for failure scenario validation",
+    "metrics: marks tests for metrics collection and analysis"
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
