@@ -1,4 +1,4 @@
-# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, TC003
+# Test file - configured per-file ignores in ruff.toml handle common test patterns
 """Final Redis performance validation tests.
 
 This module implements the key performance validation tests for Redis operations

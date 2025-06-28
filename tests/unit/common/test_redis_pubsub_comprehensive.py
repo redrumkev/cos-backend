@@ -1,7 +1,8 @@
-# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, BLE001, SIM105
+# Test file - configured per-file ignores in ruff.toml handle common test patterns
 """Comprehensive unit tests for Redis Pub/Sub with circuit breaker integration."""
 
 import asyncio
+import contextlib
 import json
 import time
 from collections.abc import AsyncGenerator
@@ -285,10 +286,8 @@ class TestRedisPubSubComprehensive:
             await asyncio.sleep(0.1)  # Let it attempt reconnection
             task.cancel()
 
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
             # Should have attempted reconnection
             mock_connect.assert_called()
@@ -525,10 +524,8 @@ class TestCircuitBreakerIntegration:
 
         # Cause failures
         for _ in range(3):
-            try:
+            with contextlib.suppress(PublishError):
                 await pubsub.publish("test", {"data": "test"})
-            except PublishError:
-                pass
 
         assert pubsub.circuit_breaker_state == CircuitBreakerState.OPEN
 

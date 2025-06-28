@@ -1,4 +1,4 @@
-# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, TC006
+# Test file - configured per-file ignores in ruff.toml handle common test patterns
 """Production-grade Redis integration test foundation using fakeredis.
 
 This module provides comprehensive Redis integration tests focusing on performance

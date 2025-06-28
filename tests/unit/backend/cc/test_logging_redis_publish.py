@@ -1,4 +1,4 @@
-# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, BLE001
+# Test file - configured per-file ignores in ruff.toml handle common test patterns
 """Unit tests for L1 logging service Redis publishing functionality.
 
 Tests the enhanced log_l1 function with Redis publishing after successful database commit,

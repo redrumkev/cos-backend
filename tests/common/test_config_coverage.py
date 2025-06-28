@@ -117,7 +117,7 @@ class TestSettingsDefaults:
             assert settings.POSTGRES_TEST_URL == "postgresql://test:test@localhost/test_test_db"
             assert settings.REDIS_HOST == "localhost"
             assert settings.REDIS_PORT == 6379
-            assert settings.REDIS_PASSWORD == "test_password"  # noqa: S105
+            assert settings.REDIS_PASSWORD == "test_password"
             assert settings.MEM0_SCHEMA == "mem0_cc"
 
     def test_settings_with_custom_values(self) -> None:

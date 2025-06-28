@@ -1,4 +1,4 @@
-# ruff: noqa: I001, S101, SLF001, PLR2004, ANN401, ARG001, TRY003, EM101, TC005, F401, BLE001
+# Test file - configured per-file ignores in ruff.toml handle common test patterns
 """Simplified test suite for Redis Pub/Sub wrapper focused on core functionality."""
 
 import asyncio
@@ -15,10 +15,8 @@ if TYPE_CHECKING:
 # Import pytest and Redis with runtime checks
 try:
     import pytest
-    from redis.exceptions import (
-        ConnectionError as RedisConnectionError,
-        RedisError,
-    )
+    from redis.exceptions import ConnectionError as RedisConnectionError
+    from redis.exceptions import RedisError
 
     _PYTEST_AVAILABLE = True
     _REDIS_AVAILABLE = True

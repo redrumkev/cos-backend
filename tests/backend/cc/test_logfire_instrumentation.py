@@ -50,7 +50,7 @@ def clean_environment() -> Generator[None, None, None]:
 def mock_environment_with_token() -> Generator[None, None, None]:
     """Mock environment with LOGFIRE_TOKEN set."""
     original_token = os.environ.get("LOGFIRE_TOKEN")
-    os.environ["LOGFIRE_TOKEN"] = "test_token_12345"  # noqa: S105
+    os.environ["LOGFIRE_TOKEN"] = "test_token_12345"
 
     yield
 

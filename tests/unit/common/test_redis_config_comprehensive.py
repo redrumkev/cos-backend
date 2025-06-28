@@ -1,4 +1,4 @@
-# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, BLE001, S105, SIM117
+# Test file - configured per-file ignores in ruff.toml handle common test patterns
 """Redis configuration comprehensive testing.
 
 This module provides comprehensive testing for Redis configuration
@@ -384,14 +384,15 @@ class TestRedisConfigComprehensive:
         monkeypatch.setenv("ENV_FILE", mock_env_path)
 
         # Mock Path.exists to return True
-        with patch("pathlib.Path.exists", return_value=True):
-            # Mock load_dotenv
-            with patch("src.common.redis_config.load_dotenv") as mock_load_dotenv:
-                # Import should trigger dotenv loading
-                from src.common.redis_config import RedisConfig  # noqa: F401
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("src.common.redis_config.load_dotenv") as mock_load_dotenv,
+        ):
+            # Import should trigger dotenv loading
+            from src.common.redis_config import RedisConfig  # noqa: F401
 
-                # Should have attempted to load the env file
-                mock_load_dotenv.assert_called()
+            # Should have attempted to load the env file
+            mock_load_dotenv.assert_called()
 
     def test_dotenv_not_available_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test fallback when python-dotenv is not available."""

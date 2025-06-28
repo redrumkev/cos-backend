@@ -1,4 +1,4 @@
-# ruff: noqa: S101, SLF001, PLR2004, ANN401, ARG001, ARG002, TRY003, EM101, D107, PLR0913, PLR0915, C901, FBT003, TC005, COM812, BLE001
+# Test file - configured per-file ignores in ruff.toml handle common test patterns
 """Redis Performance Benchmarking Suite - Task 011.
 
 This module implements comprehensive performance benchmarks for Redis operations
