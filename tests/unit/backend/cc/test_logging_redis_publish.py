@@ -18,6 +18,8 @@ from src.backend.cc.mem0_models import BaseLog, EventLog
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+else:
+    AsyncSession = "AsyncSession"
 
 
 class TestLogL1RedisPublishAfterCommit:

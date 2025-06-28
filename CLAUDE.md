@@ -313,6 +313,55 @@ await pubsub.health_check()  # View detailed status
 - [ ] Integration tests pass
 - [ ] Documentation updated if needed
 
+## Advanced Troubleshooting Patterns
+
+### Enhanced Background Agent Capabilities
+**Established Pattern**: Use sophisticated MCP tools for persistent CI/linting issues
+
+**Proven Workflow**:
+1. **Sequential Thinking** (`mcp__zen__thinkdeep`) for systematic root cause analysis
+2. **Research Integration** (`mcp__tavily__tavily-search`) for best practices and patterns
+3. **Documentation Access** (`mcp__context7__get-library-docs`) for tool specifications
+4. **Background Agent Delegation** for complex, multi-step troubleshooting
+
+**Success Case**: Resolved persistent CI failures after 2+ failed attempts using standard debugging
+- **Root Issue**: Import sorting violations (ruff I001) causing pre-commit hook failures
+- **Pattern**: "Files were modified by this hook" errors indicating tool auto-fixes during CI
+- **Solution**: Research-backed systematic analysis identified underlying import organization issues
+
+### CI Pipeline Stabilization Strategy
+
+**Three-Tier Git Workflow Validation**:
+- **feat/branch** → **release/phase** → **main**
+- Quality gates enforced at release level prevent bad merges
+- CI failures caught early in feature branches
+
+**Linting Resolution Protocol**:
+1. **Standard fixes first**: Address obvious violations with local tools
+2. **Pattern analysis**: If failures persist, investigate root causes with research
+3. **Enhanced troubleshooting**: Deploy background agents with MCP capabilities
+4. **Verification**: Ensure fixes address patterns, not just symptoms
+
+**Key Learnings**:
+- Import sorting is critical for ruff compliance in large codebases
+- Pre-commit hooks fail when any tool modifies files during execution
+- Research-backed approaches resolve persistent issues that standard debugging cannot
+- Context7 + Tavily + Sequential Thinking creates powerful troubleshooting capability
+
+### MCP Tool Integration Patterns
+
+**Effective Combinations**:
+- **Zen MCP** + **Context7** + **Tavily** = Enhanced problem-solving capability
+- **Sequential thinking** for systematic analysis
+- **Research tools** for finding proven solutions
+- **Documentation access** for understanding tool specifications
+
+**Best Practices**:
+- Use background agents for context window management
+- Delegate complex troubleshooting to preserve main conversation flow
+- Research-backed solutions have higher success rates than trial-and-error
+- Pattern analysis prevents recurring issues
+
 ---
 
 **Remember**: This is a destiny-driven codebase serving a 100+ book legacy vision. Every line of code should reflect the constitutional principles of 100% Quality + 100% Efficiency.

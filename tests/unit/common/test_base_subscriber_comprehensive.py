@@ -5,13 +5,11 @@ import asyncio
 import contextlib
 import time
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-if TYPE_CHECKING:
-    from freezegun import freeze_time
+from freezegun import freeze_time
 
 from src.common.base_subscriber import (
     DEFAULT_ACK_TIMEOUT,

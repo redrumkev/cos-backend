@@ -49,7 +49,7 @@ except ImportError:
             """
             return None
 
-    async_timeout = DummyAsyncTimeout()
+    async_timeout = DummyAsyncTimeout()  # type: ignore[assignment]
 
 from .pubsub import CircuitBreaker, get_pubsub
 

@@ -3,12 +3,10 @@
 
 import asyncio
 import time
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pytest
-
-if TYPE_CHECKING:
-    from freezegun import freeze_time
+from freezegun import freeze_time
 
 from src.common.pubsub import CircuitBreaker, CircuitBreakerError, CircuitBreakerState
 
