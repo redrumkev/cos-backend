@@ -19,14 +19,14 @@ from sqlalchemy.ext.asyncio import (
 from src.db.base import Base
 
 # PostgreSQL test database URL as specified
-POSTGRES_TEST_URL = "postgresql+asyncpg://test:Police9119!!Sql_test@127.0.0.1:5434/cos_db_test"
+POSTGRES_DEV_URL = "postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev"
 
 
 @pytest_asyncio.fixture(scope="session")
 async def postgres_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create async engine for PostgreSQL test database."""
     engine = create_async_engine(
-        POSTGRES_TEST_URL,
+        POSTGRES_DEV_URL,
         pool_size=5,
         max_overflow=10,
         pool_timeout=30,

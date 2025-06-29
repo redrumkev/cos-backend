@@ -29,11 +29,9 @@ if str(project_root) not in sys.path:
 # Import database components
 from src.db.base import Base  # noqa: E402
 
-# FORCE ALL TESTS TO USE DEV DATABASE (port 5433) - NO port 5434 allowed!
-# This overrides any DATABASE_URL_TEST settings to eliminate port 5434 usage.
-# During Phase 2, all database operations MUST go to cos_postgres_dev (port 5433).
-os.environ["TESTING"] = "false"  # Force dev mode
-test_db_url = "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
+# SIMPLIFIED: Only production (5432) and dev (5433) databases
+# All testing (local and CI) uses the dev database
+test_db_url = os.getenv("DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev")
 
 # FORCE tests to use DEV database directly - bypass any caching issues
 # Store database URL but DO NOT create engines at module level to avoid event loop issues
@@ -87,7 +85,7 @@ def is_infrastructure_available() -> bool:
 
         # Check if PostgreSQL dev database URL is configured (lightweight check)
         dev_db_url = os.getenv(
-            "DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
+            "DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev"
         )
         # For integration mode, assume infrastructure is available if URL is set
         # Actual connectivity will be tested when engines are created in fixtures
@@ -277,7 +275,7 @@ def pytest_configure(config: Any) -> None:
         if RUN_INTEGRATION_MODE == "1":
             # In integration mode, do actual check
             dev_db_url = os.getenv(
-                "DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
+                "DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev"
             )
             infrastructure_available = bool(dev_db_url)
         else:
