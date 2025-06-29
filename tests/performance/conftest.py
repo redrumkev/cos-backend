@@ -1,4 +1,4 @@
-# ruff: noqa: S106  # Hardcoded passwords acceptable in test fixtures
+# Hardcoded passwords acceptable in test fixtures
 """Shared fixtures for performance testing."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Pytest conftest.py - Systematic rebuild to isolate hanging issues
 from __future__ import annotations
 
 import asyncio
@@ -11,8 +12,9 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
+# SEGMENT 1: Basic Environment Setup
 # Force settings to load dummy env file during test collection
 os.environ.setdefault("ENV_FILE", str(Path(__file__).parents[1] / "infrastructure" / ".env.ci"))
 
@@ -26,15 +28,6 @@ if str(project_root) not in sys.path:
 
 # Import database components
 from src.db.base import Base  # noqa: E402
-
-# Import all model modules to register them with Base metadata
-# This ensures that create_all() will create all necessary tables
-try:
-    from src.backend.cc import mem0_models  # noqa: F401
-    from src.backend.cc import models as cc_models  # noqa: F401
-except ImportError:
-    # Models may not be available in some test environments
-    pass
 
 # FORCE ALL TESTS TO USE DEV DATABASE (port 5433) - NO port 5434 allowed!
 # This overrides any DATABASE_URL_TEST settings to eliminate port 5434 usage.
@@ -56,13 +49,23 @@ if test_db_url:
 
 T = TypeVar("T", bound=Callable[..., Any])
 
+# RUN_INTEGRATION MODE CONTROL
+RUN_INTEGRATION_MODE = os.getenv("RUN_INTEGRATION", "0")
 
-@pytest.fixture(scope="session")
-def test_settings() -> Any:
-    """Get test configuration settings."""
-    from src.common.config import get_settings
+# SEGMENT 2: Model Imports & Infrastructure
 
-    return get_settings()
+
+# Import all model modules to register them with Base metadata
+# This ensures that create_all() will create all necessary tables
+# MOVED TO pytest_configure hook to avoid import-time issues
+def _import_models() -> None:
+    """Import model modules - called from pytest_configure hook."""
+    try:
+        from src.backend.cc import mem0_models  # noqa: F401
+        from src.backend.cc import models as cc_models  # noqa: F401
+    except ImportError:
+        # Models may not be available in some test environments
+        pass
 
 
 def is_infrastructure_available() -> bool:
@@ -73,197 +76,226 @@ def is_infrastructure_available() -> bool:
 
     This function is used by the CI test triage system to determine
     which tests should be skipped vs. enabled based on local environment.
+
+    NOTE: This function now performs lightweight checks to avoid import-time
+    async engine creation that was causing pytest hanging issues.
     """
     try:
-        # Check if PostgreSQL dev database is available (FORCE port 5433)
+        # In mock mode, infrastructure is always available
+        if RUN_INTEGRATION_MODE == "0":
+            return True
+
+        # Check if PostgreSQL dev database URL is configured (lightweight check)
         dev_db_url = os.getenv(
             "DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
         )
-        if not dev_db_url:
-            return False
-
-        # Try to create engine - this will fail if PostgreSQL isn't running
-        # Create and immediately dispose to avoid event loop issues
-        test_engine = create_async_engine(dev_db_url, echo=False)
-        # Don't keep the engine around to avoid loop binding issues
-        del test_engine
-
-        # Additional checks could be added here for Neo4j, Redis, etc.
-        # For now, we assume if PostgreSQL is available, basic infrastructure is ready
-
-        return True
+        # For integration mode, assume infrastructure is available if URL is set
+        # Actual connectivity will be tested when engines are created in fixtures
+        return bool(dev_db_url)
 
     except Exception:
         # Any exception indicates infrastructure is not ready
         return False
 
 
-# Import smart infrastructure checking
-try:
-    from tests.infrastructure_check import AVAILABLE_SERVICES
-
-    SERVICES_AVAILABLE = True
-except ImportError:
-    # Fallback if infrastructure checker is not available
-    AVAILABLE_SERVICES = {"postgres": False, "neo4j": False, "redis": False}
-    SERVICES_AVAILABLE = False
-
-# RUN_INTEGRATION MODE CONTROL
-# =============================
-# RUN_INTEGRATION environment variable controls test execution mode:
-# - RUN_INTEGRATION=0 (or unset): Fast mock mode - no real database connections
-# - RUN_INTEGRATION=1: Real database mode - requires actual infrastructure
-#
-# Mock mode benefits:
-# - Extremely fast test execution (perfect for CI)
-# - No infrastructure dependencies
-# - Isolated test runs
-#
-# Real database mode benefits:
-# - Full integration testing
-# - Real database constraint validation
-# - Complete end-to-end behavior verification
-
-RUN_INTEGRATION_MODE = os.getenv("RUN_INTEGRATION", "0")
-
-if RUN_INTEGRATION_MODE == "0":
-    # MOCK MODE: Fast execution with minimal infrastructure dependencies
-    AVAILABLE_SERVICES.update({"postgres": True, "neo4j": True, "redis": True})
-
-    # Stub asyncpg connect to avoid real network cost
+# Import smart infrastructure checking (lazy-loaded to avoid import-time blocking)
+# FIXED: Removed import-time AVAILABLE_SERVICES which caused asyncio.run() during import
+def _get_available_services() -> dict[str, bool]:
+    """Lazy-load infrastructure services to avoid import-time blocking."""
     try:
-        import asyncpg
+        from tests.infrastructure_check import get_available_services
 
-        async def _fake_connect(*_args: Any, **_kwargs: Any) -> Any:
-            class _DummyConn:
-                def __init__(self) -> None:
-                    self._closed = False
-                    self._transaction = None
+        return get_available_services()
+    except ImportError:
+        # Fallback if infrastructure checker is not available
+        return {"postgres": False, "neo4j": False, "redis": False}
 
-                async def close(self) -> None:
-                    self._closed = True
+
+# Initialize with fallback values - will be updated when actually needed
+AVAILABLE_SERVICES = {"postgres": False, "neo4j": False, "redis": False}
+SERVICES_AVAILABLE = False
+
+
+# Store patching logic for execution in pytest_configure hook
+def _setup_mock_mode_patches() -> None:
+    """Set up mock mode patches - called from pytest_configure hook."""
+    if RUN_INTEGRATION_MODE == "0":
+        # MOCK MODE: Fast execution with minimal infrastructure dependencies
+        AVAILABLE_SERVICES.update({"postgres": True, "neo4j": True, "redis": True})
+
+        # Stub asyncpg connect to avoid real network cost
+        try:
+            import asyncpg
+
+            async def _fake_connect(*_args: Any, **_kwargs: Any) -> Any:
+                class _DummyConn:
+                    def __init__(self) -> None:
+                        self._closed = False
+                        self._transaction = None
+
+                    async def close(self) -> None:
+                        self._closed = True
+                        return None
+
+                    def is_closed(self) -> bool:
+                        """Check if connection is closed."""
+                        return self._closed
+
+                    async def set_type_codec(self, *args: Any, **kwargs: Any) -> None:
+                        """Stub for asyncpg set_type_codec method."""
+                        return None
+
+                    async def execute(self, *args: Any, **kwargs: Any) -> Any:
+                        """Stub for asyncpg execute method."""
+                        # Return mock result for version queries
+                        if args and "pg_catalog.version()" in str(args[0]):
+                            return "PostgreSQL 17.5 (Mock)"
+                        return None
+
+                    async def fetch(self, *args: Any, **kwargs: Any) -> list[Any]:
+                        """Stub for asyncpg fetch method."""
+                        # Return mock data for common PostgreSQL queries
+                        if args and "version()" in str(args[0]):
+                            return [("PostgreSQL 17.5 (Mock)",)]
+                        return []
+
+                    async def fetchrow(self, *args: Any, **kwargs: Any) -> Any:
+                        """Stub for asyncpg fetchrow method."""
+                        # Return mock data for common PostgreSQL queries
+                        if args and "version()" in str(args[0]):
+                            return {"version": "PostgreSQL 17.5 (Mock)"}
+                        return None
+
+                    async def prepare(self, *args: Any, **kwargs: Any) -> Any:
+                        """Stub for asyncpg prepare method."""
+
+                        class _DummyPreparedStatement:
+                            async def fetch(self, *args: Any, **kwargs: Any) -> list[Any]:
+                                # Return mock data for common PostgreSQL queries
+                                if args and "version()" in str(args[0]):
+                                    return [("PostgreSQL 17.5 (Mock)",)]
+                                return []
+
+                            async def fetchrow(self, *args: Any, **kwargs: Any) -> Any:
+                                # Return mock data for common PostgreSQL queries
+                                if args and "version()" in str(args[0]):
+                                    return {"version": "PostgreSQL 17.5 (Mock)"}
+                                return None
+
+                            async def execute(self, *args: Any, **kwargs: Any) -> Any:
+                                return None
+
+                            def get_attributes(self) -> tuple[Any, ...]:
+                                """Stub for asyncpg get_attributes method."""
+                                return ()
+
+                            def get_statusmsg(self) -> str:
+                                """Stub for asyncpg get_statusmsg method."""
+                                return "SELECT 0"
+
+                        return _DummyPreparedStatement()
+
+                    def transaction(self, *args: Any, **kwargs: Any) -> Any:
+                        """Stub for asyncpg transaction method."""
+
+                        class _DummyTransaction:
+                            async def __aenter__(self) -> Any:
+                                return self
+
+                            async def __aexit__(self, *args: Any) -> None:
+                                return None
+
+                            async def start(self) -> None:
+                                return None
+
+                            async def commit(self) -> None:
+                                return None
+
+                            async def rollback(self) -> None:
+                                return None
+
+                        return _DummyTransaction()
+
+                return _DummyConn()
+
+            # Only patch if not already patched by other fixtures
+            if not hasattr(asyncpg, "_cos_stubbed"):
+                asyncpg._cos_real_connect = asyncpg.connect
+                asyncpg.connect = _fake_connect
+                asyncpg._cos_stubbed = True
+        except ImportError:
+            pass
+
+        # Stub Neo4j async driver
+        try:
+            from neo4j import AsyncGraphDatabase
+
+            class _DummyNeoSession:
+                async def __aenter__(self) -> _DummyNeoSession:
+                    return self
+
+                async def __aexit__(self, *_exc: Any) -> None:
                     return None
 
-                def is_closed(self) -> bool:
-                    """Check if connection is closed."""
-                    return self._closed
-
-                async def set_type_codec(self, *args: Any, **kwargs: Any) -> None:
-                    """Stub for asyncpg set_type_codec method."""
-                    return None
-
-                async def execute(self, *args: Any, **kwargs: Any) -> Any:
-                    """Stub for asyncpg execute method."""
-                    # Return mock result for version queries
-                    if args and "pg_catalog.version()" in str(args[0]):
-                        return "PostgreSQL 17.5 (Mock)"
-                    return None
-
-                async def fetch(self, *args: Any, **kwargs: Any) -> list[Any]:
-                    """Stub for asyncpg fetch method."""
-                    # Return mock data for common PostgreSQL queries
-                    if args and "version()" in str(args[0]):
-                        return [("PostgreSQL 17.5 (Mock)",)]
+                async def run(self, *_args: Any, **_kwargs: Any) -> list[Any]:
                     return []
 
-                async def fetchrow(self, *args: Any, **kwargs: Any) -> Any:
-                    """Stub for asyncpg fetchrow method."""
-                    # Return mock data for common PostgreSQL queries
-                    if args and "version()" in str(args[0]):
-                        return {"version": "PostgreSQL 17.5 (Mock)"}
+            class _DummyNeoDriver:
+                async def session(self, *_args: Any, **_kwargs: Any) -> _DummyNeoSession:
+                    return _DummyNeoSession()
+
+                async def close(self) -> None:
                     return None
 
-                async def prepare(self, *args: Any, **kwargs: Any) -> Any:
-                    """Stub for asyncpg prepare method."""
+            if not hasattr(AsyncGraphDatabase, "_cos_stubbed"):
+                AsyncGraphDatabase._cos_real_driver = AsyncGraphDatabase.driver
 
-                    class _DummyPreparedStatement:
-                        async def fetch(self, *args: Any, **kwargs: Any) -> list[Any]:
-                            # Return mock data for common PostgreSQL queries
-                            if args and "version()" in str(args[0]):
-                                return [("PostgreSQL 17.5 (Mock)",)]
-                            return []
+                def _dummy_driver(*_args: Any, **_kwargs: Any) -> _DummyNeoDriver:
+                    return _DummyNeoDriver()
 
-                        async def fetchrow(self, *args: Any, **kwargs: Any) -> Any:
-                            # Return mock data for common PostgreSQL queries
-                            if args and "version()" in str(args[0]):
-                                return {"version": "PostgreSQL 17.5 (Mock)"}
-                            return None
+                AsyncGraphDatabase.driver = _dummy_driver
+                AsyncGraphDatabase._cos_stubbed = True
+        except ImportError:
+            pass
 
-                        async def execute(self, *args: Any, **kwargs: Any) -> Any:
-                            return None
 
-                        def get_attributes(self) -> tuple[Any, ...]:
-                            """Stub for asyncpg get_attributes method."""
-                            return ()
+# SEGMENT 3: pytest_configure Hook
 
-                        def get_statusmsg(self) -> str:
-                            """Stub for asyncpg get_statusmsg method."""
-                            return "SELECT 0"
 
-                    return _DummyPreparedStatement()
+def pytest_configure(config: Any) -> None:
+    """Pytest configuration hook - setup mocks and infrastructure checks."""
+    # Import model modules after CLI parsing to avoid import-time issues
+    _import_models()
 
-                def transaction(self, *args: Any, **kwargs: Any) -> Any:
-                    """Stub for asyncpg transaction method."""
+    # Setup mock mode patches after CLI parsing but before test collection
+    _setup_mock_mode_patches()
 
-                    class _DummyTransaction:
-                        async def __aenter__(self) -> Any:
-                            return self
-
-                        async def __aexit__(self, *args: Any) -> None:
-                            return None
-
-                        async def start(self) -> None:
-                            return None
-
-                        async def commit(self) -> None:
-                            return None
-
-                        async def rollback(self) -> None:
-                            return None
-
-                    return _DummyTransaction()
-
-            return _DummyConn()
-
-        # Only patch if not already patched by other fixtures
-        if not hasattr(asyncpg, "_cos_stubbed"):
-            asyncpg._cos_real_connect = asyncpg.connect
-            asyncpg.connect = _fake_connect
-            asyncpg._cos_stubbed = True
-    except ImportError:
-        pass
-
-    # Stub Neo4j async driver
+    # Update infrastructure availability and skip markers
+    infrastructure_available = False
     try:
-        from neo4j import AsyncGraphDatabase
+        # Quick infrastructure check without creating engines
+        if RUN_INTEGRATION_MODE == "1":
+            # In integration mode, do actual check
+            dev_db_url = os.getenv(
+                "DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
+            )
+            infrastructure_available = bool(dev_db_url)
+        else:
+            # In mock mode, infrastructure is always "available"
+            infrastructure_available = True
+    except Exception:
+        infrastructure_available = False
 
-        class _DummyNeoSession:
-            async def __aenter__(self) -> _DummyNeoSession:
-                return self
+    # Update the skip marker condition dynamically
+    global skip_if_no_infrastructure
+    skip_if_no_infrastructure = pytest.mark.skipif(
+        not infrastructure_available,
+        reason="Infrastructure: PostgreSQL services not available locally. "
+        "Re-enable in Sprint 2 when docker-compose setup is complete.",
+    )
 
-            async def __aexit__(self, *_exc: Any) -> None:
-                return None
 
-            async def run(self, *_args: Any, **_kwargs: Any) -> list[Any]:
-                return []
-
-        class _DummyNeoDriver:
-            async def session(self, *_args: Any, **_kwargs: Any) -> _DummyNeoSession:
-                return _DummyNeoSession()
-
-            async def close(self) -> None:
-                return None
-
-        if not hasattr(AsyncGraphDatabase, "_cos_stubbed"):
-            AsyncGraphDatabase._cos_real_driver = AsyncGraphDatabase.driver
-
-            def _dummy_driver(*_args: Any, **_kwargs: Any) -> _DummyNeoDriver:
-                return _DummyNeoDriver()
-
-            AsyncGraphDatabase.driver = _dummy_driver
-            AsyncGraphDatabase._cos_stubbed = True
-    except ImportError:
-        pass
+# SEGMENT 4: Skip Decorators
 
 # Smart skip decorators based on actual service availability
 requires_postgres = pytest.mark.skipif(
@@ -284,9 +316,9 @@ requires_all_services = pytest.mark.skipif(
     reason="Not all infrastructure services available - run docker-compose up for full test suite",
 )
 
-# Legacy skip markers for backwards compatibility
+# Legacy skip markers for backwards compatibility - moved to pytest_configure hook
 skip_if_no_infrastructure = pytest.mark.skipif(
-    not is_infrastructure_available(),
+    False,  # Will be updated in pytest_configure hook
     reason="Infrastructure: PostgreSQL services not available locally. "
     "Re-enable in Sprint 2 when docker-compose setup is complete.",
 )
@@ -300,6 +332,9 @@ skip_if_no_message_bus = pytest.mark.skipif(
     not AVAILABLE_SERVICES.get("redis", False),
     reason="Integration: Redis pub/sub not available locally. Re-enable when message bus is configured.",
 )
+
+
+# SEGMENT 5: Database Fixtures
 
 
 @pytest.fixture
@@ -511,8 +546,6 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
         yield MockAsyncSession()
         return
 
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
     # Late import to avoid circulars and ensure settings/env are initialised
     from src.db.connection import get_async_engine
 
@@ -567,36 +600,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
     await test_engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def postgres_session() -> AsyncGenerator[Callable[[], Any], None]:
-    """Session-factory fixture for concurrent tests.
-
-    Each call to the factory returns a new AsyncSession bound to the same
-    transaction/connection, which is rolled back at teardown.
-    """
-    if not test_db_url_global:
-        pytest.skip("Database URL not available - infrastructure check failed")
-
-    # Create engine inside the current event loop to avoid loop binding issues
-    from src.db.connection import get_async_engine
-
-    test_engine = get_async_engine()
-
-    try:
-        conn = await test_engine.connect()
-        trans = await conn.begin()
-        test_session_local = async_sessionmaker(bind=conn, expire_on_commit=False)
-
-        def session_factory() -> Any:
-            return test_session_local()
-
-        try:
-            yield session_factory
-        finally:
-            await trans.rollback()
-            await conn.close()
-    finally:
-        await test_engine.dispose()
+# SEGMENT 6: FastAPI Integration
 
 
 @pytest.fixture(scope="function")
@@ -641,24 +645,6 @@ def client(override_get_db: Any) -> Generator[TestClient | None, None, None]:
         yield None
 
 
-# Legacy aliases
-@pytest_asyncio.fixture(scope="function")
-async def test_db_session(db_session: Any) -> AsyncGenerator[Any, None]:
-    yield db_session
-
-
-@pytest_asyncio.fixture(scope="function")
-async def mem0_db_session(db_session: Any) -> AsyncGenerator[Any, None]:
-    yield db_session
-
-
-@pytest.fixture(scope="function")
-def test_client(client: TestClient | None) -> TestClient:
-    if client is None:
-        raise ValueError("FastAPI app is not available")
-    return client
-
-
 @pytest_asyncio.fixture(scope="function")
 async def async_client(override_get_db: Any) -> AsyncGenerator[Any, None]:
     try:
@@ -680,6 +666,27 @@ def app() -> FastAPI | None:
         return cos_app
     except ImportError:
         return None
+
+
+# SEGMENT 7: Legacy Compatibility
+
+
+# Legacy aliases
+@pytest_asyncio.fixture(scope="function")
+async def test_db_session(db_session: Any) -> AsyncGenerator[Any, None]:
+    yield db_session
+
+
+@pytest_asyncio.fixture(scope="function")
+async def mem0_db_session(db_session: Any) -> AsyncGenerator[Any, None]:
+    yield db_session
+
+
+@pytest.fixture(scope="function")
+def test_client(client: TestClient | None) -> TestClient:
+    if client is None:
+        raise ValueError("FastAPI app is not available")
+    return client
 
 
 @pytest.fixture(scope="function")
@@ -776,7 +783,7 @@ except ImportError:
     pass
 
 
-# ===== Redis Pub/Sub Testing Enhancement Fixtures =====
+# SEGMENT 8: Redis Pub/Sub Fixtures
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -794,12 +801,12 @@ def event_loop_session() -> Generator[asyncio.AbstractEventLoop, None, None]:
 async def fake_redis() -> AsyncGenerator[Any, None]:
     """Async fakeredis instance with proper cleanup and performance optimizations."""
     try:
-        import fakeredis.aioredis
+        from fakeredis import FakeAsyncRedis
     except ImportError:
         pytest.skip("fakeredis not available")
 
     # Create fakeredis instance with optimized settings
-    redis_client = fakeredis.aioredis.FakeRedis(
+    redis_client = FakeAsyncRedis(
         decode_responses=False,  # Match production behavior
         socket_keepalive=True,
         socket_keepalive_options={},
@@ -949,3 +956,8 @@ class RedisTestUtils:
 def redis_test_utils() -> RedisTestUtils:
     """Provide Redis testing utilities."""
     return RedisTestUtils()
+
+
+@pytest.fixture
+def dummy_fixture() -> str:
+    return "working"

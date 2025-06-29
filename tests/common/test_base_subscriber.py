@@ -1,4 +1,3 @@
-# ruff: noqa: I001, S101, SLF001
 """Comprehensive tests for BaseSubscriber implementation.
 
 Tests cover:
