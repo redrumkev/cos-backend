@@ -279,8 +279,19 @@ async def update_module(db: AsyncSession, module_id: str, data: dict[str, Any]) 
         memo=f"Updating module {module_id}",
     )
 
+    # Filter data to only include valid column names to avoid SQLAlchemy CompileError
+    valid_columns = {"name", "version", "active", "config", "last_active"}
+    filtered_data = {k: v for k, v in data.items() if k in valid_columns}
+
+    # Only proceed if there's actually data to update
+    if not filtered_data:
+        # No valid fields to update, return the current module
+        stmt = select(Module).where(Module.id == UUID(module_id))
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
     # Try a direct UPDATE statement approach to avoid session issues
-    update_stmt = update(Module).where(Module.id == UUID(module_id)).values(**data).returning(Module)
+    update_stmt = update(Module).where(Module.id == UUID(module_id)).values(**filtered_data).returning(Module)
     result = await db.execute(update_stmt)
     updated_module = result.scalars().first()
 

@@ -6,9 +6,11 @@ CRUD functions work correctly with various database states.
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.crud import (
@@ -26,6 +28,10 @@ from src.backend.cc.models import HealthStatus
 # Resolved by: RUN_INTEGRATION=1 ENABLE_DB_INTEGRATION=1 environment variables + schema model fixes
 
 
+@pytest.mark.skipif(
+    os.getenv("RUN_INTEGRATION", "0") == "0",
+    reason="HealthStatus tests require integration mode - mock session doesn't support health_status table yet",
+)
 class TestGetSystemHealth:
     """Test cases for the get_system_health CRUD function."""
 
@@ -45,7 +51,7 @@ class TestGetSystemHealth:
             details="All systems operational",
         )
         test_db_session.add(health_record)
-        await test_db_session.commit()
+        await test_db_session.flush()
 
         # Test the function
         result = await get_system_health(test_db_session)

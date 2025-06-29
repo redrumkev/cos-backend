@@ -404,10 +404,12 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
             def __init__(self) -> None:
                 self._storage = mock_storage
                 self._added_objects: list[Any] = []
+                self._deleted_objects: list[Any] = []
                 self._is_active = True
 
             async def commit(self) -> None:
-                """Simulate commit - persist added objects to mock storage."""
+                """Simulate commit - persist added objects and apply deletions to mock storage."""
+                # Handle added objects
                 for obj in self._added_objects:
                     table_name = obj.__class__.__name__.lower() + "s"
                     if table_name not in self._storage:
@@ -434,11 +436,23 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     # Update the original object with the ID
                     obj.id = obj.id
 
+                # Handle deleted objects - actually remove them from storage
+                for obj in self._deleted_objects:
+                    # Map MockModule objects to the correct table name
+                    class_name = obj.__class__.__name__
+                    table_name = "modules" if class_name == "MockModule" else class_name.lower() + "s"
+
+                    if table_name in self._storage and hasattr(obj, "id") and obj.id in self._storage[table_name]:
+                        del self._storage[table_name][obj.id]
+
+                # Clear pending operations
                 self._added_objects.clear()
+                self._deleted_objects.clear()
 
             async def rollback(self) -> None:
                 """Simulate rollback - clear uncommitted changes."""
                 self._added_objects.clear()
+                self._deleted_objects.clear()
 
             async def flush(self) -> None:
                 """Simulate flush - in mock mode, this is a no-op."""
@@ -453,10 +467,11 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                 self._added_objects.append(obj)
 
             async def delete(self, obj: Any) -> None:
-                """Simulate delete - remove from mock storage."""
-                table_name = obj.__class__.__name__.lower() + "s"
-                if table_name in self._storage and hasattr(obj, "id") and obj.id in self._storage[table_name]:
-                    del self._storage[table_name][obj.id]
+                """Simulate delete - stage object for deletion on commit."""
+                # Add to deleted objects list - actual deletion happens in commit()
+                self._deleted_objects.append(obj)
+                # Mark object as deleted by setting a flag for immediate reference
+                obj._deleted = True
 
             async def merge(self, obj: Any) -> Any:
                 """Simulate merge - return the object."""
@@ -472,6 +487,9 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
             async def execute(self, query: Any, params: Any = None) -> Any:
                 """Mock execute - return a mock result based on query type and mock storage."""
+                import re
+                from datetime import UTC, datetime
+
                 # Create a mock result with proper async behavior
                 mock_result = MagicMock()
                 results = []
@@ -479,53 +497,137 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                 # Parse the query string to understand what it's doing
                 query_str = str(query).lower()
 
-                # Handle SELECT queries on modules table
-                if "select" in query_str and ("modules" in query_str or "module" in query_str):
+                # Extract parameters for pagination (LIMIT/OFFSET)
+                skip = 0
+                limit = None
+
+                # Try to get from params argument
+                if params:
+                    skip = params.get("param_2", 0)  # offset is param_2
+                    limit = params.get("param_1", None)  # limit is param_1
+
+                # Try to extract from compiled query object
+                if skip == 0 and limit is None:
+                    try:
+                        compiled = query.compile()
+                        param_dict = compiled.params
+                        if param_dict:
+                            skip = param_dict.get("param_2", 0)  # offset
+                            limit = param_dict.get("param_1", None)  # limit
+                    except Exception as e:
+                        # Fall back to no pagination if extraction fails
+                        import logging
+
+                        logging.debug(f"Pagination parameter extraction failed: {e}")
+
+                # Define MockModule class for consistent object creation
+                class MockModule:
+                    def __init__(self, data: dict[str, Any]) -> None:
+                        for key, value in data.items():
+                            setattr(self, key, value)
+
+                # Handle UPDATE queries for modules
+                if "update" in query_str and "modules" in query_str:
                     table_data = self._storage.get("modules", {})
-                    target_name = None  # Initialize target_name at the start of modules handling
 
-                    if "where" in query_str and "name" in query_str and hasattr(query, "compile"):
-                        # This is a get_module_by_name query
-                        # We need to be smarter about actually checking names
-                        # Try to extract the name parameter from the SQLAlchemy query
-                        try:
-                            # Try to get literal binds
-                            compiled = query.compile(compile_kwargs={"literal_binds": True})
-                            compiled_str = str(compiled)
+                    # For UPDATE queries, we need to handle bound parameters differently
+                    # The update data comes through the values() method which uses bind parameters
+                    try:
+                        compiled = query.compile()
+                        # Get the parameter values from the compiled query
+                        update_params = compiled.params or {}
 
-                            # Look for the actual name value in the compiled query
-                            import re
+                        # Extract the target ID from the compiled query with literal binds
+                        compiled_literal = query.compile(compile_kwargs={"literal_binds": True})
+                        compiled_str = str(compiled_literal)
 
-                            name_match = re.search(r"name = '([^']+)'", compiled_str)
-                            if name_match:
-                                target_name = name_match.group(1)
-                        except Exception as e:
-                            # Ignore regex compilation errors, fallback to empty search
-                            import logging
+                        # Look for the WHERE clause ID
+                        id_match = re.search(r"id = '([^']+)'", compiled_str)
+                        if id_match:
+                            target_id = id_match.group(1)
 
-                            logging.debug(f"Error parsing query string: {e}")
+                            if target_id in table_data:
+                                # Get current data
+                                current_data = table_data[target_id].copy()
 
-                    # Define MockModule class once for this scope
-                    class MockModule:
-                        def __init__(self, data: dict[str, Any]) -> None:
-                            for key, value in data.items():
-                                setattr(self, key, value)
+                                # Apply updates from the bound parameters
+                                # The parameters contain the actual update values
+                                for param_name, param_value in update_params.items():
+                                    # Map parameter names back to column names
+                                    # SQLAlchemy uses parameter names that correspond to column names
+                                    if param_name in ["version", "active", "config", "name"]:
+                                        current_data[param_name] = param_value
 
-                    # If we found a target name, check if it exists in storage
-                    if target_name:
+                                # Update last_active when module is updated
+                                current_data["last_active"] = datetime.now(UTC)
+
+                                # Update storage
+                                table_data[target_id] = current_data
+
+                                # Return the updated module
+                                mock_module = MockModule(current_data)
+                                results.append(mock_module)
+                    except Exception as e:
+                        # Handle compilation errors gracefully
+                        import logging
+
+                        logging.debug(f"Error parsing UPDATE query: {e}")
+
+                # Handle SELECT queries on modules table
+                elif "select" in query_str and ("modules" in query_str or "module" in query_str):
+                    table_data = self._storage.get("modules", {})
+                    target_name = None
+                    target_id = None
+
+                    # Parse query for WHERE conditions (name/id searches)
+                    try:
+                        # Try to get literal binds for WHERE conditions
+                        compiled = query.compile(compile_kwargs={"literal_binds": True})
+                        compiled_str = str(compiled)
+
+                        # Look for WHERE conditions
+                        name_match = re.search(r"name = '([^']+)'", compiled_str)
+                        if name_match:
+                            target_name = name_match.group(1)
+
+                        id_match = re.search(r"id = '([^']+)'", compiled_str)
+                        if id_match:
+                            target_id = id_match.group(1)
+
+                    except Exception as e:
+                        # Ignore compilation errors, fallback to parameter inspection
+                        import logging
+
+                        logging.debug(f"Error parsing SELECT query: {e}")
+
+                    # Handle specific query types
+                    if target_id:
+                        # Get module by ID
+                        if target_id in table_data:
+                            mock_module = MockModule(table_data[target_id])
+                            results.append(mock_module)
+                    elif target_name:
+                        # Get module by name
                         for module_data in table_data.values():
                             if module_data.get("name") == target_name:
                                 mock_module = MockModule(module_data)
                                 results.append(mock_module)
                                 break
-
-                        # If no target name found or no match, return empty (no duplicate found)
-
                     else:
-                        # List all modules query
+                        # List all modules with pagination
+                        all_modules = []
                         for module_data in table_data.values():
                             mock_module = MockModule(module_data)
-                            results.append(mock_module)
+                            all_modules.append(mock_module)
+
+                        # Sort by name for consistent ordering
+                        all_modules.sort(key=lambda m: getattr(m, "name", ""))
+
+                        # Apply pagination using the extracted parameters
+                        if limit is not None:
+                            results = all_modules[skip : skip + limit]
+                        else:
+                            results = all_modules[skip:] if skip > 0 else all_modules
 
                 # Mock scalars method that returns appropriate results
                 mock_scalars = MagicMock()
