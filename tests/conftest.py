@@ -358,14 +358,15 @@ async def setup_database() -> AsyncGenerator[None, None]:
 
 @pytest.fixture(scope="function")
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    """Create a dedicated event loop for the entire test session.
+    """Create a dedicated event loop for each test function.
 
-    On some platforms (e.g. Windows) the default pytest-asyncio event loop policy
-    can lead to *"Task got Future attached to a different loop"* errors when
-    global objects (like SQLAlchemy engines) are created outside of any running
-    loop.  Creating the loop up-front and using it for the whole session avoids
-    cross-loop contamination while still allowing the *function* scope fixtures
-    to create fresh database engines bound to this loop.
+    This function-scoped fixture ensures maximum test isolation by providing
+    a fresh event loop for every test. This prevents *"Task got Future attached
+    to a different loop"* errors that occur when session-scoped async fixtures
+    try to operate on different event loops.
+
+    All async fixtures and database engines are created within this loop's context
+    to ensure proper binding and avoid cross-loop contamination.
     """
     loop = asyncio.new_event_loop()
     try:
@@ -411,7 +412,15 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                 """Simulate commit - persist added objects and apply deletions to mock storage."""
                 # Handle added objects
                 for obj in self._added_objects:
-                    table_name = obj.__class__.__name__.lower() + "s"
+                    # Map class names to table names
+                    class_name = obj.__class__.__name__
+                    if class_name == "ScratchNote":
+                        table_name = "scratch_notes"
+                    elif class_name == "Module":
+                        table_name = "modules"
+                    else:
+                        table_name = class_name.lower() + "s"
+
                     if table_name not in self._storage:
                         self._storage[table_name] = {}
 
@@ -419,17 +428,30 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     if not hasattr(obj, "id") or obj.id is None:
                         obj.id = str(len(self._storage[table_name]) + 1)
 
-                    # Store object attributes in a simple way
-                    obj_dict = {
-                        "id": obj.id,
-                        "name": getattr(obj, "name", None),
-                        "version": getattr(obj, "version", None),
-                        "config": getattr(obj, "config", None),
-                        "active": getattr(obj, "active", True),
-                        "last_active": getattr(obj, "last_active", None),
-                    }
-                    # Filter out None values
-                    obj_dict = {k: v for k, v in obj_dict.items() if v is not None}
+                    # Store object attributes based on type
+                    if class_name == "ScratchNote":
+                        obj_dict = {
+                            "id": obj.id,
+                            "key": getattr(obj, "key", ""),
+                            "content": getattr(obj, "content", ""),
+                            "created_at": getattr(obj, "created_at", None),
+                            "expires_at": getattr(obj, "expires_at", None),
+                        }
+                    else:
+                        obj_dict = {
+                            "id": obj.id,
+                            "name": getattr(obj, "name", None),
+                            "version": getattr(obj, "version", None),
+                            "config": getattr(obj, "config", None),
+                            "active": getattr(obj, "active", True),
+                            "last_active": getattr(obj, "last_active", None),
+                        }
+
+                    # Filter out None values except for content which can be None
+                    if class_name == "ScratchNote":
+                        obj_dict = {k: v for k, v in obj_dict.items() if k == "content" or v is not None}
+                    else:
+                        obj_dict = {k: v for k, v in obj_dict.items() if v is not None}
 
                     self._storage[table_name][obj.id] = obj_dict
 
@@ -438,9 +460,14 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
                 # Handle deleted objects - actually remove them from storage
                 for obj in self._deleted_objects:
-                    # Map MockModule objects to the correct table name
+                    # Map object classes to the correct table name
                     class_name = obj.__class__.__name__
-                    table_name = "modules" if class_name == "MockModule" else class_name.lower() + "s"
+                    if class_name == "ScratchNote":
+                        table_name = "scratch_notes"
+                    elif class_name == "Module":
+                        table_name = "modules"
+                    else:
+                        table_name = class_name.lower() + "s"
 
                     if table_name in self._storage and hasattr(obj, "id") and obj.id in self._storage[table_name]:
                         del self._storage[table_name][obj.id]
@@ -465,6 +492,10 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
             def add(self, obj: Any) -> None:
                 """Add object to session (will be committed on commit())."""
                 self._added_objects.append(obj)
+
+            def add_all(self, objs: list[Any]) -> None:
+                """Add multiple objects to session (will be committed on commit())."""
+                self._added_objects.extend(objs)
 
             async def delete(self, obj: Any) -> None:
                 """Simulate delete - stage object for deletion on commit."""
@@ -520,11 +551,24 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
                         logging.debug(f"Pagination parameter extraction failed: {e}")
 
-                # Define MockModule class for consistent object creation
-                class MockModule:
+                # Define dynamic mock class for consistent object creation
+                class MockObject:
                     def __init__(self, data: dict[str, Any]) -> None:
                         for key, value in data.items():
                             setattr(self, key, value)
+
+                # Helper to create appropriate mock object type
+                def create_mock_object(data: dict[str, Any]) -> Any:
+                    """Create mock object that behaves like the real model."""
+                    obj = MockObject(data)
+                    # Ensure required attributes exist for Pydantic validation
+                    if hasattr(obj, "key") and hasattr(obj, "content"):
+                        # Ensure these are not mock objects but actual strings
+                        if not isinstance(obj.key, str):
+                            obj.key = str(obj.key) if obj.key is not None else ""
+                        if not isinstance(obj.content, str) and obj.content is not None:
+                            obj.content = str(obj.content)
+                    return obj
 
                 # Handle UPDATE queries for modules
                 if "update" in query_str and "modules" in query_str:
@@ -565,77 +609,117 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                 table_data[target_id] = current_data
 
                                 # Return the updated module
-                                mock_module = MockModule(current_data)
-                                results.append(mock_module)
+                                mock_obj = create_mock_object(current_data)
+                                results.append(mock_obj)
                     except Exception as e:
                         # Handle compilation errors gracefully
                         import logging
 
                         logging.debug(f"Error parsing UPDATE query: {e}")
 
-                # Handle SELECT queries on modules table
-                elif "select" in query_str and ("modules" in query_str or "module" in query_str):
-                    table_data = self._storage.get("modules", {})
+                # Handle SELECT queries on various tables
+                elif "select" in query_str:
+                    target_table = None
                     target_name = None
                     target_id = None
+                    target_key = None
 
-                    # Parse query for WHERE conditions (name/id searches)
-                    try:
-                        # Try to get literal binds for WHERE conditions
-                        compiled = query.compile(compile_kwargs={"literal_binds": True})
-                        compiled_str = str(compiled)
+                    # Determine which table is being queried
+                    if "modules" in query_str or "module" in query_str:
+                        target_table = "modules"
+                    elif "scratch_note" in query_str or "scratch_notes" in query_str:
+                        target_table = "scratch_notes"
 
-                        # Look for WHERE conditions
-                        name_match = re.search(r"name = '([^']+)'", compiled_str)
-                        if name_match:
-                            target_name = name_match.group(1)
+                    if target_table:
+                        table_data = self._storage.get(target_table, {})
 
-                        id_match = re.search(r"id = '([^']+)'", compiled_str)
-                        if id_match:
-                            target_id = id_match.group(1)
+                        # Parse query for WHERE conditions (name/id/key searches)
+                        try:
+                            # Try to get literal binds for WHERE conditions
+                            compiled = query.compile(compile_kwargs={"literal_binds": True})
+                            compiled_str = str(compiled)
 
-                    except Exception as e:
-                        # Ignore compilation errors, fallback to parameter inspection
-                        import logging
+                            # Look for WHERE conditions
+                            name_match = re.search(r"name = '([^']+)'", compiled_str)
+                            if name_match:
+                                target_name = name_match.group(1)
 
-                        logging.debug(f"Error parsing SELECT query: {e}")
+                            id_match = re.search(r"id = '([^']+)'", compiled_str)
+                            if id_match:
+                                target_id = id_match.group(1)
 
-                    # Handle specific query types
-                    if target_id:
-                        # Get module by ID
-                        if target_id in table_data:
-                            mock_module = MockModule(table_data[target_id])
-                            results.append(mock_module)
-                    elif target_name:
-                        # Get module by name
-                        for module_data in table_data.values():
-                            if module_data.get("name") == target_name:
-                                mock_module = MockModule(module_data)
-                                results.append(mock_module)
-                                break
-                    else:
-                        # List all modules with pagination
-                        all_modules = []
-                        for module_data in table_data.values():
-                            mock_module = MockModule(module_data)
-                            all_modules.append(mock_module)
+                            key_match = re.search(r"key = '([^']+)'", compiled_str)
+                            if key_match:
+                                target_key = key_match.group(1)
 
-                        # Sort by name for consistent ordering
-                        all_modules.sort(key=lambda m: getattr(m, "name", ""))
+                        except Exception as e:
+                            # Ignore compilation errors, fallback to parameter inspection
+                            import logging
 
-                        # Apply pagination using the extracted parameters
-                        if limit is not None:
-                            results = all_modules[skip : skip + limit]
+                            logging.debug(f"Error parsing SELECT query: {e}")
+
+                        # Handle specific query types
+                        if target_id:
+                            # Get by ID
+                            if target_id in table_data:
+                                mock_obj = create_mock_object(table_data[target_id])
+                                results.append(mock_obj)
+                        elif target_name:
+                            # Get by name (modules)
+                            for data in table_data.values():
+                                if data.get("name") == target_name:
+                                    mock_obj = create_mock_object(data)
+                                    results.append(mock_obj)
+                                    break
+                        elif target_key:
+                            # Get by key (scratch_notes)
+                            for data in table_data.values():
+                                if data.get("key") == target_key:
+                                    mock_obj = create_mock_object(data)
+                                    results.append(mock_obj)
+                                    break
                         else:
-                            results = all_modules[skip:] if skip > 0 else all_modules
+                            # List all with pagination
+                            all_objects = []
+                            for data in table_data.values():
+                                mock_obj = create_mock_object(data)
+                                all_objects.append(mock_obj)
 
-                # Mock scalars method that returns appropriate results
-                mock_scalars = MagicMock()
-                mock_scalars.first = MagicMock(return_value=results[0] if results else None)
-                mock_scalars.all = MagicMock(return_value=results)
-                mock_scalars.one = MagicMock(return_value=results[0] if results else None)
-                mock_scalars.one_or_none = MagicMock(return_value=results[0] if results else None)
+                            # Sort for consistent ordering
+                            if target_table == "modules":
+                                all_objects.sort(key=lambda m: getattr(m, "name", ""))
+                            elif target_table == "scratch_notes":
+                                all_objects.sort(key=lambda m: getattr(m, "key", ""))
 
+                            # Apply pagination using the extracted parameters
+                            if limit is not None:
+                                results = all_objects[skip : skip + limit]
+                            else:
+                                results = all_objects[skip:] if skip > 0 else all_objects
+
+                # Create proper mock result with concrete return values (not nested mocks)
+                # This prevents Pydantic validation errors from mock objects
+                class MockScalars:
+                    def __init__(self, data: list[Any]) -> None:
+                        self._data = data
+
+                    def first(self) -> Any:
+                        return self._data[0] if self._data else None
+
+                    def all(self) -> list[Any]:
+                        return self._data
+
+                    def one(self) -> Any:
+                        if not self._data:
+                            raise Exception("No rows found")
+                        if len(self._data) > 1:
+                            raise Exception("Multiple rows found")
+                        return self._data[0]
+
+                    def one_or_none(self) -> Any:
+                        return self._data[0] if self._data else None
+
+                mock_scalars = MockScalars(results)
                 mock_result.scalars = MagicMock(return_value=mock_scalars)
                 mock_result.first = MagicMock(return_value=results[0] if results else None)
                 mock_result.all = MagicMock(return_value=results)
@@ -707,7 +791,10 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
 @pytest.fixture(scope="function")
 def override_get_db(db_session: Any) -> Generator[None, None, None]:
-    """Override FastAPI dependency to use our per-test session."""
+    """Override FastAPI dependency to use our per-test session.
+
+    Ensures app.dependency_overrides.clear() is called reliably for test isolation.
+    """
     if RUN_INTEGRATION_MODE == "1":
         # In integration mode, create fresh sessions within the TestClient's event loop
         async def _get_db() -> AsyncGenerator[Any, None]:
@@ -727,12 +814,22 @@ def override_get_db(db_session: Any) -> Generator[None, None, None]:
         from src.cos_main import app
         from src.db.connection import get_async_db
 
+        # Apply dependency overrides
         app.dependency_overrides[get_async_db] = _get_db
         app.dependency_overrides[get_cc_db] = _get_db
         yield
-        app.dependency_overrides.clear()
     except ImportError:
         yield
+    finally:
+        # CRITICAL: Always clear dependency overrides to prevent test contamination
+        # This ensures each test gets a fresh dependency setup regardless of imports or exceptions
+        try:
+            from src.cos_main import app
+
+            app.dependency_overrides.clear()
+        except ImportError:
+            # App not available - skip cleanup (likely in isolated unit tests)
+            pass
 
 
 @pytest.fixture(scope="function")
@@ -888,15 +985,9 @@ except ImportError:
 # SEGMENT 8: Redis Pub/Sub Fixtures
 
 
-@pytest_asyncio.fixture(scope="session")
-def event_loop_session() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    """Session-scoped event loop for Redis testing consistency."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        yield loop
-    finally:
-        loop.close()
+# REMOVED: Conflicting session-scoped event loop fixture
+# This was causing "Future attached to different loop" errors
+# All async fixtures should use the function-scoped event_loop fixture below
 
 
 @pytest_asyncio.fixture
