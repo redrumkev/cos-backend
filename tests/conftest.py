@@ -734,6 +734,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
                 mock_scalars = MockScalars(results)
                 mock_result.scalars = MagicMock(return_value=mock_scalars)
+                mock_result.scalar_one_or_none = MagicMock(return_value=results[0] if results else None)
                 mock_result.first = MagicMock(return_value=results[0] if results else None)
                 mock_result.all = MagicMock(return_value=results)
                 mock_result.fetchone = MagicMock(return_value=results[0] if results else None)
