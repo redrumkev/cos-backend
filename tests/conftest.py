@@ -406,6 +406,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                 self._deleted_objects: list[Any] = []
                 self._deleted_ids: set[str] = set()  # Track IDs of deleted objects
                 self._is_active = True
+                self.info: dict[str, Any] = {}  # Session info for logging outbox
 
             async def commit(self) -> None:
                 """Simulate commit - persist added objects and apply deletions to mock storage."""
@@ -423,9 +424,15 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     if table_name not in self._storage:
                         self._storage[table_name] = {}
 
-                    # Generate a simple ID if not present
+                    # Generate a simple ID if not present (may already be set by flush())
                     if not hasattr(obj, "id") or obj.id is None:
-                        obj.id = str(len(self._storage[table_name]) + 1)
+                        # Use same ID generation logic as flush()
+                        if class_name in ("BaseLog", "EventLog", "PromptTrace"):
+                            import uuid
+
+                            obj.id = uuid.uuid4()
+                        else:
+                            obj.id = len(self._storage[table_name]) + 1
 
                     # Ensure ID is stored as string for consistent lookup
                     obj_id_str = str(obj.id)
@@ -439,6 +446,19 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                             "created_at": getattr(obj, "created_at", None),
                             "expires_at": getattr(obj, "expires_at", None),
                         }
+                    elif class_name in ("BaseLog", "EventLog", "PromptTrace"):
+                        # Handle mem0 models dynamically to capture all attributes
+                        obj_dict = {"id": obj.id}
+                        for attr_name in dir(obj):
+                            if not attr_name.startswith("_") and not callable(getattr(obj, attr_name)):
+                                try:
+                                    value = getattr(obj, attr_name)
+                                    # Skip SQLAlchemy relationships and registry
+                                    if not str(type(value)).startswith("<class 'sqlalchemy"):
+                                        obj_dict[attr_name] = value
+                                except (AttributeError, TypeError, ValueError):
+                                    # Skip attributes that can't be accessed or have type issues
+                                    continue
                     else:
                         obj_dict = {
                             "id": obj.id,
@@ -498,8 +518,42 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                 self._deleted_ids.clear()
 
             async def flush(self) -> None:
-                """Simulate flush - in mock mode, this is a no-op."""
-                pass
+                """Simulate flush - assign IDs to added objects without persisting to storage."""
+                import uuid
+
+                # Generate IDs for objects that don't have them yet (like real DB flush)
+                for obj in self._added_objects:
+                    if not hasattr(obj, "id") or obj.id is None:
+                        # Map class names to determine ID type
+                        class_name = obj.__class__.__name__
+
+                        # For mem0 models (BaseLog, EventLog, PromptTrace), use UUID
+                        if class_name in ("BaseLog", "EventLog", "PromptTrace"):
+                            obj.id = uuid.uuid4()
+                        else:
+                            # For other models, use sequential integer IDs
+                            if class_name == "ScratchNote":
+                                table_name = "scratch_notes"
+                            elif class_name == "Module":
+                                table_name = "modules"
+                            else:
+                                table_name = class_name.lower() + "s"
+
+                            if table_name not in self._storage:
+                                self._storage[table_name] = {}
+
+                            # Generate a simple sequential ID
+                            obj.id = (
+                                len(self._storage[table_name])
+                                + len(
+                                    [
+                                        o
+                                        for o in self._added_objects
+                                        if o.__class__.__name__ == class_name and hasattr(o, "id") and o.id is not None
+                                    ]
+                                )
+                                + 1
+                            )
 
             async def close(self) -> None:
                 """Simulate close - mark session as inactive."""
@@ -534,6 +588,42 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     stored_data = self._storage[table_name][obj.id]
                     for key, value in stored_data.items():
                         setattr(obj, key, value)
+
+            async def get(self, model_class: Any, primary_key: Any) -> Any | None:
+                """Simulate get - retrieve object by primary key from mock storage or added objects."""
+                # First check added objects (not yet committed)
+                for obj in self._added_objects:
+                    if obj.__class__ == model_class and hasattr(obj, "id") and obj.id == primary_key:
+                        return obj
+
+                # Then check committed storage
+                class_name = model_class.__name__
+                if class_name == "ScratchNote":
+                    table_name = "scratch_notes"
+                elif class_name == "Module":
+                    table_name = "modules"
+                else:
+                    table_name = class_name.lower() + "s"
+
+                if table_name in self._storage:
+                    pk_str = str(primary_key)
+                    if pk_str in self._storage[table_name]:
+                        stored_data = self._storage[table_name][pk_str]
+                        # Create an instance of the actual model class
+                        try:
+                            obj = model_class()
+                            for key, value in stored_data.items():
+                                setattr(obj, key, value)
+                            return obj
+                        except Exception:
+                            # Fallback: create a simple mock object that behaves like the model
+                            from types import SimpleNamespace
+
+                            obj = SimpleNamespace(**stored_data)
+                            obj.__class__ = type(model_class.__name__, (), {})
+                            return obj
+
+                return None
 
             async def execute(self, query: Any, params: Any = None) -> Any:
                 """Mock execute - return a mock result based on query type and mock storage."""
