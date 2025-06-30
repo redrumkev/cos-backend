@@ -38,7 +38,7 @@ class TestRedisPubSub:
     @pytest.fixture
     async def connected_pubsub(self, pubsub: RedisPubSub) -> AsyncGenerator[RedisPubSub, None]:
         """Create connected RedisPubSub instance."""
-        with patch("src.common.pubsub.ConnectionPool"), patch("src.common.pubsub.aioredis.Redis") as mock_redis_cls:
+        with patch("src.common.pubsub.ConnectionPool"), patch("src.common.pubsub.redis.Redis") as mock_redis_cls:
             mock_redis = AsyncMock()
             mock_redis.ping = AsyncMock()
             mock_redis.aclose = AsyncMock()
@@ -59,7 +59,7 @@ class TestRedisPubSub:
         assert not pubsub._connected
 
     @patch("src.common.pubsub.ConnectionPool")
-    @patch("src.common.pubsub.aioredis.Redis")
+    @patch("src.common.pubsub.redis.Redis")
     async def test_connect_success(
         self,
         mock_redis_cls: MagicMock,
@@ -582,7 +582,7 @@ class TestGlobalFunctions:
         with (
             patch("src.common.pubsub.RedisPubSub") as mock_cls,
             patch("src.common.pubsub.ConnectionPool"),
-            patch("src.common.pubsub.aioredis.Redis"),
+            patch("src.common.pubsub.redis.Redis"),
         ):
             mock_instance = AsyncMock()
             mock_instance.connect = AsyncMock()
@@ -603,7 +603,7 @@ class TestGlobalFunctions:
         with (
             patch("src.common.pubsub.RedisPubSub") as mock_cls,
             patch("src.common.pubsub.ConnectionPool"),
-            patch("src.common.pubsub.aioredis.Redis"),
+            patch("src.common.pubsub.redis.Redis"),
         ):
             mock_instance = AsyncMock()
             mock_instance.connect = AsyncMock()
