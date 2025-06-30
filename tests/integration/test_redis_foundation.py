@@ -163,7 +163,7 @@ async def pubsub_client(redis_config: RedisConfig) -> AsyncGenerator[RedisPubSub
 
     with (
         patch("src.common.redis_config.get_redis_config", return_value=redis_config),
-        patch("src.common.pubsub.redis", fakeredis.aioredis),
+        patch("src.common.pubsub.redis.Redis", fakeredis.aioredis.FakeRedis),
     ):
         pubsub = RedisPubSub()
 

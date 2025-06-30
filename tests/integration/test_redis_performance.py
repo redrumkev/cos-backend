@@ -138,7 +138,7 @@ async def performance_pubsub_client(performance_redis_config: RedisConfig) -> As
     # Use mock.patch to properly handle the config
     with (
         patch("src.common.redis_config.get_redis_config", return_value=performance_redis_config),
-        patch("src.common.pubsub.redis", fakeredis.aioredis),
+        patch("src.common.pubsub.redis.Redis", fakeredis.aioredis.FakeRedis),
     ):
         pubsub = RedisPubSub()
 
@@ -387,7 +387,7 @@ class TestMemoryLeakDetection:
         # Use proper mocking to avoid import issues
         with (
             patch("src.common.redis_config.get_redis_config", return_value=performance_redis_config),
-            patch("src.common.pubsub.redis", fakeredis.aioredis),
+            patch("src.common.pubsub.redis.Redis", fakeredis.aioredis.FakeRedis),
         ):
             gc.collect()
             tracemalloc.start()
