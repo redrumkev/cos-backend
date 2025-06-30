@@ -13,29 +13,30 @@ import pytest
 from src.common.redis_config import get_redis_config
 
 
+@pytest.fixture
+def clean_env(monkeypatch: Any) -> None:
+    """Clear Redis-related environment variables."""
+    redis_env_vars = [
+        "REDIS_URL",
+        "REDIS_HOST",
+        "REDIS_PORT",
+        "REDIS_PASSWORD",
+        "REDIS_DB",
+        "REDIS_MAX_CONNECTIONS",
+        "REDIS_SOCKET_CONNECT_TIMEOUT",
+        "REDIS_SOCKET_KEEPALIVE",
+        "REDIS_RETRY_ON_TIMEOUT",
+        "REDIS_HEALTH_CHECK_INTERVAL",
+        "TESTING",
+        "ENV",
+    ]
+
+    for var in redis_env_vars:
+        monkeypatch.delenv(var, raising=False)
+
+
 class TestRedisConfigurationMatrix:
     """Test Redis configuration with various environment variable combinations."""
-
-    @pytest.fixture
-    def clean_env(self, monkeypatch: Any) -> None:
-        """Clear Redis-related environment variables."""
-        redis_env_vars = [
-            "REDIS_URL",
-            "REDIS_HOST",
-            "REDIS_PORT",
-            "REDIS_PASSWORD",
-            "REDIS_DB",
-            "REDIS_MAX_CONNECTIONS",
-            "REDIS_SOCKET_CONNECT_TIMEOUT",
-            "REDIS_SOCKET_KEEPALIVE",
-            "REDIS_RETRY_ON_TIMEOUT",
-            "REDIS_HEALTH_CHECK_INTERVAL",
-            "TESTING",
-            "ENV",
-        ]
-
-        for var in redis_env_vars:
-            monkeypatch.delenv(var, raising=False)
 
     @pytest.fixture(autouse=True)
     def clear_cache(self) -> None:

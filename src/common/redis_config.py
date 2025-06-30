@@ -8,16 +8,16 @@ This module provides Redis configuration management with support for:
 - Proper type hints for mypy
 """
 
+import os
 import urllib.parse
 from functools import lru_cache
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Optional dotenv support
 try:
-    import os
     from pathlib import Path
 
     from dotenv import load_dotenv
@@ -29,6 +29,31 @@ try:
 except ImportError:
     # python-dotenv not installed, skip loading
     pass
+
+# Environment-specific default configurations
+ENV_DEFAULTS = {
+    "development": {
+        "max_connections": 10,
+        "socket_connect_timeout": 5,
+        "socket_keepalive": True,
+        "retry_on_timeout": True,
+        "health_check_interval": 30,
+    },
+    "testing": {
+        "max_connections": 5,  # Lower for testing
+        "socket_connect_timeout": 2,  # Faster timeout
+        "socket_keepalive": False,  # Simpler for tests
+        "retry_on_timeout": False,  # Fail fast in tests
+        "health_check_interval": 10,  # More frequent
+    },
+    "production": {
+        "max_connections": 20,
+        "socket_connect_timeout": 10,
+        "socket_keepalive": True,
+        "retry_on_timeout": True,
+        "health_check_interval": 60,
+    },
+}
 
 
 class RedisConfig(BaseSettings):
@@ -63,6 +88,25 @@ class RedisConfig(BaseSettings):
     redis_socket_keepalive: bool = Field(default=True, description="Enable socket keepalive")
     redis_retry_on_timeout: bool = Field(default=True, description="Retry on timeout")
     redis_health_check_interval: int = Field(default=30, ge=1, description="Health check interval in seconds")
+
+    @model_validator(mode="before")
+    @classmethod
+    def apply_env_defaults(cls, data: Any) -> Any:
+        """Apply environment-specific defaults based on ENV variable."""
+        if isinstance(data, dict):
+            # Determine environment
+            env = (os.getenv("ENV") or ("testing" if os.getenv("TESTING") else "production")).lower()
+
+            # Get environment defaults
+            defaults = ENV_DEFAULTS.get(env, ENV_DEFAULTS["production"])
+
+            # Apply defaults only if the field wasn't set via env var or kwargs
+            for key, value in defaults.items():
+                redis_key = f"redis_{key}"
+                if redis_key not in data and key.upper() not in os.environ:
+                    data.setdefault(redis_key, value)
+
+        return data
 
     @field_validator("redis_port")
     @classmethod
@@ -152,7 +196,7 @@ class RedisConfig(BaseSettings):
         """Return string representation masking sensitive data."""
         # Mask password in URL for logging
         url = self.redis_url
-        if self.redis_password and "@" in url:
+        if "@" in url:
             # Replace password with asterisks
             parts = url.split("://", 1)
             expected_protocol_parts = 2
