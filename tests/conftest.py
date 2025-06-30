@@ -404,6 +404,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                 self._storage = mock_storage
                 self._added_objects: list[Any] = []
                 self._deleted_objects: list[Any] = []
+                self._deleted_ids: set[str] = set()  # Track IDs of deleted objects
                 self._is_active = True
 
             async def commit(self) -> None:
@@ -488,11 +489,13 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                 # Clear pending operations
                 self._added_objects.clear()
                 self._deleted_objects.clear()
+                self._deleted_ids.clear()
 
             async def rollback(self) -> None:
                 """Simulate rollback - clear uncommitted changes."""
                 self._added_objects.clear()
                 self._deleted_objects.clear()
+                self._deleted_ids.clear()
 
             async def flush(self) -> None:
                 """Simulate flush - in mock mode, this is a no-op."""
@@ -514,6 +517,9 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                 """Simulate delete - stage object for deletion on commit."""
                 # Add to deleted objects list - actual deletion happens in commit()
                 self._deleted_objects.append(obj)
+                # Track the ID of the deleted object for immediate filtering
+                if hasattr(obj, "id") and obj.id is not None:
+                    self._deleted_ids.add(str(obj.id))
                 # Mark object as deleted by setting a flag for immediate reference
                 obj._deleted = True
 
@@ -727,7 +733,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                         # Return the count as a proper scalar result
                         results = [count]
 
-                # Handle SELECT queries on various tables
+                # Handle SELECT queries
                 elif "select" in query_str:
                     target_table = None
                     target_name = None
@@ -757,7 +763,14 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                         "created_at": getattr(obj, "created_at", None),
                                         "expires_at": getattr(obj, "expires_at", None),
                                     }
-                            return notes_data
+
+                            # Filter out deleted objects
+                            filtered_data = {}
+                            for obj_id, data in notes_data.items():
+                                if obj_id not in self._deleted_ids:
+                                    filtered_data[obj_id] = data
+
+                            return filtered_data
 
                         # Parse query for WHERE conditions (name/id/key searches)
                         try:
@@ -790,6 +803,27 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                             if target_id in table_data:
                                 mock_obj = create_mock_object(table_data[target_id])
                                 results.append(mock_obj)
+                        elif "id IN (" in str(query) or " IN (" in str(query):
+                            # Handle ID IN (...) queries first (SELECT * WHERE id IN)
+                            try:
+                                compiled = query.compile(compile_kwargs={"literal_binds": True})
+                                compiled_str = str(compiled)
+
+                                id_match = re.search(r"id IN \(([^)]+)\)", compiled_str)
+                                if id_match:
+                                    id_list_str = id_match.group(1)
+                                    ids = [int(x.strip()) for x in id_list_str.split(",")]
+
+                                    notes_data = get_combined_notes_data()
+                                    for id_val in ids:
+                                        str_id = str(id_val)
+                                        if str_id in notes_data:
+                                            mock_obj = create_mock_object(notes_data[str_id])
+                                            results.append(mock_obj)
+                            except Exception as e:
+                                import logging
+
+                                logging.debug(f"Error parsing ID IN query: {e}")
                         elif (
                             "select" in query_str
                             and "where" in query_str
@@ -844,22 +878,6 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                         for expired_id in expired_ids:
                                             results.append((expired_id,))
 
-                                # Check for ID IN (...) queries (SELECT * WHERE id IN)
-                                elif " IN (" in compiled_str and (
-                                    "scratch_note" in compiled_str or target_table == "scratch_notes"
-                                ):
-                                    id_match = re.search(r"id IN \(([^)]+)\)", compiled_str)
-                                    if id_match:
-                                        id_list_str = id_match.group(1)
-                                        ids = [int(x.strip()) for x in id_list_str.split(",")]
-
-                                        notes_data = get_combined_notes_data()
-                                        for id_val in ids:
-                                            str_id = str(id_val)
-                                            if str_id in notes_data:
-                                                mock_obj = create_mock_object(notes_data[str_id])
-                                                results.append(mock_obj)
-
                                 # Check for key = value queries (SELECT * WHERE key = 'value')
                                 elif ("scratch_note.key = " in compiled_str or " key = " in compiled_str) and (
                                     "scratch_note" in compiled_str or target_table == "scratch_notes"
@@ -888,7 +906,10 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                     break
                         elif target_key:
                             # Get by key (scratch_notes)
-                            for data in table_data.values():
+                            # Use combined data to include uncommitted objects
+                            combined_data = get_combined_notes_data() if target_table == "scratch_notes" else table_data
+
+                            for data in combined_data.values():
                                 if data.get("key") == target_key:
                                     mock_obj = create_mock_object(data)
                                     results.append(mock_obj)
@@ -948,11 +969,18 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                             compiled = query.compile(compile_kwargs={"literal_binds": True})
                                             compiled_str = str(compiled)
                                             # If the query doesn't explicitly allow expired notes, skip them
-                                            if "expires_at IS NULL OR expires_at >" in compiled_str:
+                                            has_expiry_filter = (
+                                                "expires_at IS NULL OR expires_at >" in compiled_str
+                                                or "scratch_note.expires_at IS NULL OR scratch_note.expires_at >"
+                                                in compiled_str
+                                            )
+                                            if has_expiry_filter:
                                                 # This means we're excluding expired notes
-                                                # Extract the cutoff time from the compiled query instead of using now()
-                                                # This ensures we're using the same time that was used in the query
-                                                cutoff_match = re.search(r"expires_at > '([^']+)'", compiled_str)
+                                                # Extract cutoff time from compiled query instead of using now()
+                                                # This ensures we use the same time that was used in the query
+                                                cutoff_match = re.search(
+                                                    r"(?:scratch_note\.)?expires_at > '([^']+)'", compiled_str
+                                                )
                                                 if cutoff_match:
                                                     from datetime import datetime
 
