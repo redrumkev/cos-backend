@@ -630,6 +630,50 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
                         logging.debug(f"Error parsing UPDATE query: {e}")
 
+                # Handle UPDATE queries for scratch_notes
+                elif "update" in query_str and ("scratch_note" in query_str or "scratchnote" in query_str):
+                    table_data = self._storage.get("scratch_notes", {})
+
+                    # For UPDATE queries, we need to handle bound parameters differently
+                    # The update data comes through the values() method which uses bind parameters
+                    try:
+                        compiled = query.compile()
+                        # Get the parameter values from the compiled query
+                        update_params = compiled.params or {}
+
+                        # Extract the target ID from the compiled query with literal binds
+                        compiled_literal = query.compile(compile_kwargs={"literal_binds": True})
+                        compiled_str = str(compiled_literal)
+
+                        # Look for the WHERE clause ID - fix regex to match quoted values
+                        id_match = re.search(r"id = '(\d+)'", compiled_str)
+                        if id_match:
+                            target_id = id_match.group(1)
+
+                            if target_id in table_data:
+                                # Get current data
+                                current_data = table_data[target_id].copy()
+
+                                # Apply updates from the bound parameters
+                                # The parameters contain the actual update values
+                                for param_name, param_value in update_params.items():
+                                    # Map parameter names back to column names
+                                    # SQLAlchemy uses parameter names that correspond to column names
+                                    if param_name in ["content", "expires_at", "key"]:
+                                        current_data[param_name] = param_value
+
+                                # Update storage
+                                table_data[target_id] = current_data
+
+                                # Return the updated scratch note
+                                mock_obj = create_mock_object(current_data)
+                                results.append(mock_obj)
+                    except Exception as e:
+                        # Handle compilation errors gracefully
+                        import logging
+
+                        logging.debug(f"Error parsing UPDATE scratch_notes query: {e}")
+
                 # Handle SELECT queries on various tables
                 elif "select" in query_str:
                     target_table = None
@@ -692,9 +736,32 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                     results.append(mock_obj)
                                     break
                         else:
-                            # List all with pagination
+                            # List all with pagination and filtering
                             all_objects = []
+
+                            # Check for STARTSWITH filter in compiled query
+                            startswith_filter = None
+                            try:
+                                compiled = query.compile(compile_kwargs={"literal_binds": True})
+                                compiled_str = str(compiled)
+
+                                # Look for startswith pattern: key LIKE 'prefix_%'
+                                startswith_match = re.search(r"key LIKE '([^%]+)%'", compiled_str)
+                                if startswith_match:
+                                    startswith_filter = startswith_match.group(1)
+                            except Exception as e:
+                                # Ignore compilation errors
+                                import logging
+
+                                logging.debug(f"Error parsing startswith filter: {e}")
+
                             for data in table_data.values():
+                                # Apply startswith filter if present
+                                if startswith_filter and target_table == "scratch_notes":
+                                    key_value = data.get("key", "")
+                                    if not key_value.startswith(startswith_filter):
+                                        continue
+
                                 mock_obj = create_mock_object(data)
                                 all_objects.append(mock_obj)
 
