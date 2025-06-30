@@ -743,6 +743,22 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     if target_table:
                         table_data = self._storage.get(target_table, {})
 
+                        # Define helper function for combining storage and added objects
+                        def get_combined_notes_data() -> dict[str, dict[str, Any]]:
+                            notes_data = table_data.copy() if target_table == "scratch_notes" else {}
+                            # Also check added objects that haven't been committed yet
+                            for obj in self._added_objects:
+                                if obj.__class__.__name__ == "ScratchNote":
+                                    obj_id = str(obj.id) if obj.id else str(len(notes_data) + 1)
+                                    notes_data[obj_id] = {
+                                        "id": obj.id or int(obj_id),
+                                        "key": getattr(obj, "key", ""),
+                                        "content": getattr(obj, "content", ""),
+                                        "created_at": getattr(obj, "created_at", None),
+                                        "expires_at": getattr(obj, "expires_at", None),
+                                    }
+                            return notes_data
+
                         # Parse query for WHERE conditions (name/id/key searches)
                         try:
                             # Try to get literal binds for WHERE conditions
@@ -774,27 +790,19 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                             if target_id in table_data:
                                 mock_obj = create_mock_object(table_data[target_id])
                                 results.append(mock_obj)
-                        elif "select" in query_str and "id" in query_str and "where" in query_str:
-                            # Handle SELECT id WHERE... queries for cleanup operations
+                        elif (
+                            "select" in query_str
+                            and "where" in query_str
+                            and (
+                                "select scratch_note.id " in query_str
+                                or "select scratch_note.id\n" in query_str
+                                or query_str.strip().startswith("select scratch_note.id ")
+                            )
+                        ):
+                            # Handle SELECT id WHERE... queries for cleanup operations (only selecting ID column)
                             try:
                                 compiled = query.compile(compile_kwargs={"literal_binds": True})
                                 compiled_str = str(compiled)
-
-                                # Get combined notes data (storage + added objects)
-                                def get_combined_notes_data() -> dict[str, dict[str, Any]]:
-                                    notes_data = table_data or self._storage.get("scratch_notes", {})
-                                    # Also check added objects that haven't been committed yet
-                                    for obj in self._added_objects:
-                                        if obj.__class__.__name__ == "ScratchNote":
-                                            obj_id = str(obj.id) if obj.id else str(len(notes_data) + 1)
-                                            notes_data[obj_id] = {
-                                                "id": obj.id or int(obj_id),
-                                                "key": getattr(obj, "key", ""),
-                                                "content": getattr(obj, "content", ""),
-                                                "created_at": getattr(obj, "created_at", None),
-                                                "expires_at": getattr(obj, "expires_at", None),
-                                            }
-                                    return notes_data
 
                                 # Check for expires_at filtering in cleanup queries (SELECT id)
                                 if (
@@ -815,7 +823,8 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
                                         notes_data = get_combined_notes_data()
 
-                                        # Find expired notes and return their IDs
+                                        # Find expired notes and return their IDs (with LIMIT support)
+                                        expired_ids = []
                                         for obj_id, data in notes_data.items():
                                             expires_at = data.get("expires_at")
                                             if (
@@ -823,8 +832,17 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                                 and isinstance(expires_at, datetime)
                                                 and expires_at <= cutoff_time
                                             ):
-                                                # Return ID as tuple (like fetchall() returns)
-                                                results.append((int(obj_id),))
+                                                expired_ids.append(int(obj_id))
+
+                                        # Check for LIMIT clause
+                                        limit_match = re.search(r"LIMIT (\d+)", compiled_str)
+                                        if limit_match:
+                                            limit_value = int(limit_match.group(1))
+                                            expired_ids = expired_ids[:limit_value]
+
+                                        # Return IDs as tuples (like fetchall() returns)
+                                        for expired_id in expired_ids:
+                                            results.append((expired_id,))
 
                                 # Check for ID IN (...) queries (SELECT * WHERE id IN)
                                 elif " IN (" in compiled_str and (
@@ -879,6 +897,23 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                             # List all with pagination and filtering
                             all_objects = []
 
+                            # Get combined data (storage + added objects)
+                            if target_table == "scratch_notes":
+                                combined_data = get_combined_notes_data()
+                            else:
+                                combined_data = table_data.copy()
+                                # Add module objects from added_objects
+                                for obj in self._added_objects:
+                                    if obj.__class__.__name__ == "Module":
+                                        obj_id = str(obj.id) if obj.id else str(len(combined_data) + 1)
+                                        combined_data[obj_id] = {
+                                            "id": obj.id or obj_id,
+                                            "name": getattr(obj, "name", ""),
+                                            "version": getattr(obj, "version", ""),
+                                            "active": getattr(obj, "active", True),
+                                            "config": getattr(obj, "config", None),
+                                        }
+
                             # Check for STARTSWITH filter in compiled query
                             startswith_filter = None
                             try:
@@ -895,7 +930,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
                                 logging.debug(f"Error parsing startswith filter: {e}")
 
-                            for data in table_data.values():
+                            for data in combined_data.values():
                                 # Apply startswith filter if present
                                 if startswith_filter and target_table == "scratch_notes":
                                     key_value = data.get("key", "")
