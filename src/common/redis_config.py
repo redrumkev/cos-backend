@@ -106,6 +106,21 @@ class RedisConfig(BaseSettings):
                 if redis_key not in data and key.upper() not in os.environ:
                     data.setdefault(redis_key, value)
 
+            # Enforce basic defaults for host/port/db (but not password - leave None)
+            basic_defaults = {
+                "redis_host": cls.model_fields["redis_host"].default,
+                "redis_port": cls.model_fields["redis_port"].default,
+                "redis_db": cls.model_fields["redis_db"].default,
+            }
+            for field_name, default_value in basic_defaults.items():
+                env_var = field_name.upper()
+                if field_name not in data and env_var not in os.environ:
+                    data.setdefault(field_name, default_value)
+
+            # Handle redis_password specially - only set if explicitly provided
+            if "redis_password" not in data and "REDIS_PASSWORD" not in os.environ:
+                data.setdefault("redis_password", None)
+
         return data
 
     @field_validator("redis_port")
