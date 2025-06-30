@@ -426,6 +426,9 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     if not hasattr(obj, "id") or obj.id is None:
                         obj.id = str(len(self._storage[table_name]) + 1)
 
+                    # Ensure ID is stored as string for consistent lookup
+                    obj_id_str = str(obj.id)
+
                     # Store object attributes based on type
                     if class_name == "ScratchNote":
                         obj_dict = {
@@ -451,10 +454,10 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     else:
                         obj_dict = {k: v for k, v in obj_dict.items() if v is not None}
 
-                    self._storage[table_name][obj.id] = obj_dict
+                    self._storage[table_name][obj_id_str] = obj_dict
 
-                    # Update the original object with the ID
-                    obj.id = obj.id
+                    # Update the original object with the ID (keep original type)
+                    # obj.id = obj.id  # This line is redundant
 
                 # Handle deleted objects - actually remove them from storage
                 for obj in self._deleted_objects:
@@ -464,11 +467,23 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                         table_name = "scratch_notes"
                     elif class_name == "Module":
                         table_name = "modules"
+                    elif class_name == "MockObject":
+                        # For MockObject, we need to determine the table from context
+                        # Check if the object has attributes that help identify the table
+                        if hasattr(obj, "name") and hasattr(obj, "version"):
+                            table_name = "modules"  # Module-like object
+                        elif hasattr(obj, "key") and hasattr(obj, "content"):
+                            table_name = "scratch_notes"  # ScratchNote-like object
+                        else:
+                            table_name = "modules"  # Default fallback
                     else:
                         table_name = class_name.lower() + "s"
 
-                    if table_name in self._storage and hasattr(obj, "id") and obj.id in self._storage[table_name]:
-                        del self._storage[table_name][obj.id]
+                    if table_name in self._storage and hasattr(obj, "id"):
+                        # Convert obj.id to string for consistent lookup (UUID objects vs string keys)
+                        obj_id_str = str(obj.id)
+                        if obj_id_str in self._storage[table_name]:
+                            del self._storage[table_name][obj_id_str]
 
                 # Clear pending operations
                 self._added_objects.clear()
