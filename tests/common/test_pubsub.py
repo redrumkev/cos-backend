@@ -66,17 +66,18 @@ class TestRedisPubSub:
         assert pubsub._listening_task is None
         assert not pubsub._connected
 
-    @patch("src.common.pubsub.ConnectionPool", new_callable=AsyncMock)
+    @patch("src.common.pubsub.ConnectionPool")
     @patch("src.common.pubsub.redis.Redis")
     async def test_connect_success(
         self,
         mock_redis_cls: MagicMock,
-        mock_pool_cls: AsyncMock,
+        mock_pool_cls: MagicMock,
         pubsub: RedisPubSub,
     ) -> None:
         """Test successful Redis connection."""
         # Setup mocks
         mock_pool = AsyncMock()
+        mock_pool.aclose = AsyncMock()
         mock_pool_cls.from_url.return_value = mock_pool
 
         mock_redis = AsyncMock()
@@ -92,8 +93,8 @@ class TestRedisPubSub:
         assert pubsub._redis == mock_redis
         mock_redis.ping.assert_called_once()
 
-    @patch("src.common.pubsub.ConnectionPool", new_callable=AsyncMock)
-    async def test_connect_failure(self, mock_pool_cls: AsyncMock, pubsub: RedisPubSub) -> None:
+    @patch("src.common.pubsub.ConnectionPool")
+    async def test_connect_failure(self, mock_pool_cls: MagicMock, pubsub: RedisPubSub) -> None:
         """Test Redis connection failure."""
         mock_pool_cls.from_url.side_effect = RedisConnectionError("Connection failed")
 
@@ -113,10 +114,17 @@ class TestRedisPubSub:
 
     async def test_disconnect_success(self, connected_pubsub: RedisPubSub) -> None:
         """Test successful disconnection."""
-        # Add mock components
-        connected_pubsub._listening_task = AsyncMock()
-        connected_pubsub._listening_task.done.return_value = False
-        connected_pubsub._listening_task.cancel = AsyncMock()
+
+        # Add mock components - create a mock task that's awaitable
+        async def mock_task_coro() -> None:
+            pass
+
+        mock_task = asyncio.create_task(mock_task_coro())
+        mock_task.cancel()  # Cancel immediately so done() returns True
+        # Override done to return False for test (mypy: ignore method assignment)
+        mock_task.done = MagicMock(return_value=False)  # type: ignore[method-assign]
+        mock_task.cancel = MagicMock()  # type: ignore[method-assign]
+        connected_pubsub._listening_task = mock_task
 
         connected_pubsub._pubsub = AsyncMock()
         connected_pubsub._pubsub.aclose = AsyncMock()
@@ -155,10 +163,16 @@ class TestRedisPubSub:
         """Test publishing when not connected (should auto-connect)."""
         with patch.object(pubsub, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
-            pubsub._connected = True
+            pubsub._connected = False  # Start disconnected to trigger connect
             mock_redis = AsyncMock()
             mock_redis.publish.return_value = 1
-            pubsub._redis = mock_redis
+
+            # After connect is called, simulate being connected
+            async def mock_connect_side_effect() -> None:
+                pubsub._connected = True
+                pubsub._redis = mock_redis
+
+            mock_connect.side_effect = mock_connect_side_effect
 
             result = await pubsub.publish("test", {"data": "test"})
 
@@ -183,7 +197,7 @@ class TestRedisPubSub:
         class NonSerializable:
             pass
 
-        with pytest.raises(PublishError, match="Failed to publish message"):
+        with pytest.raises(PublishError, match="Unexpected publish error"):
             await connected_pubsub.publish("test", {"obj": NonSerializable()})
 
     async def test_publish_performance_warning(self, connected_pubsub: RedisPubSub, caplog: Any) -> None:
@@ -207,9 +221,10 @@ class TestRedisPubSub:
         """Test successful channel subscription."""
         # Setup mocks
         mock_pubsub = AsyncMock()
-        mock_pubsub.subscribe = AsyncMock()
+        mock_pubsub.subscribe = AsyncMock(return_value=None)  # subscribe should return None
+        mock_pubsub.aclose = AsyncMock()  # Add aclose for cleanup
         mock_redis = AsyncMock()
-        mock_redis.pubsub.return_value = mock_pubsub
+        mock_redis.pubsub = MagicMock(return_value=mock_pubsub)  # pubsub() is sync, returns object
         connected_pubsub._redis = mock_redis
 
         async def test_handler(channel: str, message: MessageData) -> None:
@@ -226,8 +241,10 @@ class TestRedisPubSub:
     async def test_subscribe_multiple_handlers(self, connected_pubsub: RedisPubSub) -> None:
         """Test subscribing multiple handlers to same channel."""
         mock_pubsub = AsyncMock()
+        mock_pubsub.subscribe = AsyncMock(return_value=None)
+        mock_pubsub.aclose = AsyncMock()
         mock_redis = AsyncMock()
-        mock_redis.pubsub.return_value = mock_pubsub
+        mock_redis.pubsub = MagicMock(return_value=mock_pubsub)
         connected_pubsub._redis = mock_redis
 
         async def handler1(channel: str, message: MessageData) -> None:
@@ -249,8 +266,10 @@ class TestRedisPubSub:
             mock_connect.return_value = None
             pubsub._connected = True
             mock_pubsub = AsyncMock()
+            mock_pubsub.subscribe = AsyncMock(return_value=None)
+            mock_pubsub.aclose = AsyncMock()
             mock_redis = AsyncMock()
-            mock_redis.pubsub.return_value = mock_pubsub
+            mock_redis.pubsub = MagicMock(return_value=mock_pubsub)
             pubsub._redis = mock_redis
 
             async def handler(channel: str, message: MessageData) -> None:
@@ -262,9 +281,10 @@ class TestRedisPubSub:
     async def test_subscribe_redis_error(self, connected_pubsub: RedisPubSub) -> None:
         """Test subscription with Redis error."""
         mock_pubsub = AsyncMock()
-        mock_pubsub.subscribe.side_effect = RedisError("Redis error")
+        mock_pubsub.subscribe = AsyncMock(side_effect=RedisError("Redis error"))
+        mock_pubsub.aclose = AsyncMock()
         mock_redis = AsyncMock()
-        mock_redis.pubsub.return_value = mock_pubsub
+        mock_redis.pubsub = MagicMock(return_value=mock_pubsub)
         connected_pubsub._redis = mock_redis
 
         async def handler(channel: str, message: MessageData) -> None:
@@ -496,8 +516,11 @@ class TestRedisPubSub:
     async def test_channel_subscription_context_manager(self, connected_pubsub: RedisPubSub) -> None:
         """Test channel subscription context manager."""
         mock_pubsub = AsyncMock()
+        mock_pubsub.subscribe = AsyncMock(return_value=None)
+        mock_pubsub.unsubscribe = AsyncMock(return_value=None)
+        mock_pubsub.aclose = AsyncMock()
         mock_redis = AsyncMock()
-        mock_redis.pubsub.return_value = mock_pubsub
+        mock_redis.pubsub = MagicMock(return_value=mock_pubsub)
         connected_pubsub._redis = mock_redis
 
         received_messages = []
