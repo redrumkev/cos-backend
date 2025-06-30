@@ -168,15 +168,11 @@ class TestBaseSubscriberABC:
         """Concrete implementation with process_message can be instantiated."""
         subscriber = ConcreteTestSubscriber()
         # Test instance type
-        expected_instance = isinstance(subscriber, BaseSubscriber)
-        pytest.assume(expected_instance)
+        assert isinstance(subscriber, BaseSubscriber)
 
         # Test configuration values
-        expected_concurrency = subscriber._concurrency == DEFAULT_MAX_CONCURRENCY
-        pytest.assume(expected_concurrency)
-
-        expected_timeout = subscriber._ack_timeout == DEFAULT_ACK_TIMEOUT
-        pytest.assume(expected_timeout)
+        assert subscriber._concurrency == DEFAULT_MAX_CONCURRENCY
+        assert subscriber._ack_timeout == DEFAULT_ACK_TIMEOUT
 
 
 class TestBaseSubscriberConfiguration:
@@ -187,20 +183,11 @@ class TestBaseSubscriberConfiguration:
         subscriber = ConcreteTestSubscriber()
 
         # Test default values
-        expected_concurrency = subscriber._concurrency == DEFAULT_MAX_CONCURRENCY
-        pytest.assume(expected_concurrency)
-
-        expected_timeout = subscriber._ack_timeout == DEFAULT_ACK_TIMEOUT
-        pytest.assume(expected_timeout)
-
-        expected_batch_size = subscriber._batch_size == DEFAULT_BATCH_SIZE
-        pytest.assume(expected_batch_size)
-
-        expected_circuit_breaker = subscriber._circuit_breaker is None
-        pytest.assume(expected_circuit_breaker)
-
-        expected_dlq_publish = subscriber._dlq_publish is None
-        pytest.assume(expected_dlq_publish)
+        assert subscriber._concurrency == DEFAULT_MAX_CONCURRENCY
+        assert subscriber._ack_timeout == DEFAULT_ACK_TIMEOUT
+        assert subscriber._batch_size == DEFAULT_BATCH_SIZE
+        assert subscriber._circuit_breaker is None
+        assert subscriber._dlq_publish is None
 
     def test_custom_configuration(self) -> None:
         """Test custom configuration values."""
@@ -218,46 +205,24 @@ class TestBaseSubscriberConfiguration:
         )
 
         # Test custom values
-        expected_concurrency = subscriber._concurrency == CUSTOM_CONCURRENCY
-        pytest.assume(expected_concurrency)
-
-        expected_timeout = subscriber._ack_timeout == CUSTOM_ACK_TIMEOUT
-        pytest.assume(expected_timeout)
-
-        expected_batch_size = subscriber._batch_size == CUSTOM_BATCH_SIZE
-        pytest.assume(expected_batch_size)
-
-        expected_batch_window = subscriber._batch_window == CUSTOM_BATCH_WINDOW
-        pytest.assume(expected_batch_window)
-
-        expected_circuit_breaker = subscriber._circuit_breaker is circuit_breaker
-        pytest.assume(expected_circuit_breaker)
-
-        expected_dlq_publish = subscriber._dlq_publish is dlq_func
-        pytest.assume(expected_dlq_publish)
-
-        expected_message_ttl = subscriber._message_ttl == CUSTOM_MESSAGE_TTL
-        pytest.assume(expected_message_ttl)
+        assert subscriber._concurrency == CUSTOM_CONCURRENCY
+        assert subscriber._ack_timeout == CUSTOM_ACK_TIMEOUT
+        assert subscriber._batch_size == CUSTOM_BATCH_SIZE
+        assert subscriber._batch_window == CUSTOM_BATCH_WINDOW
+        assert subscriber._circuit_breaker is circuit_breaker
+        assert subscriber._dlq_publish is dlq_func
+        assert subscriber._message_ttl == CUSTOM_MESSAGE_TTL
 
     def test_initial_state(self) -> None:
         """Test initial subscriber state."""
         subscriber = ConcreteTestSubscriber()
 
         # Test initial state
-        expected_not_consuming = not subscriber.is_consuming
-        pytest.assume(expected_not_consuming)
-
-        expected_empty_channels = len(subscriber._channels) == 0
-        pytest.assume(expected_empty_channels)
-
-        expected_empty_tasks = len(subscriber._consuming_tasks) == 0
-        pytest.assume(expected_empty_tasks)
-
-        expected_stop_event = subscriber._stop_event.is_set() is False
-        pytest.assume(expected_stop_event)
-
-        expected_processed_count = subscriber.metrics["processed_count"] == 0
-        pytest.assume(expected_processed_count)
+        assert not subscriber.is_consuming
+        assert len(subscriber._channels) == 0
+        assert len(subscriber._consuming_tasks) == 0
+        assert subscriber._stop_event.is_set() is False
+        assert subscriber.metrics["processed_count"] == 0
 
 
 @pytest.mark.asyncio
@@ -281,14 +246,9 @@ class TestLifecycleManagement:
         await subscriber.start_consuming("test_channel")
 
         # Verify consuming state
-        expected_consuming = subscriber.is_consuming
-        pytest.assume(expected_consuming)
-
-        expected_channel_present = "test_channel" in subscriber._channels
-        pytest.assume(expected_channel_present)
-
-        expected_task_count = len(subscriber._consuming_tasks) == 1
-        pytest.assume(expected_task_count)
+        assert subscriber.is_consuming
+        assert "test_channel" in subscriber._channels
+        assert len(subscriber._consuming_tasks) == 1
 
         # Allow some processing time
         await asyncio.sleep(PROCESSING_TIME)
@@ -297,14 +257,9 @@ class TestLifecycleManagement:
         await subscriber.stop_consuming()
 
         # Test lifecycle state
-        expected_not_consuming = not subscriber.is_consuming
-        pytest.assume(expected_not_consuming)
-
-        expected_empty_channels = len(subscriber._channels) == 0
-        pytest.assume(expected_empty_channels)
-
-        expected_empty_tasks = len(subscriber._consuming_tasks) == 0
-        pytest.assume(expected_empty_tasks)
+        assert not subscriber.is_consuming
+        assert len(subscriber._channels) == 0
+        assert len(subscriber._consuming_tasks) == 0
 
     async def test_start_consuming_duplicate_channel(self) -> None:
         """Test starting consumption from same channel twice."""

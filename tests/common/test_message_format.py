@@ -40,20 +40,11 @@ class TestMessageEnvelope:
         envelope = MessageEnvelope(**test_data)
 
         # Verify envelope properties
-        expected_log_id = envelope.base_log_id == base_log_id
-        pytest.assume(expected_log_id)
-
-        expected_source = envelope.source_module == "backend.cc.logging"
-        pytest.assume(expected_source)
-
-        expected_event_type = envelope.event_type == EventType.PROMPT_TRACE
-        pytest.assume(expected_event_type)
-
-        expected_data = envelope.data == {"test": "value"}
-        pytest.assume(expected_data)
-
-        expected_schema_version = envelope.schema_version == EXPECTED_SCHEMA_VERSION
-        pytest.assume(expected_schema_version)
+        assert envelope.base_log_id == base_log_id
+        assert envelope.source_module == "backend.cc.logging"
+        assert envelope.event_type == EventType.PROMPT_TRACE
+        assert envelope.data == {"test": "value"}
+        assert envelope.schema_version == EXPECTED_SCHEMA_VERSION
 
     def test_validation_missing_required_field_fails(self) -> None:
         """Test that missing required fields raise ValidationError."""
@@ -71,8 +62,7 @@ class TestMessageEnvelope:
         expected_fields = {"timestamp", "trace_id", "request_id", "event_type", "data"}
 
         # Verify required fields are reported as missing
-        expected_subset = expected_fields.issubset(missing_fields)
-        pytest.assume(expected_subset)
+        assert expected_fields.issubset(missing_fields)
 
     def test_enum_validation_invalid_event_type(self) -> None:
         """Test that invalid event_type values are rejected."""
@@ -92,8 +82,7 @@ class TestMessageEnvelope:
         errors = exc_info.value.errors()
 
         # Verify event_type error is present
-        expected_event_type_error = any(error["loc"] == ("event_type",) for error in errors)
-        pytest.assume(expected_event_type_error)
+        assert any(error["loc"] == ("event_type",) for error in errors)
 
     def test_timestamp_serialization_format(self) -> None:
         """Test that timestamp is serialized to RFC3339 format with Z suffix."""
@@ -111,8 +100,7 @@ class TestMessageEnvelope:
         json_data = json.loads(envelope.model_dump_json())
 
         # Verify timestamp format
-        expected_timestamp_format = json_data["timestamp"] == "2025-06-22T16:34:15.812000Z"
-        pytest.assume(expected_timestamp_format)
+        assert json_data["timestamp"] == "2025-06-22T16:34:15.812000Z"
 
 
 class TestHelperFunctions:
@@ -146,24 +134,14 @@ class TestHelperFunctions:
             "_schema_version",
         }
         # Verify all required fields are present
-        expected_fields_present = set(parsed.keys()) == required_fields
-        pytest.assume(expected_fields_present)
+        assert set(parsed.keys()) == required_fields
 
         # Verify data types and values
-        expected_log_id = uuid.UUID(parsed["base_log_id"]) == base_log_id
-        pytest.assume(expected_log_id)
-
-        expected_source_module = parsed["source_module"] == "backend.cc.logging"
-        pytest.assume(expected_source_module)
-
-        expected_event_type = parsed["event_type"] == "prompt_trace"
-        pytest.assume(expected_event_type)
-
-        expected_data = parsed["data"] == {"test": "value"}
-        pytest.assume(expected_data)
-
-        expected_schema_version = parsed["_schema_version"] == EXPECTED_SCHEMA_VERSION
-        pytest.assume(expected_schema_version)
+        assert uuid.UUID(parsed["base_log_id"]) == base_log_id
+        assert parsed["source_module"] == "backend.cc.logging"
+        assert parsed["event_type"] == "prompt_trace"
+        assert parsed["data"] == {"test": "value"}
+        assert parsed["_schema_version"] == EXPECTED_SCHEMA_VERSION
 
     def test_round_trip_serialization(self) -> None:
         """Test that build_message -> parse_message preserves data."""
@@ -190,22 +168,14 @@ class TestHelperFunctions:
         parsed_envelope = parse_message(json_str)
 
         # Verify round-trip preservation
-        expected_log_id = parsed_envelope.base_log_id == base_log_id
-        pytest.assume(expected_log_id)
-
-        expected_source_module = parsed_envelope.source_module == source_module
-        pytest.assume(expected_source_module)
-
-        expected_event_type = parsed_envelope.event_type == event_type
-        pytest.assume(expected_event_type)
-
-        expected_data = parsed_envelope.data == data
-        pytest.assume(expected_data)
+        assert parsed_envelope.base_log_id == base_log_id
+        assert parsed_envelope.source_module == source_module
+        assert parsed_envelope.event_type == event_type
+        assert parsed_envelope.data == data
 
         # Timestamp comparison (handle potential microsecond precision differences)
         time_diff = abs((parsed_envelope.timestamp - timestamp).total_seconds())
-        expected_time_precision = time_diff < MAX_TIME_DIFFERENCE_SECONDS
-        pytest.assume(expected_time_precision)
+        assert time_diff < MAX_TIME_DIFFERENCE_SECONDS
 
     def test_parse_message_bytes_input(self) -> None:
         """Test that parse_message can handle bytes input from Redis."""
@@ -227,11 +197,8 @@ class TestHelperFunctions:
         parsed_envelope = parse_message(json_bytes)
 
         # Verify parsing from bytes
-        expected_log_id = parsed_envelope.base_log_id == base_log_id
-        pytest.assume(expected_log_id)
-
-        expected_event_type = parsed_envelope.event_type == EventType.PROMPT_TRACE
-        pytest.assume(expected_event_type)
+        assert parsed_envelope.base_log_id == base_log_id
+        assert parsed_envelope.event_type == EventType.PROMPT_TRACE
 
     def test_performance_budget(self) -> None:
         """Test that build_message meets performance target of ≤ 50µs."""
@@ -258,8 +225,7 @@ class TestHelperFunctions:
         performance_msg = (
             f"Average time {avg_time_microseconds:.2f}µs exceeds {PERFORMANCE_TARGET_MICROSECONDS}µs target"
         )
-        expected_performance = avg_time_microseconds <= PERFORMANCE_TARGET_MICROSECONDS
-        pytest.assume(expected_performance, performance_msg)
+        assert avg_time_microseconds <= PERFORMANCE_TARGET_MICROSECONDS, performance_msg
 
 
 class TestEventType:
@@ -268,11 +234,8 @@ class TestEventType:
     def test_event_type_enum_values(self) -> None:
         """Test that EventType enum has correct values."""
         # Verify enum values
-        expected_prompt_trace = EventType.PROMPT_TRACE.value == "prompt_trace"
-        pytest.assume(expected_prompt_trace)
-
-        expected_event_log = EventType.EVENT_LOG.value == "event_log"
-        pytest.assume(expected_event_log)
+        assert EventType.PROMPT_TRACE.value == "prompt_trace"
+        assert EventType.EVENT_LOG.value == "event_log"
 
     def test_event_type_enum_serialization(self) -> None:
         """Test that EventType enum serializes correctly in JSON."""
@@ -289,5 +252,4 @@ class TestEventType:
         json_data = json.loads(envelope.model_dump_json())
 
         # Verify enum serialization
-        expected_serialization = json_data["event_type"] == "prompt_trace"
-        pytest.assume(expected_serialization)
+        assert json_data["event_type"] == "prompt_trace"
