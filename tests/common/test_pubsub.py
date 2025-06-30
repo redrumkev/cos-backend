@@ -38,7 +38,15 @@ class TestRedisPubSub:
     @pytest.fixture
     async def connected_pubsub(self, pubsub: RedisPubSub) -> AsyncGenerator[RedisPubSub, None]:
         """Create connected RedisPubSub instance."""
-        with patch("src.common.pubsub.ConnectionPool"), patch("src.common.pubsub.redis.Redis") as mock_redis_cls:
+        with (
+            patch("src.common.pubsub.ConnectionPool") as mock_pool_cls,
+            patch("src.common.pubsub.redis.Redis") as mock_redis_cls,
+        ):
+            # Create mock pool with async aclose method
+            mock_pool = AsyncMock()
+            mock_pool.aclose = AsyncMock()
+            mock_pool_cls.from_url.return_value = mock_pool
+
             mock_redis = AsyncMock()
             mock_redis.ping = AsyncMock()
             mock_redis.aclose = AsyncMock()
@@ -58,12 +66,12 @@ class TestRedisPubSub:
         assert pubsub._listening_task is None
         assert not pubsub._connected
 
-    @patch("src.common.pubsub.ConnectionPool")
+    @patch("src.common.pubsub.ConnectionPool", new_callable=AsyncMock)
     @patch("src.common.pubsub.redis.Redis")
     async def test_connect_success(
         self,
         mock_redis_cls: MagicMock,
-        mock_pool_cls: MagicMock,
+        mock_pool_cls: AsyncMock,
         pubsub: RedisPubSub,
     ) -> None:
         """Test successful Redis connection."""
@@ -84,8 +92,8 @@ class TestRedisPubSub:
         assert pubsub._redis == mock_redis
         mock_redis.ping.assert_called_once()
 
-    @patch("src.common.pubsub.ConnectionPool")
-    async def test_connect_failure(self, mock_pool_cls: MagicMock, pubsub: RedisPubSub) -> None:
+    @patch("src.common.pubsub.ConnectionPool", new_callable=AsyncMock)
+    async def test_connect_failure(self, mock_pool_cls: AsyncMock, pubsub: RedisPubSub) -> None:
         """Test Redis connection failure."""
         mock_pool_cls.from_url.side_effect = RedisConnectionError("Connection failed")
 
@@ -96,6 +104,9 @@ class TestRedisPubSub:
 
     async def test_connect_already_connected(self, connected_pubsub: RedisPubSub) -> None:
         """Test connecting when already connected."""
+        # Mock the ping method to ensure it's awaitable
+        connected_pubsub._redis.ping = AsyncMock()
+
         # Should not raise exception or change state
         await connected_pubsub.connect()
         assert connected_pubsub._connected
@@ -105,7 +116,7 @@ class TestRedisPubSub:
         # Add mock components
         connected_pubsub._listening_task = AsyncMock()
         connected_pubsub._listening_task.done.return_value = False
-        connected_pubsub._listening_task.cancel = MagicMock()
+        connected_pubsub._listening_task.cancel = AsyncMock()
 
         connected_pubsub._pubsub = AsyncMock()
         connected_pubsub._pubsub.aclose = AsyncMock()
@@ -142,7 +153,7 @@ class TestRedisPubSub:
 
     async def test_publish_not_connected(self, pubsub: RedisPubSub) -> None:
         """Test publishing when not connected (should auto-connect)."""
-        with patch.object(pubsub, "connect") as mock_connect:
+        with patch.object(pubsub, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
             pubsub._connected = True
             mock_redis = AsyncMock()
@@ -234,7 +245,7 @@ class TestRedisPubSub:
 
     async def test_subscribe_not_connected(self, pubsub: RedisPubSub) -> None:
         """Test subscribing when not connected (should auto-connect)."""
-        with patch.object(pubsub, "connect") as mock_connect:
+        with patch.object(pubsub, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
             pubsub._connected = True
             mock_pubsub = AsyncMock()
@@ -425,7 +436,7 @@ class TestRedisPubSub:
                 yield msg  # type: ignore[misc]
 
         mock_pubsub = AsyncMock()
-        mock_pubsub.listen.return_value = mock_listen()
+        mock_pubsub.listen = AsyncMock(return_value=mock_listen())
         connected_pubsub._pubsub = mock_pubsub
 
         received_messages = []
@@ -450,12 +461,12 @@ class TestRedisPubSub:
             yield  # pragma: no cover
 
         mock_pubsub = AsyncMock()
-        mock_pubsub.listen.return_value = mock_listen()
+        mock_pubsub.listen = AsyncMock(return_value=mock_listen())
         mock_pubsub.subscribe = AsyncMock()
         connected_pubsub._pubsub = mock_pubsub
         connected_pubsub._subscribers.add("test_channel")
 
-        with patch.object(connected_pubsub, "connect") as mock_connect:
+        with patch.object(connected_pubsub, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
 
             # Should handle error without crashing
@@ -472,7 +483,7 @@ class TestRedisPubSub:
             yield {"type": "message", "channel": "test", "data": "{}"}  # pragma: no cover
 
         mock_pubsub = AsyncMock()
-        mock_pubsub.listen.return_value = mock_listen()
+        mock_pubsub.listen = AsyncMock(return_value=mock_listen())
         connected_pubsub._pubsub = mock_pubsub
 
         task = asyncio.create_task(connected_pubsub._listen_loop())
@@ -517,7 +528,7 @@ class TestRedisPubSub:
 
     async def test_get_subscribers_count_not_connected(self, pubsub: RedisPubSub) -> None:
         """Test getting subscriber count when not connected."""
-        with patch.object(pubsub, "connect") as mock_connect:
+        with patch.object(pubsub, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
             pubsub._connected = True
             mock_redis = AsyncMock()
@@ -581,7 +592,7 @@ class TestGlobalFunctions:
 
         with (
             patch("src.common.pubsub.RedisPubSub") as mock_cls,
-            patch("src.common.pubsub.ConnectionPool"),
+            patch("src.common.pubsub.ConnectionPool", new_callable=AsyncMock),
             patch("src.common.pubsub.redis.Redis"),
         ):
             mock_instance = AsyncMock()
@@ -602,7 +613,7 @@ class TestGlobalFunctions:
 
         with (
             patch("src.common.pubsub.RedisPubSub") as mock_cls,
-            patch("src.common.pubsub.ConnectionPool"),
+            patch("src.common.pubsub.ConnectionPool", new_callable=AsyncMock),
             patch("src.common.pubsub.redis.Redis"),
         ):
             mock_instance = AsyncMock()
