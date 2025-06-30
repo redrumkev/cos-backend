@@ -745,8 +745,8 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                 compiled = query.compile(compile_kwargs={"literal_binds": True})
                                 compiled_str = str(compiled)
 
-                                # Look for startswith pattern: key LIKE 'prefix_%'
-                                startswith_match = re.search(r"key LIKE '([^%]+)%'", compiled_str)
+                                # Look for startswith pattern: key LIKE 'prefix_' || '%'
+                                startswith_match = re.search(r"key LIKE '([^']+)' \|\| '%'", compiled_str)
                                 if startswith_match:
                                     startswith_filter = startswith_match.group(1)
                             except Exception as e:
@@ -761,6 +761,41 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                     key_value = data.get("key", "")
                                     if not key_value.startswith(startswith_filter):
                                         continue
+
+                                # Apply expires_at filter for scratch_notes (exclude expired by default)
+                                if target_table == "scratch_notes":
+                                    # Check for expires_at filtering in the query
+                                    # If not explicitly including expired, filter out expired notes
+                                    expires_at = data.get("expires_at")
+                                    if expires_at is not None:
+                                        # If there's an expires_at and it's in the past, check if we should include it
+                                        try:
+                                            compiled = query.compile(compile_kwargs={"literal_binds": True})
+                                            compiled_str = str(compiled)
+                                            # If the query doesn't explicitly allow expired notes, skip them
+                                            if "expires_at IS NULL OR expires_at >" in compiled_str:
+                                                # This means we're excluding expired notes
+                                                # Extract the cutoff time from the compiled query instead of using now()
+                                                # This ensures we're using the same time that was used in the query
+                                                cutoff_match = re.search(r"expires_at > '([^']+)'", compiled_str)
+                                                if cutoff_match:
+                                                    from datetime import datetime
+
+                                                    cutoff_str = cutoff_match.group(1)
+                                                    cutoff_time = datetime.fromisoformat(
+                                                        cutoff_str.replace("Z", "+00:00")
+                                                    )
+                                                else:
+                                                    from datetime import UTC, datetime
+
+                                                    cutoff_time = datetime.now(UTC)
+                                                if isinstance(expires_at, datetime) and expires_at <= cutoff_time:
+                                                    continue
+                                        except Exception as e:
+                                            # If we can't parse the query, err on the side of inclusion
+                                            import logging
+
+                                            logging.debug(f"Error parsing expires query: {e}")
 
                                 mock_obj = create_mock_object(data)
                                 all_objects.append(mock_obj)
