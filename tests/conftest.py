@@ -674,6 +674,59 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
                         logging.debug(f"Error parsing UPDATE scratch_notes query: {e}")
 
+                # Handle COUNT queries
+                elif "count" in query_str and "select" in query_str:
+                    # Count queries return a single integer value
+                    target_table = None
+                    if "scratch_note" in query_str or "scratch_notes" in query_str:
+                        target_table = "scratch_notes"
+                    elif "modules" in query_str or "module" in query_str:
+                        target_table = "modules"
+
+                    if target_table:
+                        table_data = self._storage.get(target_table, {})
+                        count = len(table_data)
+
+                        # Apply any filtering for count queries
+                        if target_table == "scratch_notes":
+                            # Check for startswith filtering
+                            try:
+                                compiled = query.compile(compile_kwargs={"literal_binds": True})
+                                compiled_str = str(compiled)
+
+                                # Apply startswith filter
+                                startswith_match = re.search(r"key LIKE '([^']+)' \|\| '%'", compiled_str)
+                                if startswith_match:
+                                    prefix = startswith_match.group(1)
+                                    count = sum(
+                                        1 for data in table_data.values() if data.get("key", "").startswith(prefix)
+                                    )
+
+                                # Apply expires_at filter
+                                elif "expires_at IS NULL OR expires_at >" in compiled_str:
+                                    cutoff_match = re.search(r"expires_at > '([^']+)'", compiled_str)
+                                    if cutoff_match:
+                                        from datetime import datetime
+
+                                        cutoff_str = cutoff_match.group(1)
+                                        cutoff_time = datetime.fromisoformat(cutoff_str.replace("Z", "+00:00"))
+                                        count = sum(
+                                            1
+                                            for data in table_data.values()
+                                            if data.get("expires_at") is None
+                                            or (
+                                                isinstance(data.get("expires_at"), datetime)
+                                                and data.get("expires_at") > cutoff_time
+                                            )
+                                        )
+                            except Exception as e:
+                                import logging
+
+                                logging.debug(f"Error parsing count query: {e}")
+
+                        # Return the count as a proper scalar result
+                        results = [count]
+
                 # Handle SELECT queries on various tables
                 elif "select" in query_str:
                     target_table = None
@@ -721,6 +774,93 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                             if target_id in table_data:
                                 mock_obj = create_mock_object(table_data[target_id])
                                 results.append(mock_obj)
+                        elif "select" in query_str and "id" in query_str and "where" in query_str:
+                            # Handle SELECT id WHERE... queries for cleanup operations
+                            try:
+                                compiled = query.compile(compile_kwargs={"literal_binds": True})
+                                compiled_str = str(compiled)
+
+                                # Get combined notes data (storage + added objects)
+                                def get_combined_notes_data() -> dict[str, dict[str, Any]]:
+                                    notes_data = table_data or self._storage.get("scratch_notes", {})
+                                    # Also check added objects that haven't been committed yet
+                                    for obj in self._added_objects:
+                                        if obj.__class__.__name__ == "ScratchNote":
+                                            obj_id = str(obj.id) if obj.id else str(len(notes_data) + 1)
+                                            notes_data[obj_id] = {
+                                                "id": obj.id or int(obj_id),
+                                                "key": getattr(obj, "key", ""),
+                                                "content": getattr(obj, "content", ""),
+                                                "created_at": getattr(obj, "created_at", None),
+                                                "expires_at": getattr(obj, "expires_at", None),
+                                            }
+                                    return notes_data
+
+                                # Check for expires_at filtering in cleanup queries (SELECT id)
+                                if (
+                                    "expires_at IS NOT NULL AND expires_at <=" in compiled_str
+                                    or "scratch_note.expires_at IS NOT NULL AND scratch_note.expires_at <="
+                                    in compiled_str
+                                ):
+                                    cutoff_match = re.search(
+                                        r"(?:scratch_note\.)?expires_at <= '([^']+)'", compiled_str
+                                    )
+                                    if cutoff_match and (
+                                        target_table == "scratch_notes" or "scratch_note" in compiled_str
+                                    ):
+                                        from datetime import datetime
+
+                                        cutoff_str = cutoff_match.group(1)
+                                        cutoff_time = datetime.fromisoformat(cutoff_str.replace("Z", "+00:00"))
+
+                                        notes_data = get_combined_notes_data()
+
+                                        # Find expired notes and return their IDs
+                                        for obj_id, data in notes_data.items():
+                                            expires_at = data.get("expires_at")
+                                            if (
+                                                expires_at is not None
+                                                and isinstance(expires_at, datetime)
+                                                and expires_at <= cutoff_time
+                                            ):
+                                                # Return ID as tuple (like fetchall() returns)
+                                                results.append((int(obj_id),))
+
+                                # Check for ID IN (...) queries (SELECT * WHERE id IN)
+                                elif " IN (" in compiled_str and (
+                                    "scratch_note" in compiled_str or target_table == "scratch_notes"
+                                ):
+                                    id_match = re.search(r"id IN \(([^)]+)\)", compiled_str)
+                                    if id_match:
+                                        id_list_str = id_match.group(1)
+                                        ids = [int(x.strip()) for x in id_list_str.split(",")]
+
+                                        notes_data = get_combined_notes_data()
+                                        for id_val in ids:
+                                            str_id = str(id_val)
+                                            if str_id in notes_data:
+                                                mock_obj = create_mock_object(notes_data[str_id])
+                                                results.append(mock_obj)
+
+                                # Check for key = value queries (SELECT * WHERE key = 'value')
+                                elif ("scratch_note.key = " in compiled_str or " key = " in compiled_str) and (
+                                    "scratch_note" in compiled_str or target_table == "scratch_notes"
+                                ):
+                                    key_match = re.search(r"(?:scratch_note\.)?key = '([^']+)'", compiled_str)
+                                    if key_match:
+                                        key_value = key_match.group(1)
+
+                                        notes_data = get_combined_notes_data()
+                                        for data in notes_data.values():
+                                            if data.get("key") == key_value:
+                                                mock_obj = create_mock_object(data)
+                                                results.append(mock_obj)
+                                                break
+
+                            except Exception as e:
+                                import logging
+
+                                logging.debug(f"Error parsing cleanup SELECT query: {e}")
                         elif target_name:
                             # Get by name (modules)
                             for data in table_data.values():
@@ -837,6 +977,12 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                 mock_scalars = MockScalars(results)
                 mock_result.scalars = MagicMock(return_value=mock_scalars)
                 mock_result.scalar_one_or_none = MagicMock(return_value=results[0] if results else None)
+
+                # Handle scalar() for count queries that return integers
+                if results and len(results) == 1 and isinstance(results[0], int):
+                    mock_result.scalar = MagicMock(return_value=results[0])
+                else:
+                    mock_result.scalar = MagicMock(return_value=results[0] if results else None)
                 mock_result.first = MagicMock(return_value=results[0] if results else None)
                 mock_result.all = MagicMock(return_value=results)
                 mock_result.fetchone = MagicMock(return_value=results[0] if results else None)
