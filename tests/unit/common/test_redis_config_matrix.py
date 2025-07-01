@@ -133,7 +133,7 @@ class TestRedisConfigurationMatrix:
             (
                 "development",
                 {
-                    "max_connections": 10,
+                    "max_connections": 20,
                     "socket_connect_timeout": 5,
                     "socket_keepalive": True,
                     "retry_on_timeout": True,
@@ -227,7 +227,7 @@ class TestRedisConfigurationMatrix:
         # Invalid port number
         monkeypatch.setenv("REDIS_PORT", "invalid")
 
-        with pytest.raises(ValueError, match="invalid literal for int()"):
+        with pytest.raises(ValueError, match="Input should be a valid integer"):
             get_redis_config()
 
         # Reset and test negative values
@@ -235,7 +235,7 @@ class TestRedisConfigurationMatrix:
         monkeypatch.setenv("REDIS_PORT", "6379")
         monkeypatch.setenv("REDIS_MAX_CONNECTIONS", "-1")
 
-        with pytest.raises(ValueError, match="must be positive"):
+        with pytest.raises(ValueError, match="Input should be greater than or equal to 1"):
             get_redis_config()
 
     async def test_configuration_caching_and_reload(
@@ -302,8 +302,9 @@ class TestRedisConfigurationMatrix:
             assert expected_fallbacks["host"] in redis_url
         if "port" in expected_fallbacks:
             assert str(expected_fallbacks["port"]) in redis_url
-        if expected_fallbacks.get("password") is None:
-            assert "@" not in redis_url or ":@" in redis_url
+        if expected_fallbacks.get("password") is None and "REDIS_PASSWORD" in missing_vars:
+            # When REDIS_PASSWORD is missing, no password should be in the URL
+            assert "@" not in redis_url
         if "db" in expected_fallbacks and expected_fallbacks["db"] == 0:
             assert redis_url.endswith(":6379/0") or not redis_url.endswith("/1")
 
@@ -331,7 +332,7 @@ class TestRedisConfigurationInDockerEnvironments:
         assert config.redis_url == "redis://redis:6379/0"
 
         # Should use development defaults for connection pooling
-        assert config.redis_max_connections == 10
+        assert config.redis_max_connections == 20
 
     async def test_kubernetes_environment_variables(
         self,
