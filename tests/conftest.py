@@ -65,7 +65,7 @@ def _import_models() -> None:
 
         # Explicitly reference the model classes to ensure they're loaded
         from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace, ScratchNote  # noqa: F401
-        from src.backend.cc.models import Module  # noqa: F401
+        from src.backend.cc.models import HealthStatus, Module  # noqa: F401
 
         # Ensure all models are registered with metadata
         # No need to reflect since we're defining the models explicitly
@@ -459,6 +459,8 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                         table_name = "scratch_notes"
                     elif class_name == "Module":
                         table_name = "modules"
+                    elif class_name == "HealthStatus":
+                        table_name = "health_status"
                     else:
                         table_name = class_name.lower() + "s"
 
@@ -487,6 +489,14 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                             "created_at": getattr(obj, "created_at", None),
                             "expires_at": getattr(obj, "expires_at", None),
                         }
+                    elif class_name == "HealthStatus":
+                        obj_dict = {
+                            "id": obj.id,
+                            "module": getattr(obj, "module", ""),
+                            "status": getattr(obj, "status", ""),
+                            "last_updated": getattr(obj, "last_updated", None),
+                            "details": getattr(obj, "details", None),
+                        }
                     elif class_name in ("BaseLog", "EventLog", "PromptTrace"):
                         # Handle mem0 models dynamically to capture all attributes
                         obj_dict = {"id": obj.id}
@@ -513,6 +523,8 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     # Filter out None values except for content which can be None
                     if class_name == "ScratchNote":
                         obj_dict = {k: v for k, v in obj_dict.items() if k == "content" or v is not None}
+                    elif class_name == "HealthStatus":
+                        obj_dict = {k: v for k, v in obj_dict.items() if k == "details" or v is not None}
                     else:
                         obj_dict = {k: v for k, v in obj_dict.items() if v is not None}
 
@@ -529,6 +541,8 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                         table_name = "scratch_notes"
                     elif class_name == "Module":
                         table_name = "modules"
+                    elif class_name == "HealthStatus":
+                        table_name = "health_status"
                     elif class_name == "MockObject":
                         # For MockObject, we need to determine the table from context
                         # Check if the object has attributes that help identify the table
@@ -536,6 +550,8 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                             table_name = "modules"  # Module-like object
                         elif hasattr(obj, "key") and hasattr(obj, "content"):
                             table_name = "scratch_notes"  # ScratchNote-like object
+                        elif hasattr(obj, "module") and hasattr(obj, "status"):
+                            table_name = "health_status"  # HealthStatus-like object
                         else:
                             table_name = "modules"  # Default fallback
                     else:
@@ -681,6 +697,8 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     table_name = "scratch_notes"
                 elif class_name == "Module":
                     table_name = "modules"
+                elif class_name == "HealthStatus":
+                    table_name = "health_status"
                 else:
                     table_name = class_name.lower() + "s"
 
@@ -806,6 +824,14 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                             obj.is_expired = expires_at <= datetime.now(UTC)
                         else:
                             obj.is_expired = False
+                    elif hasattr(obj, "module") and hasattr(obj, "status") and hasattr(obj, "last_updated"):
+                        # This looks like a HealthStatus, handle timezone normalization
+                        from datetime import datetime
+
+                        last_updated = getattr(obj, "last_updated", None)
+                        if last_updated is not None and isinstance(last_updated, datetime):
+                            # Strip timezone to match database behavior
+                            obj.last_updated = last_updated.replace(tzinfo=None)
                     return obj
 
                 # Handle UPDATE queries for modules
@@ -968,32 +994,48 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     target_key = None
 
                     # Determine which table is being queried
-                    if "modules" in query_str or "module" in query_str:
-                        target_table = "modules"
+                    # Check more specific patterns first to avoid false matches
+                    if "health_status" in query_str or "healthstatus" in query_str:
+                        target_table = "health_status"
                     elif "scratch_note" in query_str or "scratch_notes" in query_str:
                         target_table = "scratch_notes"
+                    elif ("modules" in query_str or "module" in query_str) and "health_status" not in query_str:
+                        target_table = "modules"
 
                     if target_table:
                         table_data = self._storage.get(target_table, {})
 
                         # Define helper function for combining storage and added objects
-                        def get_combined_notes_data() -> dict[str, dict[str, Any]]:
-                            notes_data = table_data.copy() if target_table == "scratch_notes" else {}
+                        def get_combined_table_data() -> dict[str, dict[str, Any]]:
+                            combined_data = table_data.copy()
                             # Also check added objects that haven't been committed yet
                             for obj in self._added_objects:
-                                if obj.__class__.__name__ == "ScratchNote":
-                                    obj_id = str(obj.id) if obj.id else str(len(notes_data) + 1)
-                                    notes_data[obj_id] = {
-                                        "id": obj.id or int(obj_id),
-                                        "key": getattr(obj, "key", ""),
-                                        "content": getattr(obj, "content", ""),
-                                        "created_at": getattr(obj, "created_at", None),
-                                        "expires_at": getattr(obj, "expires_at", None),
-                                    }
+                                class_name = obj.__class__.__name__
+                                if (target_table == "scratch_notes" and class_name == "ScratchNote") or (
+                                    target_table == "health_status" and class_name == "HealthStatus"
+                                ):
+                                    obj_id = str(obj.id) if obj.id else str(len(combined_data) + 1)
+
+                                    if class_name == "ScratchNote":
+                                        combined_data[obj_id] = {
+                                            "id": obj.id or int(obj_id),
+                                            "key": getattr(obj, "key", ""),
+                                            "content": getattr(obj, "content", ""),
+                                            "created_at": getattr(obj, "created_at", None),
+                                            "expires_at": getattr(obj, "expires_at", None),
+                                        }
+                                    elif class_name == "HealthStatus":
+                                        combined_data[obj_id] = {
+                                            "id": obj.id or int(obj_id),
+                                            "module": getattr(obj, "module", ""),
+                                            "status": getattr(obj, "status", ""),
+                                            "last_updated": getattr(obj, "last_updated", None),
+                                            "details": getattr(obj, "details", None),
+                                        }
 
                             # Filter out deleted objects
                             filtered_data = {}
-                            for obj_id, data in notes_data.items():
+                            for obj_id, data in combined_data.items():
                                 if obj_id not in self._deleted_ids:
                                     filtered_data[obj_id] = data
 
@@ -1041,7 +1083,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                     id_list_str = id_match.group(1)
                                     ids = [int(x.strip()) for x in id_list_str.split(",")]
 
-                                    notes_data = get_combined_notes_data()
+                                    notes_data = get_combined_table_data()
                                     for id_val in ids:
                                         str_id = str(id_val)
                                         if str_id in notes_data:
@@ -1082,7 +1124,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                         cutoff_str = cutoff_match.group(1)
                                         cutoff_time = datetime.fromisoformat(cutoff_str.replace("Z", "+00:00"))
 
-                                        notes_data = get_combined_notes_data()
+                                        notes_data = get_combined_table_data()
 
                                         # Find expired notes and return their IDs (with LIMIT support)
                                         expired_ids = []
@@ -1113,7 +1155,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                     if key_match:
                                         key_value = key_match.group(1)
 
-                                        notes_data = get_combined_notes_data()
+                                        notes_data = get_combined_table_data()
                                         for data in notes_data.values():
                                             if data.get("key") == key_value:
                                                 mock_obj = create_mock_object(data)
@@ -1134,7 +1176,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                         elif target_key:
                             # Get by key (scratch_notes)
                             # Use combined data to include uncommitted objects
-                            combined_data = get_combined_notes_data() if target_table == "scratch_notes" else table_data
+                            combined_data = get_combined_table_data() if target_table == "scratch_notes" else table_data
 
                             for data in combined_data.values():
                                 if data.get("key") == target_key:
@@ -1146,8 +1188,8 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                             all_objects = []
 
                             # Get combined data (storage + added objects)
-                            if target_table == "scratch_notes":
-                                combined_data = get_combined_notes_data()
+                            if target_table == "scratch_notes" or target_table == "health_status":
+                                combined_data = get_combined_table_data()
                             else:
                                 combined_data = table_data.copy()
                                 # Add module objects from added_objects
@@ -1235,6 +1277,11 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                 all_objects.sort(key=lambda m: getattr(m, "name", ""))
                             elif target_table == "scratch_notes":
                                 all_objects.sort(key=lambda m: getattr(m, "key", ""))
+                            elif target_table == "health_status":
+                                # Sort by last_updated descending for get_system_health query
+                                from datetime import datetime
+
+                                all_objects.sort(key=lambda h: getattr(h, "last_updated", datetime.min), reverse=True)
 
                             # Apply pagination using the extracted parameters
                             if limit is not None:
