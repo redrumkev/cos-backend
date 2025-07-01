@@ -38,8 +38,8 @@ for path_to_add in [str(project_root), str(src_path)]:
 try:
     from dotenv import load_dotenv
 
-    # Try multiple .env locations
-    env_candidates = [project_root / ".env", project_root / "infrastructure" / ".env", src_path / ".env"]
+    # Try multiple .env locations (prioritize infrastructure/.env)
+    env_candidates = [project_root / "infrastructure" / ".env", project_root / ".env", src_path / ".env"]
 
     for env_file in env_candidates:
         if env_file.exists():

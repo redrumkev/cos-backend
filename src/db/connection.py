@@ -2,9 +2,11 @@
 
 import os
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Any
 
 import orjson
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -13,6 +15,11 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.common.logger import get_logger
+
+# Load environment from infrastructure/.env
+_infrastructure_env = Path(__file__).parent.parent.parent / "infrastructure" / ".env"
+if _infrastructure_env.exists():
+    load_dotenv(_infrastructure_env, override=False)
 
 logger = get_logger(__name__)
 

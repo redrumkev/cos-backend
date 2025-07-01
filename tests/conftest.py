@@ -59,8 +59,16 @@ RUN_INTEGRATION_MODE = os.getenv("RUN_INTEGRATION", "0")
 def _import_models() -> None:
     """Import model modules - called from pytest_configure hook."""
     try:
-        from src.backend.cc import mem0_models  # noqa: F401
-        from src.backend.cc import models as cc_models  # noqa: F401
+        # Import both model modules to register them with Base metadata
+        import src.backend.cc.mem0_models as mem0_models  # noqa: F401
+        import src.backend.cc.models as cc_models  # noqa: F401
+
+        # Explicitly reference the model classes to ensure they're loaded
+        from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace, ScratchNote  # noqa: F401
+        from src.backend.cc.models import Module  # noqa: F401
+
+        # Ensure all models are registered with metadata
+        # No need to reflect since we're defining the models explicitly
     except ImportError:
         # Models may not be available in some test environments
         pass
@@ -724,7 +732,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     # This is the TTL query that needs special handling
                     # Get all scratch notes and filter by expiry
                     notes_data = self._storage.get("scratch_notes", {})
-                    results = []
+                    ttl_results = []
 
                     if params and "current_time" in params:
                         cutoff_time = params["current_time"]
@@ -733,11 +741,11 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                 expires_at = data.get("expires_at")
                                 if expires_at is not None and expires_at <= cutoff_time:
                                     # Return just the key as a tuple for row[0] access
-                                    results.append((data.get("key", ""),))
+                                    ttl_results.append((data.get("key", ""),))
 
                     # Create mock result for fetchall() that returns tuples
                     mock_result = MagicMock()
-                    mock_result.fetchall = MagicMock(return_value=results)
+                    mock_result.fetchall = MagicMock(return_value=ttl_results)
                     return mock_result
 
                 # Create a mock result with proper async behavior for other queries
