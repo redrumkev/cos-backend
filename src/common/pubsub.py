@@ -467,28 +467,38 @@ class RedisPubSub:
                 with contextlib.suppress(asyncio.CancelledError):
                     await self._listening_task
 
+        except Exception:
+            logger.exception("Error stopping listening task during disconnect")
+
+        try:
             # Close pubsub connection
             if self._pubsub:
                 await self._pubsub.aclose()
                 self._pubsub = None
+        except Exception:
+            logger.exception("Error closing pubsub connection during disconnect")
 
+        try:
             # Close Redis connection
             if self._redis:
                 await self._redis.aclose()
                 self._redis = None
+        except Exception:
+            logger.exception("Error closing Redis connection during disconnect")
 
+        try:
             # Close connection pool
             if self._pool:
                 await self._pool.aclose()
                 self._pool = None
+        except Exception:
+            logger.exception("Error closing connection pool during disconnect")
 
-            self._connected = False
-            self._subscribers.clear()
-            self._handlers.clear()
-            logger.info("Redis Pub/Sub disconnected")
-
-        except RedisError:
-            logger.exception("Error during Redis disconnect")
+        # Always set disconnected state and clear collections
+        self._connected = False
+        self._subscribers.clear()
+        self._handlers.clear()
+        logger.info("Redis Pub/Sub disconnected")
 
     async def publish(self, channel: str, message: MessageData, correlation_id: str | None = None) -> int:
         """Publish message to Redis channel with <1ms latency target and comprehensive observability.
@@ -1134,5 +1144,10 @@ async def cleanup_pubsub() -> None:
     """Clean up singleton Pub/Sub instance."""
     global _pubsub_instance
     if _pubsub_instance:
-        await _pubsub_instance.disconnect()
-        _pubsub_instance = None
+        try:
+            await _pubsub_instance.disconnect()
+        except Exception:
+            # Log but don't raise - cleanup should be graceful
+            logger.exception("Error during pubsub cleanup")
+        finally:
+            _pubsub_instance = None

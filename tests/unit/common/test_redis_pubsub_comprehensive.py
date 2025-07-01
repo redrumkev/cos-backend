@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from freezegun import freeze_time
+from redis.exceptions import RedisError
 
 from src.common.pubsub import (
     CircuitBreakerState,
@@ -22,6 +23,12 @@ from src.common.pubsub import (
     cleanup_pubsub,
     get_pubsub,
 )
+
+# Add warning filters for clean test output
+pytestmark = [
+    pytest.mark.filterwarnings("ignore:No logs or spans will be created"),
+    pytest.mark.filterwarnings("ignore::RuntimeWarning"),
+]
 
 
 class TestRedisPubSubComprehensive:
@@ -62,9 +69,10 @@ class TestRedisPubSubComprehensive:
     async def test_connect_circuit_breaker_protection(self, pubsub: RedisPubSub) -> None:
         """Test connection with circuit breaker protection."""
         with patch("src.common.pubsub.ConnectionPool") as mock_pool_cls:
-            mock_pool_cls.from_url.side_effect = Exception("Connection failed")
+            # Mock to raise a RedisError that circuit breaker will catch
+            mock_pool_cls.from_url.side_effect = RedisError("Connection failed")
 
-            # Should be caught by circuit breaker
+            # Should be caught by circuit breaker and wrapped in PubSubError
             with pytest.raises(PubSubError):
                 await pubsub.connect()
 
@@ -135,10 +143,12 @@ class TestRedisPubSubComprehensive:
 
     async def test_subscribe_with_circuit_breaker_failure(self, connected_pubsub: RedisPubSub) -> None:
         """Test subscription when circuit breaker prevents operations."""
-        # Mock pubsub to fail
+        # Create a mock pubsub that fails on subscribe with RedisError
         mock_pubsub = AsyncMock()
-        mock_pubsub.subscribe.side_effect = Exception("Redis error")
-        connected_pubsub._redis.pubsub.return_value = mock_pubsub
+        mock_pubsub.subscribe = AsyncMock(side_effect=RedisError("Redis subscription error"))
+
+        # Replace the existing _pubsub with our mock
+        connected_pubsub._pubsub = mock_pubsub
 
         async def handler(channel: str, message: MessageData) -> None:
             pass
@@ -238,15 +248,24 @@ class TestRedisPubSubComprehensive:
     async def test_listen_loop_cancellation_scenarios(self, connected_pubsub: RedisPubSub) -> None:
         """Test listen loop cancellation in various scenarios."""
 
-        async def mock_listen() -> None:
-            # Simulate long-running listen that gets cancelled
-            try:
+        # Create proper async iterator that can be cancelled
+        class AsyncIteratorMock:
+            def __init__(self) -> None:
+                self.count = 0
+
+            def __aiter__(self) -> "AsyncIteratorMock":
+                return self
+
+            async def __anext__(self) -> dict[str, Any]:
+                self.count += 1
+                if self.count == 1:
+                    return {"type": "message", "channel": b"test", "data": b"test data"}
+                # After first message, sleep forever until cancelled
                 await asyncio.sleep(10)
-            except asyncio.CancelledError:
-                raise
+                return {"type": "message", "channel": b"test", "data": b"test data 2"}
 
         mock_pubsub = AsyncMock()
-        mock_pubsub.listen.return_value = mock_listen()
+        mock_pubsub.listen = MagicMock(return_value=AsyncIteratorMock())
         connected_pubsub._pubsub = mock_pubsub
 
         # Start listen loop
@@ -262,18 +281,25 @@ class TestRedisPubSubComprehensive:
         """Test listen loop reconnection on various errors."""
         reconnect_attempts = 0
 
-        async def mock_listen() -> None:
-            nonlocal reconnect_attempts
-            reconnect_attempts += 1
-            if reconnect_attempts == 1:
-                from redis.exceptions import RedisError
+        # Create async iterator that fails first, then succeeds
+        class ReconnectIteratorMock:
+            def __init__(self, outer_test: Any) -> None:
+                self.outer_test = outer_test
 
-                raise RedisError("Connection lost")
-            # Second attempt succeeds but we'll stop it
-            await asyncio.sleep(10)
+            def __aiter__(self) -> "ReconnectIteratorMock":
+                return self
+
+            async def __anext__(self) -> dict[str, Any]:
+                nonlocal reconnect_attempts
+                reconnect_attempts += 1
+                if reconnect_attempts == 1:
+                    raise RedisError("Connection lost")
+                # Second attempt succeeds but we'll cancel it
+                await asyncio.sleep(10)  # Will be cancelled
+                return {"type": "message", "channel": b"test", "data": b"test data"}
 
         mock_pubsub = AsyncMock()
-        mock_pubsub.listen.return_value = mock_listen()
+        mock_pubsub.listen = MagicMock(return_value=ReconnectIteratorMock(self))
         mock_pubsub.subscribe = AsyncMock()
         connected_pubsub._pubsub = mock_pubsub
         connected_pubsub._subscribers.add("test")
@@ -295,7 +321,8 @@ class TestRedisPubSubComprehensive:
     async def test_channel_subscription_context_manager_error_handling(self, connected_pubsub: RedisPubSub) -> None:
         """Test channel subscription context manager error handling."""
         mock_pubsub = AsyncMock()
-        connected_pubsub._redis.pubsub.return_value = mock_pubsub
+        # Replace the existing _pubsub with our mock
+        connected_pubsub._pubsub = mock_pubsub
 
         async def handler(channel: str, message: MessageData) -> None:
             pass
@@ -349,8 +376,6 @@ class TestRedisPubSubComprehensive:
 
     async def test_health_check_with_redis_error(self, connected_pubsub: RedisPubSub) -> None:
         """Test health check when Redis ping fails."""
-        from redis.exceptions import RedisError
-
         connected_pubsub._redis.ping = AsyncMock(side_effect=RedisError("Redis down"))
 
         health = await connected_pubsub.health_check()
@@ -380,19 +405,21 @@ class TestRedisPubSubComprehensive:
 
     async def test_disconnect_partial_cleanup_scenarios(self, connected_pubsub: RedisPubSub) -> None:
         """Test disconnect with partial cleanup scenarios."""
-        # Setup various components
-        connected_pubsub._listening_task = AsyncMock()
-        connected_pubsub._listening_task.done.return_value = False
-        connected_pubsub._listening_task.cancel = MagicMock()
+        # Setup various components with proper async mock
+        mock_task = AsyncMock()
+        mock_task.done.return_value = False
+        mock_task.cancel = MagicMock()
+        connected_pubsub._listening_task = mock_task
 
-        # Mock components that might fail
+        # Mock components that might fail during cleanup
         connected_pubsub._pubsub = AsyncMock()
+        # Make aclose fail to test error handling
         connected_pubsub._pubsub.aclose.side_effect = Exception("Cleanup error")
 
         connected_pubsub._redis = AsyncMock()
         connected_pubsub._pool = AsyncMock()
 
-        # Should handle cleanup errors gracefully
+        # Should handle cleanup errors gracefully without raising
         await connected_pubsub.disconnect()
 
         assert not connected_pubsub._connected
@@ -483,18 +510,26 @@ class TestGlobalPubSubFunctions:
         with patch("src.common.pubsub.RedisPubSub") as mock_cls:
             mock_instance = AsyncMock()
             mock_instance.connect = AsyncMock()
-            mock_instance.disconnect.side_effect = Exception("Disconnect failed")
+            # Make disconnect fail
+            mock_instance.disconnect = AsyncMock(side_effect=Exception("Disconnect failed"))
             mock_cls.return_value = mock_instance
 
             # Create instance
             await get_pubsub()
 
-            # Cleanup should handle error gracefully
-            await cleanup_pubsub()  # Should not raise
+            # Cleanup should handle error gracefully and not raise
+            await cleanup_pubsub()  # Should not raise exception
 
 
 class TestCircuitBreakerIntegration:
     """Test circuit breaker integration with pub/sub operations."""
+
+    @pytest.fixture
+    async def pubsub(self, mock_redis_config: Any, monkeypatch: Any) -> RedisPubSub:
+        """Create RedisPubSub instance with mocked dependencies for circuit breaker tests."""
+        monkeypatch.setattr("src.common.pubsub._REDIS_AVAILABLE", True)
+        monkeypatch.setattr("src.common.pubsub.get_redis_config", lambda: mock_redis_config)
+        return RedisPubSub()
 
     async def test_circuit_breaker_protects_all_operations(self, pubsub: RedisPubSub, fake_redis: Any) -> None:
         """Test that circuit breaker protects all Redis operations."""
@@ -520,23 +555,25 @@ class TestCircuitBreakerIntegration:
         pubsub._connected = True
 
         # Trigger circuit breaker opening
-        fake_redis.publish = AsyncMock(side_effect=Exception("Redis error"))
+        fake_redis.publish = AsyncMock(side_effect=RedisError("Redis error"))
 
-        # Cause failures
+        # Cause exactly 3 failures to trigger circuit breaker (failure_threshold=3)
         for _ in range(3):
             with contextlib.suppress(PublishError):
                 await pubsub.publish("test", {"data": "test"})
 
+        # Verify circuit breaker opened
         assert pubsub.circuit_breaker_state == CircuitBreakerState.OPEN
 
-        # Move time forward and fix Redis
-        with freeze_time("2023-01-01 00:00:02"):
+        # Move time forward past the recovery timeout (30s + some buffer for jitter)
+        # With 3 failures, backoff multiplier = min(2^(3-3), 8) = 1, so timeout = 30s
+        with freeze_time("2023-01-01 00:00:35"):  # Move forward 35s to account for jitter
             fake_redis.publish = AsyncMock(return_value=1)
 
             # Should recover through HALF_OPEN to CLOSED
             result = await pubsub.publish("test", {"data": "test"})
             assert result == 1
 
-            # Second success should close circuit
+            # Second success should close circuit (success_threshold=2)
             await pubsub.publish("test", {"data": "test"})
             assert pubsub.circuit_breaker_state == CircuitBreakerState.CLOSED  # type: ignore[comparison-overlap]
