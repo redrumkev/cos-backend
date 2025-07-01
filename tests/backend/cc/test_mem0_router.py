@@ -22,7 +22,6 @@ from src.backend.cc.mem0_models import ScratchNote
 class TestMem0Router:
     """Test mem0 API router endpoints."""
 
-    @pytest.mark.xfail(reason="mem0 router validation and datetime issues - Sprint 2")
     async def test_create_note_endpoint(self, async_client: AsyncClient) -> None:
         """Test POST /scratch/notes endpoint."""
         data = {"key": "api_test", "content": "api content", "ttl_days": 7}
@@ -134,7 +133,6 @@ class TestMem0Router:
         for note in result:
             assert note["key"].startswith("filter_")
 
-    @pytest.mark.xfail(reason="mem0 router validation and datetime issues - Sprint 2")
     async def test_list_notes_expired_filter(self, async_client: AsyncClient, db_session: AsyncSession) -> None:
         """Test GET /scratch/notes with expired filter."""
         current_time = datetime.now(UTC)
@@ -161,7 +159,6 @@ class TestMem0Router:
         keys = [note["key"] for note in result]
         assert "expired_api" in keys
 
-    @pytest.mark.xfail(reason="mem0 router validation and datetime issues - Sprint 2")
     async def test_update_note_endpoint(self, async_client: AsyncClient, db_session: AsyncSession) -> None:
         """Test PUT /scratch/notes/{note_id} endpoint."""
         # Create a note first
@@ -353,7 +350,6 @@ class TestMem0Router:
             # Note: We can't easily test if the background task was actually added
             # without more complex test setup, but we can verify the endpoint works
 
-    @pytest.mark.xfail(reason="mem0 router validation and datetime issues - Sprint 2")
     async def test_concurrent_requests(self, async_client: AsyncClient) -> None:
         """Test handling of concurrent requests."""
         import asyncio

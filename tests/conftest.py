@@ -553,13 +553,21 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
             async def flush(self) -> None:
                 """Simulate flush - assign IDs to added objects without persisting to storage."""
                 import uuid
+                from datetime import UTC, datetime
 
                 # Generate IDs for objects that don't have them yet (like real DB flush)
                 for obj in self._added_objects:
-                    if not hasattr(obj, "id") or obj.id is None:
-                        # Map class names to determine ID type
-                        class_name = obj.__class__.__name__
+                    class_name = obj.__class__.__name__
 
+                    # Set auto-generated timestamps for models that have them
+                    if class_name == "BaseLog" and (not hasattr(obj, "timestamp") or obj.timestamp is None):
+                        obj.timestamp = datetime.now(UTC)
+                    elif class_name in ("PromptTrace", "EventLog") and (
+                        not hasattr(obj, "created_at") or obj.created_at is None
+                    ):
+                        obj.created_at = datetime.now(UTC)
+
+                    if not hasattr(obj, "id") or obj.id is None:
                         # For mem0 models (BaseLog, EventLog, PromptTrace), use UUID
                         if class_name in ("BaseLog", "EventLog", "PromptTrace"):
                             obj.id = uuid.uuid4()
@@ -607,6 +615,27 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                 # Track the ID of the deleted object for immediate filtering
                 if hasattr(obj, "id") and obj.id is not None:
                     self._deleted_ids.add(str(obj.id))
+
+                    # Handle cascade delete for BaseLog -> PromptTrace/EventLog
+                    if obj.__class__.__name__ == "BaseLog":
+                        # Find and mark all child objects for deletion
+                        for added_obj in self._added_objects[:]:  # Use slice to avoid modification during iteration
+                            if (
+                                hasattr(added_obj, "base_log_id")
+                                and added_obj.base_log_id == obj.id
+                                and added_obj.__class__.__name__ in ("PromptTrace", "EventLog")
+                            ):
+                                self._deleted_objects.append(added_obj)
+                                self._deleted_ids.add(str(added_obj.id))
+                                added_obj._deleted = True
+
+                        # Also check storage for committed child objects
+                        for table_name in ["prompt_traces", "event_logs"]:
+                            if table_name in self._storage:
+                                for child_id, child_data in list(self._storage[table_name].items()):
+                                    if child_data.get("base_log_id") == obj.id:
+                                        self._deleted_ids.add(child_id)
+
                 # Mark object as deleted by setting a flag for immediate reference
                 obj._deleted = True
 
@@ -624,9 +653,18 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
             async def get(self, model_class: Any, primary_key: Any) -> Any | None:
                 """Simulate get - retrieve object by primary key from mock storage or added objects."""
+                # Check if object is marked for deletion
+                if str(primary_key) in self._deleted_ids:
+                    return None
+
                 # First check added objects (not yet committed)
                 for obj in self._added_objects:
-                    if obj.__class__ == model_class and hasattr(obj, "id") and obj.id == primary_key:
+                    if (
+                        obj.__class__ == model_class
+                        and hasattr(obj, "id")
+                        and obj.id == primary_key
+                        and not getattr(obj, "_deleted", False)
+                    ):
                         return obj
 
                 # Then check committed storage
@@ -681,9 +719,30 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                     result_data = [known_tables.get(qualified_name)] if qualified_name in known_tables else [None]
                     return _MockAsyncResult(result_data)
 
+                # Handle raw text() queries for TTL/cleanup operations
+                if "select key from" in query_str and "scratch_note" in query_str:
+                    # This is the TTL query that needs special handling
+                    # Get all scratch notes and filter by expiry
+                    notes_data = self._storage.get("scratch_notes", {})
+                    results = []
+
+                    if params and "current_time" in params:
+                        cutoff_time = params["current_time"]
+                        for obj_id, data in notes_data.items():
+                            if obj_id not in self._deleted_ids:
+                                expires_at = data.get("expires_at")
+                                if expires_at is not None and expires_at <= cutoff_time:
+                                    # Return just the key as a tuple for row[0] access
+                                    results.append((data.get("key", ""),))
+
+                    # Create mock result for fetchall() that returns tuples
+                    mock_result = MagicMock()
+                    mock_result.fetchall = MagicMock(return_value=results)
+                    return mock_result
+
                 # Create a mock result with proper async behavior for other queries
                 mock_result = MagicMock()
-                results = []
+                results: list[Any] = []
 
                 # Parse the query string to understand what it's doing (existing logic)
 
@@ -716,17 +775,29 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                         for key, value in data.items():
                             setattr(self, key, value)
 
+                    # Add is_expired attribute for type checking
+                    is_expired: bool = False
+
                 # Helper to create appropriate mock object type
                 def create_mock_object(data: dict[str, Any]) -> Any:
                     """Create mock object that behaves like the real model."""
                     obj = MockObject(data)
                     # Ensure required attributes exist for Pydantic validation
                     if hasattr(obj, "key") and hasattr(obj, "content"):
-                        # Ensure these are not mock objects but actual strings
+                        # This looks like a ScratchNote, ensure required fields
                         if not isinstance(obj.key, str):
                             obj.key = str(obj.key) if obj.key is not None else ""
                         if not isinstance(obj.content, str) and obj.content is not None:
                             obj.content = str(obj.content)
+
+                        # Add is_expired field for ScratchNoteResponse validation
+                        from datetime import UTC, datetime
+
+                        expires_at = getattr(obj, "expires_at", None)
+                        if expires_at is not None and isinstance(expires_at, datetime):
+                            obj.is_expired = expires_at <= datetime.now(UTC)
+                        else:
+                            obj.is_expired = False
                     return obj
 
                 # Handle UPDATE queries for modules
@@ -791,29 +862,37 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                         compiled_literal = query.compile(compile_kwargs={"literal_binds": True})
                         compiled_str = str(compiled_literal)
 
-                        # Look for the WHERE clause ID - fix regex to match quoted values
+                        # Look for the WHERE clause ID - handle both literal and parameter cases
                         id_match = re.search(r"id = '(\d+)'", compiled_str)
+                        if not id_match:
+                            # Try parameter-based matching if literal matching fails
+                            id_match = re.search(r"scratch_note\.id = (\d+)", compiled_str)
+
+                        target_id = None
                         if id_match:
                             target_id = id_match.group(1)
+                        elif update_params and "id_1" in update_params:
+                            # Try to get from bound parameters
+                            target_id = str(update_params["id_1"])
 
-                            if target_id in table_data:
-                                # Get current data
-                                current_data = table_data[target_id].copy()
+                        if target_id and target_id in table_data:
+                            # Get current data
+                            current_data = table_data[target_id].copy()
 
-                                # Apply updates from the bound parameters
-                                # The parameters contain the actual update values
-                                for param_name, param_value in update_params.items():
-                                    # Map parameter names back to column names
-                                    # SQLAlchemy uses parameter names that correspond to column names
-                                    if param_name in ["content", "expires_at", "key"]:
-                                        current_data[param_name] = param_value
+                            # Apply updates from the bound parameters
+                            # The parameters contain the actual update values
+                            for param_name, param_value in update_params.items():
+                                # Map parameter names back to column names
+                                # SQLAlchemy uses parameter names that correspond to column names
+                                if param_name in ["content", "expires_at", "key"]:
+                                    current_data[param_name] = param_value
 
-                                # Update storage
-                                table_data[target_id] = current_data
+                            # Update storage
+                            table_data[target_id] = current_data
 
-                                # Return the updated scratch note
-                                mock_obj = create_mock_object(current_data)
-                                results.append(mock_obj)
+                            # Return the updated scratch note
+                            mock_obj = create_mock_object(current_data)
+                            results.append(mock_obj)
                     except Exception as e:
                         # Handle compilation errors gracefully
                         import logging
