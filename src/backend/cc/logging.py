@@ -228,10 +228,28 @@ async def log_l1(
 
     # Create event log if payload provided
     if payload is not None:
+        # Handle request_id conversion with validation
+        try:
+            if isinstance(request_id, str):
+                # Try to parse as UUID, but fall back to generating new UUID if invalid
+                try:
+                    parsed_request_id = uuid.UUID(request_id)
+                except ValueError:
+                    # If request_id is not a valid UUID, generate a new one and log the original
+                    parsed_request_id = uuid.uuid4()
+                    logger.debug(
+                        f"Invalid UUID format for request_id '{request_id}', generated new UUID: {parsed_request_id}"
+                    )
+            else:
+                parsed_request_id = request_id
+        except Exception:
+            # Ultimate fallback - generate new UUID
+            parsed_request_id = uuid.uuid4()
+
         event_log = event_log_cls(
             event_type=event_type,
             event_data=payload,
-            request_id=uuid.UUID(request_id) if isinstance(request_id, str) else request_id,
+            request_id=parsed_request_id,
             trace_id=trace_id,
             base_log_id=base_log.id,
         )

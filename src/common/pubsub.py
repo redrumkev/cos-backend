@@ -427,8 +427,7 @@ class RedisPubSub:
                 health_check_interval=self._config.redis_health_check_interval,
                 # Performance optimizations
                 socket_read_size=65536,  # Larger read buffer
-                retry_on_error=[RedisConnectionError, RedisTimeoutError],
-                retry=3,  # Quick retries for transient failures
+                # Note: retry logic handled at application level, not connection pool level
             )
 
             assert redis is not None, "Redis client not available"  # nosec B101
@@ -769,7 +768,11 @@ class RedisPubSub:
             ]
 
             if tasks:
-                await asyncio.gather(*tasks, return_exceptions=True)
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                # Log any exceptions from handlers
+                for result in results:
+                    if isinstance(result, Exception):
+                        logger.exception("Error handling message from channel '%s'", channel)
 
         except (json.JSONDecodeError, UnicodeDecodeError):
             logger.exception("Failed to decode message from channel '%s'", channel)

@@ -10,6 +10,8 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import RedisError
 
 from src.common.pubsub import (
     CircuitBreaker,
@@ -258,7 +260,7 @@ class TestRedisPubSubCircuitBreaker:
 
         # Mock Redis ping to fail
 
-        mock_redis.ping.side_effect = PublishError("Connection failed")
+        mock_redis.ping.side_effect = RedisConnectionError("Connection failed")
 
         # Multiple failures should trigger circuit breaker
         for _ in range(pubsub._circuit_breaker.failure_threshold):
@@ -287,7 +289,7 @@ class TestRedisPubSubCircuitBreaker:
 
         # Mock Redis publish to fail
 
-        mock_redis.publish.side_effect = PublishError("Publish failed")
+        mock_redis.publish.side_effect = RedisError("Publish failed")
 
         # Multiple failures should trigger circuit breaker
         for _ in range(pubsub._circuit_breaker.failure_threshold):
@@ -344,7 +346,7 @@ class TestRedisPubSubCircuitBreaker:
 
         # Cause failures to open circuit breaker
 
-        mock_redis.publish.side_effect = PublishError("Redis down")
+        mock_redis.publish.side_effect = RedisError("Redis down")
 
         for _ in range(pubsub._circuit_breaker.failure_threshold):
             with pytest.raises(PublishError):

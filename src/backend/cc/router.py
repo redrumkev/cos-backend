@@ -296,7 +296,6 @@ async def get_status() -> dict[str, str]:
 @router.post(
     "/debug/log",
     response_model=DebugLogResponse,
-    response_model_exclude_none=True,
     summary="Enhanced Debug Logging Endpoint",
     description="Create debug log entries with Redis publishing validation for testing and diagnostics.",
     tags=["Debug"],

@@ -197,7 +197,7 @@ class TestRedisPubSub:
         class NonSerializable:
             pass
 
-        with pytest.raises(PublishError, match="Unexpected publish error"):
+        with pytest.raises(PublishError, match="Failed to serialize message"):
             await connected_pubsub.publish("test", {"obj": NonSerializable()})
 
     async def test_publish_performance_warning(self, connected_pubsub: RedisPubSub, caplog: Any) -> None:
@@ -262,21 +262,43 @@ class TestRedisPubSub:
 
     async def test_subscribe_not_connected(self, pubsub: RedisPubSub) -> None:
         """Test subscribing when not connected (should auto-connect)."""
-        with patch.object(pubsub, "connect", new_callable=AsyncMock) as mock_connect:
-            mock_connect.return_value = None
-            pubsub._connected = True
+        with (
+            patch("src.common.pubsub.ConnectionPool") as mock_pool_cls,
+            patch("src.common.pubsub.redis.Redis") as mock_redis_cls,
+        ):
+            # Setup mock objects first
+            async def mock_listen() -> AsyncGenerator[dict[str, Any], None]:
+                # Empty generator that doesn't yield anything - prevents blocking
+                return
+                yield  # pragma: no cover
+
             mock_pubsub = AsyncMock()
             mock_pubsub.subscribe = AsyncMock(return_value=None)
             mock_pubsub.aclose = AsyncMock()
+            # Make listen return a proper async generator
+            mock_pubsub.listen = lambda: mock_listen()
+
+            # Setup pool mock
+            mock_pool = AsyncMock()
+            mock_pool_cls.from_url.return_value = mock_pool
+
+            # Setup redis mock
             mock_redis = AsyncMock()
+            mock_redis.ping = AsyncMock()
             mock_redis.pubsub = MagicMock(return_value=mock_pubsub)
-            pubsub._redis = mock_redis
+            mock_redis_cls.return_value = mock_redis
+
+            # Ensure not connected to trigger auto-connect
+            pubsub._connected = False
 
             async def handler(channel: str, message: MessageData) -> None:
                 pass
 
             await pubsub.subscribe("test", handler)
-            mock_connect.assert_called_once()
+
+            # Verify connection was established
+            assert pubsub._connected
+            mock_redis.ping.assert_called_once()
 
     async def test_subscribe_redis_error(self, connected_pubsub: RedisPubSub) -> None:
         """Test subscription with Redis error."""
@@ -431,6 +453,10 @@ class TestRedisPubSub:
 
     async def test_handle_message_handler_exception(self, connected_pubsub: RedisPubSub, caplog: Any) -> None:
         """Test handling message when handler raises exception."""
+        import logging
+
+        # Ensure we capture logs at the right level and logger
+        caplog.set_level(logging.ERROR, logger="src.common.pubsub")
 
         async def failing_handler(channel: str, message: MessageData) -> None:
             raise ValueError("Handler error")
@@ -456,7 +482,7 @@ class TestRedisPubSub:
                 yield msg  # type: ignore[misc]
 
         mock_pubsub = AsyncMock()
-        mock_pubsub.listen = AsyncMock(return_value=mock_listen())
+        mock_pubsub.listen = lambda: mock_listen()
         connected_pubsub._pubsub = mock_pubsub
 
         received_messages = []
@@ -481,7 +507,7 @@ class TestRedisPubSub:
             yield  # pragma: no cover
 
         mock_pubsub = AsyncMock()
-        mock_pubsub.listen = AsyncMock(return_value=mock_listen())
+        mock_pubsub.listen = lambda: mock_listen()
         mock_pubsub.subscribe = AsyncMock()
         connected_pubsub._pubsub = mock_pubsub
         connected_pubsub._subscribers.add("test_channel")
@@ -503,7 +529,7 @@ class TestRedisPubSub:
             yield {"type": "message", "channel": "test", "data": "{}"}  # pragma: no cover
 
         mock_pubsub = AsyncMock()
-        mock_pubsub.listen = AsyncMock(return_value=mock_listen())
+        mock_pubsub.listen = lambda: mock_listen()
         connected_pubsub._pubsub = mock_pubsub
 
         task = asyncio.create_task(connected_pubsub._listen_loop())
@@ -553,10 +579,16 @@ class TestRedisPubSub:
         """Test getting subscriber count when not connected."""
         with patch.object(pubsub, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
-            pubsub._connected = True
-            mock_redis = AsyncMock()
-            mock_redis.pubsub_numsub.return_value = {"test": 3}
-            pubsub._redis = mock_redis
+            pubsub._connected = False  # Start disconnected to trigger connect
+
+            # Mock connect to set up connection
+            async def mock_connect_side_effect() -> None:
+                pubsub._connected = True
+                mock_redis = AsyncMock()
+                mock_redis.pubsub_numsub.return_value = {"test": 3}
+                pubsub._redis = mock_redis
+
+            mock_connect.side_effect = mock_connect_side_effect
 
             count = await pubsub.get_subscribers_count("test")
 
@@ -636,20 +668,33 @@ class TestGlobalFunctions:
 
         with (
             patch("src.common.pubsub.RedisPubSub") as mock_cls,
-            patch("src.common.pubsub.ConnectionPool", new_callable=AsyncMock),
-            patch("src.common.pubsub.redis.Redis"),
+            patch("src.common.pubsub.ConnectionPool") as mock_pool_cls,
+            patch("src.common.pubsub.redis.Redis") as mock_redis_cls,
         ):
-            mock_instance = AsyncMock()
-            mock_instance.connect = AsyncMock()
-            mock_instance.disconnect = AsyncMock()
-            mock_cls.return_value = mock_instance
+            # Setup mocks properly
+            mock_pool = AsyncMock()
+            mock_pool_cls.from_url.return_value = mock_pool
+
+            mock_redis = AsyncMock()
+            mock_redis.ping = AsyncMock()
+            mock_redis_cls.return_value = mock_redis
+
+            mock_instance1 = AsyncMock()
+            mock_instance1.connect = AsyncMock()
+            mock_instance1.disconnect = AsyncMock()
+
+            mock_instance2 = AsyncMock()
+            mock_instance2.connect = AsyncMock()
+            mock_instance2.disconnect = AsyncMock()
+
+            mock_cls.side_effect = [mock_instance1, mock_instance2]
 
             pubsub1 = await get_pubsub()
 
             # Clean up
             await cleanup_pubsub()
 
-            mock_instance.disconnect.assert_called_once()
+            mock_instance1.disconnect.assert_called_once()
 
             # Next get_pubsub should create new instance
             pubsub2 = await get_pubsub()
@@ -657,7 +702,8 @@ class TestGlobalFunctions:
             # Should be different instances and connect called twice total
             assert pubsub1 is not pubsub2
             assert mock_cls.call_count == 2
-            assert mock_instance.connect.call_count == 2
+            mock_instance1.connect.assert_called_once()
+            mock_instance2.connect.assert_called_once()
 
     async def test_cleanup_pubsub_no_instance(self) -> None:
         """Test cleanup_pubsub when no instance exists."""

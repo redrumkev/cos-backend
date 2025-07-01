@@ -57,7 +57,7 @@ class TestRedisPubSubCore:
         assert not pubsub._connected
 
     @patch("src.common.pubsub.ConnectionPool")
-    @patch("src.common.pubsub.aioredis.Redis")
+    @patch("src.common.pubsub.redis.Redis")
     async def test_connect_success(self, mock_redis_cls: MagicMock, mock_pool_cls: MagicMock) -> None:
         """Test successful Redis connection."""
         if not _PYTEST_AVAILABLE:
@@ -154,7 +154,7 @@ class TestRedisPubSubCore:
         class NonSerializable:
             pass
 
-        with pytest.raises(PublishError, match="Failed to publish message"):
+        with pytest.raises(PublishError, match="Failed to serialize message"):
             await pubsub.publish("test", {"obj": NonSerializable()})
 
     async def test_subscribe_not_connected_auto_connect(self) -> None:
@@ -329,7 +329,7 @@ class TestGlobalFunctions:
         with (
             patch("src.common.pubsub.RedisPubSub") as mock_cls,
             patch("src.common.pubsub.ConnectionPool"),
-            patch("src.common.pubsub.aioredis.Redis"),
+            patch("src.common.pubsub.redis.Redis"),
         ):
             mock_instance = AsyncMock()
             mock_instance.connect = AsyncMock()
