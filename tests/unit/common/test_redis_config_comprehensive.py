@@ -388,8 +388,10 @@ class TestRedisConfigComprehensive:
             patch("pathlib.Path.exists", return_value=True),
             patch("src.common.redis_config.load_dotenv") as mock_load_dotenv,
         ):
-            # Import should trigger dotenv loading
-            from src.common.redis_config import RedisConfig  # noqa: F401
+            # Creating instance should trigger dotenv loading
+            from src.common.redis_config import RedisConfig
+
+            _ = RedisConfig()
 
             # Should have attempted to load the env file
             mock_load_dotenv.assert_called()

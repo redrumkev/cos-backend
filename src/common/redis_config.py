@@ -16,25 +16,37 @@ from typing import Any
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Optional dotenv support
+# Optional dotenv support - import at module level to support mocking
 try:
     from pathlib import Path
 
     from dotenv import load_dotenv
 
-    # Load .env file if it exists
+    _DOTENV_AVAILABLE = True
+
+    # Load .env file at module level if it exists
     env_file = Path(os.getenv("ENV_FILE", ".env"))
     if env_file.exists():
         load_dotenv(env_file)
+
 except ImportError:
-    # python-dotenv not installed, skip loading
-    pass
+    load_dotenv = None  # type: ignore
+    _DOTENV_AVAILABLE = False
+
+
+def _load_dotenv_if_available() -> None:
+    """Load dotenv file if available and exists (for additional instance-level loading)."""
+    if _DOTENV_AVAILABLE and load_dotenv is not None:
+        env_file = Path(os.getenv("ENV_FILE", ".env"))
+        if env_file.exists():
+            load_dotenv(env_file)
+
 
 # Environment-specific default configurations
 ENV_DEFAULTS = {
     "development": {
-        "max_connections": 10,
-        "socket_connect_timeout": 5,
+        "max_connections": 20,  # Match Pydantic field default
+        "socket_connect_timeout": 5,  # Match Pydantic field default
         "socket_keepalive": True,
         "retry_on_timeout": True,
         "health_check_interval": 30,
@@ -94,11 +106,14 @@ class RedisConfig(BaseSettings):
     def apply_env_defaults(cls, data: Any) -> Any:
         """Apply environment-specific defaults based on ENV variable."""
         if isinstance(data, dict):
-            # Determine environment
-            env = (os.getenv("ENV") or ("testing" if os.getenv("TESTING") else "production")).lower()
+            # Load dotenv if available (supports testing - called on each instance)
+            _load_dotenv_if_available()
+
+            # Determine environment - default to development when no environment specified
+            env = (os.getenv("ENV") or ("testing" if os.getenv("TESTING") else "development")).lower()
 
             # Get environment defaults
-            defaults = ENV_DEFAULTS.get(env, ENV_DEFAULTS["production"])
+            defaults = ENV_DEFAULTS.get(env, ENV_DEFAULTS["development"])
 
             # Apply defaults only if the field wasn't set via env var or kwargs
             for key, value in defaults.items():
