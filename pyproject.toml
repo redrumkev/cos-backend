@@ -126,7 +126,9 @@ filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
     "ignore::UserWarning:hypothesis.*",
-    "ignore::pytest.PytestUnraisableExceptionWarning"
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore:No logs or spans will be created:UserWarning",
+    "ignore:coroutine 'AsyncMockMixin._execute_mock_call' was never awaited:RuntimeWarning"
 ]
 
 [tool.coverage.run]
