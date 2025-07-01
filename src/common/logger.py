@@ -5,9 +5,6 @@ from typing import Any
 
 from rich.logging import RichHandler
 
-# NOTE: Mem0 client removed in Sprint 1.  Will return in Sprint 2.
-mem = None  # placeholder so call sites do not break
-
 logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()])
 logger = logging.getLogger("cos")
 
@@ -34,7 +31,7 @@ def log_event(
     key: str | None = None,
     memo: str | None = None,
 ) -> dict[str, Any]:
-    """Log a structured memory event to mem0.
+    """Log a structured memory event to PostgreSQL L1 memory.
 
     Args:
     ----
@@ -46,43 +43,112 @@ def log_event(
 
     Returns:
     -------
-        dict: response from mem0 (typically dict[str, Any])
+        dict: response with database IDs and status
 
     """
+    import asyncio
+
+    try:
+        # Try to get current event loop
+        asyncio.get_running_loop()
+        # If we're in an event loop, we can't use asyncio.run()
+        # Create a task instead
+        import concurrent.futures
+
+        def run_in_thread() -> dict[str, Any]:
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(log_event_async(source, data, tags, key, memo))
+            finally:
+                new_loop.close()
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_in_thread)
+            return future.result(timeout=10)  # 10 second timeout
+
+    except RuntimeError:
+        # No event loop running, safe to use asyncio.run()
+        return asyncio.run(log_event_async(source, data, tags, key, memo))
+
+
+async def log_event_async(
+    source: str,
+    data: str | dict[str, Any],
+    tags: list[str] | None = None,
+    key: str | None = None,
+    memo: str | None = None,
+) -> dict[str, Any]:
+    """Async version of log_event for use in async contexts.
+
+    This is the core implementation that writes to PostgreSQL.
+    """
+    from src.backend.cc.mem0_models import BaseLog, EventLog
+    from src.db.connection import get_async_session_maker
+
     log_id = key or f"log-{source}-{uuid.uuid4().hex[:8]}"
+
+    # Create structured payload
     payload = {
         "source": source,
         "data": data,
         "tags": tags or [],
         "timestamp": datetime.now(UTC).isoformat(),
+        "log_id": log_id,
     }
 
     # Only include memo if provided
     if memo is not None:
         payload["memo"] = memo
 
-    logger.warning(
-        "[mem0] log_event called, but Mem0 client is not available (Sprint 1 stub). Returning stub response."
-    )
+    try:
+        # Get database session
+        async_session_maker = get_async_session_maker()
+        async with async_session_maker() as session:  # type: ignore[attr-defined]
+            # Create BaseLog entry
+            base_log = BaseLog(
+                level="INFO",
+                message=f"[{source}] {memo or 'Event logged'}",
+                payload=payload,
+            )
+            session.add(base_log)
+            await session.flush()  # Get the ID
 
-    # Handle test mode with mocked mem client first
-    import os
-    from unittest.mock import MagicMock
+            # Create EventLog entry linked to BaseLog
+            event_log = EventLog(
+                base_log_id=base_log.id,
+                event_type=f"{source}.event",
+                event_data={
+                    "data": data,
+                    "tags": tags or [],
+                    "memo": memo,
+                    "log_id": log_id,
+                },
+            )
+            session.add(event_log)
 
-    if os.environ.get("PYTEST_CURRENT_TEST") and mem and isinstance(mem, MagicMock):
-        # In test mode with mocked mem client, delegate to mock
-        mock_result = mem.set(data, key=log_id)
-        if isinstance(mock_result, dict):
-            mock_result["id"] = mock_result.get("id", log_id)
-            return mock_result
+            # Commit the transaction
+            await session.commit()
 
-    # Default stub response with correct key name
-    return {
-        "status": "mem0_stub",
-        "id": log_id,  # Changed from log_id to id
-        "memo": memo,
-        "data": data,
-    }
+            return {
+                "status": "success",
+                "id": log_id,
+                "base_log_id": str(base_log.id),
+                "event_log_id": str(event_log.id),
+                "memo": memo,
+                "data": data,
+            }
+
+    except Exception as e:
+        logger.error(f"Failed to write log event to database: {e}")
+        # Return fallback response on database error
+        return {
+            "status": "fallback",
+            "id": log_id,
+            "error": str(e),
+            "memo": memo,
+            "data": data,
+        }
 
 
 # Optional usage example
