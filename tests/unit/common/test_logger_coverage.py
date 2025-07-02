@@ -22,7 +22,7 @@ class TestLogEventFunction:
             source="test_source", data={"key": "value"}, tags=["tag1", "tag2"], key="custom_key", memo="Test memo"
         )
 
-        assert result["status"] == "mem0_stub"
+        assert result["status"] == "fallback"
         assert result["id"] == "custom_key"
         assert result["memo"] == "Test memo"
         assert result["data"] == {"key": "value"}
@@ -58,7 +58,7 @@ class TestDemoFunction:
 
         # Verify it returns the expected structure
         assert isinstance(result, dict)
-        assert result["status"] == "mem0_stub"
+        assert result["status"] == "fallback"
         assert "id" in result
         assert result["memo"] == "Initial PEM prompt test"
         assert result["data"] == {"prompt": "What is quantum authorship?", "output": "..."}
@@ -114,7 +114,7 @@ class TestLoggerModuleExecution:
 
         # Simulate what the main block does and verify the demo function works as expected for main execution
         assert isinstance(result, dict)
-        assert result["status"] == "mem0_stub"
+        assert result["status"] == "fallback"
 
         # The actual main block execution is hard to test directly,
         # but we can verify the components work correctly

@@ -1,9 +1,18 @@
-# COS (Creative Operating System) - Development Guide
+# CLAUDE.md
 
-## Project Overview
-**COS** is a high-performance Creative Operating System backend built with FastAPI, SQLAlchemy, Redis, and Neo4j. Currently in **Phase 2 Sprint 2** implementing the Redis pub/sub highway for real-time event orchestration.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Constitutional Principles
+## Project Context & Vision
+
+**COS (Creative Operating System)** is a toolkit built to serve a 100+ book legacy vision by an aspiring NYT bestselling author who began coding less than a year ago. This system represents the translation of life-student insights into a technical foundation for creating classic non-fiction works.
+
+**Roles & Orchestration:**
+- **Strategist/Visionary**: Human author driving the legacy vision
+- **Tactical Orchestrator**: Claude Code (you) handling NLP and coordination
+- **Operational Agents**: Sub-agents executing specific coding tasks
+
+## Constitutional Principles & Philosophy
+
 ### Dual Mandate (Never Compromise)
 **100% Quality + 100% Efficiency** - Every decision must honor both. If forced to choose, we've designed wrong.
 
@@ -16,316 +25,247 @@
 - **Relentless**: Every failure is fuel, every success is seed
 - **Destiny-Driven**: All code serves the 100+ book legacy vision
 
-## Architecture Overview
+### Testing Philosophy & True TDD
+**Current Reality**: Sprint 2 technically "done" but NOT at "all green" state
+**Goal**: Achieve true TDD workflow where we can step forward, refactor without fear
+**Method**: Write minimal test (red) → minimal code (green) → iterate until ALL green and ALL repo REMAINS green
 
-### Core Stack
-- **FastAPI**: Async web framework with automatic OpenAPI docs
-- **SQLAlchemy 2.x**: Async ORM with PostgreSQL backend via asyncpg
-- **Redis**: High-performance pub/sub messaging with circuit breaker resilience
-- **Neo4j**: Graph database with Rust-enhanced driver support
-- **Logfire**: Observability and distributed tracing
-- **Python 3.13**: Latest Python with strict typing
-
-### Intelligence Layers
-- **L1 (PostgreSQL)**: Immediate persistence (`mem0_cc` schema)
-- **L1.5 (Redis)**: Real-time event bus (current sprint focus)
-- **L2 (Neo4j)**: Graph relationships (Sprint 3)
-- **L3 (ZK)**: Curated knowledge (Phase 3+)
-- **L4 (Canonical)**: Archived (Phase 3+)
-
-### Key Modules
-```
-src/
-├── backend/cc/           # Creative Conductor (main API module)
-├── common/              # Shared infrastructure (Redis, DB, logging)
-├── graph/               # Neo4j graph operations
-├── db/                  # Database models, migrations, schemas
-└── cos_main.py          # FastAPI application entry point
-```
-
-## Development Environment
-
-### Requirements
-- **Python 3.13+** (use `uv` package manager)
-- **PostgreSQL** (dev on port 5433)
-- **Redis** (pub/sub messaging)
-- **Neo4j** (optional, graph operations)
-
-### Environment Setup
-```bash
-# Install dependencies
-uv sync
-
-# Start infrastructure services
-docker-compose up postgres_dev redis neo4j
-
-# Run application
-uv run uvicorn src.cos_main:app --reload --host 0.0.0.0 --port 8000
-```
+**Test Modes:**
+- **Mock Mode** (default): Fast CI/CD with mocked dependencies
+- **Integration Mode**: `RUN_INTEGRATION=1` for real infrastructure testing
+- **Coverage Requirement**: 97% minimum
 
 ### Pre-Commit Workflow (Zero-Surprise Commits)
-**Problem**: Direct tool runs (ruff, mypy) ≠ pre-commit environment → commit failures
-**Solution**: Always run exact pre-commit environment before commit
-
+Always run exact pre-commit environment before commit:
 ```bash
-# Run pre-commit on specific files to match exact commit environment
+# Match exact commit environment
 uv run pre-commit run --files [file1] [file2] [file3]
-
-# Or run on all files
+# Or all files
 uv run pre-commit run --all-files
 ```
 
-**Workflow**:
-1. 🎯 Run `uv run pre-commit run --files` to match exact commit environment
-2. 🔧 Fix issues found by the actual hooks that will run
-3. ✅ Commit passes on first try with zero surprises
+### Advanced Tools Integration
+**Multi-Tool Problem Solving:**
+- **Sequential Thinking MCP**: For systematic analysis outside of zen
+- **Zen MCP**: Extension with o3/o4-mini reasoning for complex workflows
+- **Context7 + Tavily**: Research-backed solutions
 
-## Testing Standards
+**Orchestration Pattern:**
+1. Zen MCP processes complex problems with high reasoning
+2. Sequential Thinking MCP contextualizes results into coherent solutions
+3. Sub-agents execute operational coding tasks
+4. Claude Code orchestrates at tactical level
 
-### Testing Philosophy
-- **97% unit test coverage** requirement
-- **DELTA/EPSILON/ZETA methodology**
-- **Mock vs Integration modes** for optimal CI/CD performance
+## Essential Commands
 
-### Test Execution
+### Testing & Quality
 ```bash
-# Fast mock mode (default for CI/CD)
-uv run pytest
+# Run all tests with coverage
+uv run pytest --cov=src --cov-report=html --cov-report=term
 
-# Full integration mode (real infrastructure)
-RUN_INTEGRATION=1 uv run pytest
+# Run specific test types
+uv run pytest -m "unit"                    # Unit tests only
+uv run pytest -m "integration"             # Integration tests
+uv run pytest -m "not slow"                # Skip slow tests
+uv run pytest tests/backend/cc/            # CC module tests
+uv run pytest tests/common/                # Common module tests
 
-# Coverage reporting
-uv run pytest --cov=src --cov-report=html
+# Run single test file
+uv run pytest tests/backend/cc/test_router.py -v
 
-# Performance benchmarks
-uv run pytest tests/performance/ -m benchmark
+# Performance tests
+uv run pytest -m "benchmark" --benchmark-only
+
+# Code quality checks
+uv run ruff check .                        # Linting
+uv run ruff format .                       # Formatting
+uv run mypy src/                           # Type checking
+uv run bandit -r src/                      # Security scanning
+
+# Pre-commit validation (REQUIRED before commits)
+uv run pre-commit run --all-files
 ```
 
-### Test Organization
-```
-tests/
-├── unit/           # Pure unit tests with mocks (fast)
-├── integration/    # Real infrastructure tests (thorough)
-├── performance/    # Benchmarks and load testing
-├── backend/cc/     # CC module specific tests
-└── common/         # Shared component tests
-```
-
-## Current Sprint: Phase 2 Sprint 2
-
-### Sprint Focus: Redis Pub/Sub Highway
-**Status**: IN PROGRESS
-**Performance Targets**:
-- Publish latency: <1ms
-- Round-trip messaging: <5ms local
-- Circuit breaker resilience: 3 failures → open, 30s recovery
-
-### Core Deliverables
-- ✅ `common/pubsub.py` async Redis wrapper with circuit breaker
-- ✅ High-performance messaging with <1ms publish latency
-- 🔄 Integration with `log_l1()` → `mem0.recorded.cc` channel
-- 🔄 Generic subscriber base class
-- 📋 Integration tests: round-trip <5ms validation
-
-### Sprint Constraints
-- Only modify files within scope: `common/`, `backend/cc/services/`, `tests/`
-- Maintain 97% unit test coverage
-- All Redis operations must be async
-- No changes to Sprint 1 deliverables unless critical bug
-- Performance requirement: publish <1ms latency
-
-## Code Quality Standards
-
-### Style & Linting
+### Development Server
 ```bash
-# Ruff (linting and formatting)
-uv run ruff check src/ tests/
-uv run ruff format src/ tests/
+# Start FastAPI server
+uv run uvicorn src.cos_main:app --reload --host 0.0.0.0 --port 8000
 
-# Type checking
-uv run mypy src/
-
-# Security scanning
-uv run bandit -r src/
+# Infrastructure services (Docker required)
+cd infrastructure/
+docker-compose -f docker-compose.yml -f docker-compose.traefik.yml -f docker-compose.mem0g.yml up -d
 ```
 
-### Quality Gates
-- **Ruff**: 120 char line length, comprehensive rule set
-- **mypy**: Strict mode with Pydantic plugin
-- **bandit**: Security vulnerability scanning
-- **Coverage**: 97% minimum requirement
-
-## Database Operations
-
-### Development Database
+### Database Operations
 ```bash
-# Connect to development database (port 5433)
-psql postgresql://cos_user:cos_pass@localhost:5433/cos_db
-
-# Run migrations
+# Run Alembic migrations
 uv run alembic upgrade head
 
 # Create new migration
 uv run alembic revision --autogenerate -m "description"
+
+# Connect to dev database
+docker exec -it cos_postgres_dev psql -U cos_user -d cos_db_dev
+
+# Connect to Redis
+docker exec -e REDISCLI_AUTH="Police9119!!Red" cos_redis redis-cli ping
 ```
 
-### Test Database Isolation
-- Tests use **SAVEPOINT transactions** for hermetic isolation
-- Force port 5433 for development database
-- Automatic rollback after each test
+## Architecture Overview
 
-## Performance Requirements
+### Multi-Layer Memory System
+COS implements a sophisticated memory hierarchy:
+- **L1 (PostgreSQL)**: Immediate storage with mem0 integration
+- **L1.5 (Redis)**: Real-time pub/sub event highway
+- **L2 (Neo4j)**: Graph relationships and semantic connections
+- **L3 (ZK)**: Curated knowledge layer (planned)
+- **L4 (Canonical)**: Immutable archival storage
 
-### Redis Pub/Sub Performance
-- **Publish latency**: <1ms target with monitoring
-- **Circuit breaker**: 3 failures → open, 30s timeout, 2 successes → close
-- **Connection pooling**: Optimized settings for high throughput
-- **Observability**: Comprehensive Logfire integration
+### Core Modules
 
-### Testing Performance
-- **Mock mode**: Extremely fast for CI/CD (<30s full suite)
-- **Integration mode**: Full behavior verification (~2-3 minutes)
-- **Benchmark tests**: Performance regression detection
+**Control Center (CC)** - `src/backend/cc/`
+- Main coordination module with FastAPI router
+- Mem0 integration for scratch data management
+- Health monitoring and system diagnostics
+- Logfire distributed tracing integration
 
-## API Documentation
+**Graph Module** - `src/graph/`
+- Neo4j operations for L2 memory layer
+- Node and relationship CRUD operations
+- Graph search and analytics
 
-### FastAPI Automatic Docs
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **OpenAPI JSON**: http://localhost:8000/openapi.json
+**Common Module** - `src/common/`
+- Shared infrastructure components
+- Database connection management with pooling
+- Redis configuration with circuit breaker pattern
+- Logging, middleware, and configuration utilities
 
-### API Modules
-- **CC API**: `/cc/*` - Creative Conductor operations
-- **Graph API**: `/graph/*` - Neo4j graph operations
-- **Health**: Standard health check endpoints
+### Database Patterns
 
-## Debugging & Observability
+**PostgreSQL Configuration**:
+- SQLAlchemy 2.0 async with connection pooling
+- Schema-based organization (cc, mem0_cc)
+- Agent-based connections for multi-tenant support
+- Alembic migrations in `src/db/migrations/`
 
-### Logfire Integration
-```python
-# Automatic request tracing with correlation IDs
-from common.logger import log_event
+**Redis Configuration**:
+- Circuit breaker for fault tolerance
+- PubSub wrapper for event-driven architecture
+- Health monitoring with auto-recovery
+- Configuration in `src/common/redis_config.py`
 
-log_event(source="module_name", data={"key": "value"}, memo="Description")
-```
+**Neo4j Integration**:
+- Async client with connection management
+- Registry pattern for node/relationship types
+- Graph operations in `src/graph/`
 
-### Development Tools
-```bash
-# View logs with structured output
-docker-compose logs -f cos_backend
+## Development Standards
 
-# Redis monitoring
-redis-cli monitor
+### Testing Requirements
+- **Coverage Target**: 97%+ unit test coverage
+- **Test Organization**: Unit, integration, performance markers
+- **Infrastructure Tests**: Use testcontainers for Redis/PostgreSQL
+- **Performance Targets**: <5ms round-trip, <1ms publish latency
 
-# Database query logging
-# Set SQLALCHEMY_LOG_LEVEL=debug in environment
-```
+### Code Quality
+- **Python Version**: 3.13+
+- **Type Checking**: MyPy strict mode enabled
+- **Linting**: Ruff with comprehensive rule set
+- **Security**: Bandit security scanning
+- **Formatting**: Ruff formatter (120 char line length)
 
-## Common Commands
+### Configuration Management
+- Use Pydantic Settings for type-safe configuration
+- Environment variables with `.env` support
+- Cached settings with dependency injection pattern
+- Never commit secrets (use environment variables)
 
-### Development Workflow
-```bash
-# Full development cycle
-uv run pre-commit run --all-files    # Quality gates
-uv run pytest                       # Fast testing
-RUN_INTEGRATION=1 uv run pytest     # Full integration
-uv run uvicorn src.cos_main:app --reload  # Run server
+## Key Design Patterns
 
-# Infrastructure management
-docker-compose up postgres_dev redis neo4j  # Start services
-docker-compose down                          # Stop services
-docker-compose logs -f [service]            # View logs
-```
+### Error Handling
+- Circuit breaker pattern for external services
+- Graceful degradation for optional components
+- Structured error responses with correlation IDs
 
-### Performance Monitoring
-```bash
-# Redis performance testing
-uv run pytest tests/performance/test_redis_benchmarks.py -v
+### Observability
+- Logfire integration for distributed tracing
+- Request ID middleware for correlation
+- Rich console logging for development
+- Health check endpoints at multiple levels
 
-# Database performance
-uv run pytest tests/performance/ -m database
+### Production Readiness
+- Connection pooling for all database connections
+- Health monitoring with auto-recovery mechanisms
+- Comprehensive test coverage including failure scenarios
+- Docker-based infrastructure with service discovery
 
-# Memory profiling
-uv run pytest --memray tests/performance/
-```
+## Current Working Status (Temporal - To Be Resolved)
+
+### #1 Priority: Achieve "All Green" State
+**Current Reality**: Sprint 2 technically complete but repository NOT fully green
+**Immediate Goal**: Rich terminal output with all green checkmarks - ALL tests passing
+**Why Critical**: Enables fearless iteration, step forward/refactor without breaking existing functionality
+
+### Current Sprint Context
+- **Phase 2 Sprint 2**: Redis Pub/Sub Highway implementation
+- **Technical Status**: Features implemented but iterative loop to achieve true TDD state
+- **Next**: Phase 2 Sprint 3 with true TDD workflow established
+
+### Path to Green
+1. **Iterative Testing**: Write minimal tests (red) → minimal code (green)
+2. **Full Repository Validation**: Ensure ALL existing functionality remains green
+3. **Instant Feedback Loop**: Know immediately if something breaks
+4. **Safe Iteration**: Step back to last known good configuration if needed
+
+### Sprint Constraints (Until Green)
+- **File Modification Scope**: Focus on test stability and green state
+- **Performance Targets**: <1ms publish latency, <5ms round-trip
+- **Coverage Maintenance**: 97% minimum requirement
+- **No Breaking Changes**: ALL existing functionality must remain operational
 
 ## Troubleshooting
 
 ### Common Issues
-
-**Import Errors**: Ensure `src/` is in PYTHONPATH or use `uv run` commands
-
-**Database Connection**: Check PostgreSQL is running on port 5433
-```bash
-docker-compose up postgres_dev
-```
-
-**Redis Connection**: Verify Redis is accessible
-```bash
-docker-compose up redis
-redis-cli ping  # Should return PONG
-```
-
-**Test Failures**: Run with verbose output
-```bash
-uv run pytest -v --tb=long tests/path/to/failing_test.py
-```
+**Import Errors**: Ensure using `uv run` commands for proper environment
+**Database Connection**: Check PostgreSQL on port 5433: `docker-compose up postgres_dev`
+**Redis Connection**: Verify Redis accessibility: `docker exec -e REDISCLI_AUTH="Police9119!!Red" cos_redis redis-cli ping`
+**Test Failures**: Run verbose: `uv run pytest -v --tb=long tests/path/to/failing_test.py`
 
 ### Performance Issues
-**Slow Tests**: Ensure using mock mode for development
-```bash
-# Fast mode (default)
-uv run pytest
-
-# If accidentally in integration mode
-unset RUN_INTEGRATION
-```
-
-**Redis Latency**: Check circuit breaker status and connection pooling
+**Slow Tests**: Ensure mock mode: `uv run pytest` (not integration mode)
+**Redis Latency**: Check circuit breaker:
 ```python
-# In Python shell
 from common.pubsub import RedisPubSub
 pubsub = RedisPubSub()
 await pubsub.health_check()  # View detailed status
 ```
 
-## Contributing Guidelines
+### Development Tools
+- **Logs**: `docker-compose logs -f cos_backend`
+- **Redis Monitor**: `redis-cli monitor`
+- **DB Query Log**: Set `SQLALCHEMY_LOG_LEVEL=debug`
+- **Memory Profile**: `uv run pytest --memray tests/performance/`
 
-### Before Making Changes
-1. Read sprint context in `docs/000_current_sprint_context.md`
-2. Check current constraints and deliverables
-3. Ensure changes align with FORWARD principles
-4. Plan for 100% Quality + 100% Efficiency
+## Service Access Points
+- **Main API**: http://localhost:8000
+- **Traefik Dashboard**: http://localhost:8080
+- **Neo4j Browser**: http://localhost:7474
+- **PostgreSQL Dev**: localhost:5433
+- **Redis**: Via docker exec with authentication
 
-### Code Contribution Process
-1. **Plan**: Use sprint constraints and deliverable guidelines
-2. **Implement**: Follow existing patterns and conventions
-3. **Test**: Achieve 97% coverage with both mock and integration tests
-4. **Quality**: Pass all pre-commit hooks before committing
-5. **Performance**: Meet latency and throughput requirements
+## Development Context
+- **Infrastructure**: All services containerized and health-monitored
+- **Test Coverage**: 238/238 tests framework in place (working toward all green)
+- **Architecture**: Multi-layer memory system (L1-L4) with Redis pub/sub highway
 
-### Review Checklist
-- [ ] Follows FORWARD principles
-- [ ] Maintains 97% test coverage
-- [ ] Passes all quality gates (ruff, mypy, bandit)
-- [ ] Performance requirements met
-- [ ] Integration tests pass
-- [ ] Documentation updated if needed
-
-## Advanced Troubleshooting
-
-### MCP Tool Integration
-For complex issues that standard debugging cannot resolve:
-- **Zen MCP** + **Context7** + **Tavily** = Enhanced problem-solving capability
-- **Sequential thinking** for systematic analysis
-- **Research tools** for finding proven solutions
-
-### Key Patterns
-- Import sorting is critical for ruff compliance
-- Pre-commit hooks fail when tools modify files during execution
-- Research-backed approaches resolve persistent issues
-
----
-
-**Remember**: This is a destiny-driven codebase serving a 100+ book legacy vision. Every line of code should reflect the constitutional principles of 100% Quality + 100% Efficiency.
+## Future Multi-Module Architecture (Post-CC Gold Standard)
+**COS System**: Operates collectively as true Anthropic agent definition
+**CC Module**: Control Center/Dashboard (health checks, settings, permissions, kanban, homepage functionality)
+**PEM Module**: Prompt Engineering specialist (writes prompts for other modules, self-improves)
+**AIC Module**: AI Coach (ingests research papers/best practices → system improvements via A/B testing)
+**Creative Modules**: Focus on creative output while PEM/AIC handle technical optimization
+**Module Pattern**: `/cc`, `/pem`, `/aic` routers with schema-per-module (cc.tables, pem.tables)
+**Interconnection**: Redis pub/sub messaging, future Slack integration, agentic communication
+**Testing Strategy**: CC gold standard first, then multi-module isolation patterns
+**Design Philosophy**: Specialized modules enhance each other rather than competing for resources
+**Note**: Review common/ architecture for multi-module readiness before duplication script

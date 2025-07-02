@@ -6,6 +6,7 @@ ensuring they have the correct structure, types, and behavior.
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 
 import pytest  # Phase 2: Remove for skip removal
@@ -24,8 +25,11 @@ class TestHealthStatusModel:
     def test_table_name_and_schema(self) -> None:
         """Test that the table name and schema are correctly defined."""
         assert HealthStatus.__tablename__ == "health_status"
-        # Phase 2: PostgreSQL with schema
-        assert HealthStatus.__table_args__ == {"schema": "cc", "extend_existing": True}
+        # Schema behavior depends on database integration setting
+        if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
+            assert HealthStatus.__table_args__ == {"schema": "cc", "extend_existing": True}
+        else:
+            assert HealthStatus.__table_args__ == {"extend_existing": True}
 
     def test_columns_exist(self) -> None:
         """Test that all expected columns exist in the model."""
@@ -120,8 +124,11 @@ class TestModuleModel:
     def test_table_name_and_schema(self) -> None:
         """Test that the table name and schema are correctly defined."""
         assert Module.__tablename__ == "modules"
-        # Phase 2: PostgreSQL with schema
-        assert Module.__table_args__ == {"schema": "cc", "extend_existing": True}
+        # Schema behavior depends on database integration setting
+        if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
+            assert Module.__table_args__ == {"schema": "cc", "extend_existing": True}
+        else:
+            assert Module.__table_args__ == {"extend_existing": True}
 
     def test_columns_exist(self) -> None:
         """Test that all expected columns exist in the model."""

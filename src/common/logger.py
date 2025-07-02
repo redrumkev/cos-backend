@@ -8,6 +8,9 @@ from rich.logging import RichHandler
 logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()])
 logger = logging.getLogger("cos")
 
+# Placeholder for mem0 integration
+mem = None
+
 
 def get_logger(name: str) -> logging.Logger:
     """Get a logger instance for the given module name.

@@ -64,7 +64,7 @@ class TestAPIEndpointBenchmarks:
     """API endpoint performance benchmarks."""
 
     @pytest.mark.asyncio
-    @pytest.mark.benchmark(group="api_latency", min_rounds=100, warmup_rounds=20)
+    @pytest.mark.benchmark(group="api_latency", min_rounds=100)
     async def test_cc_module_endpoints_latency(self, benchmark: Any, async_client: AsyncClient) -> None:
         """Benchmark CC module API endpoints latency."""
 
@@ -192,7 +192,7 @@ class TestDatabasePerformanceBenchmarks:
     """Database performance benchmarks."""
 
     @pytest.mark.asyncio
-    @pytest.mark.benchmark(group="db_performance", min_rounds=50, warmup_rounds=10)
+    @pytest.mark.benchmark(group="db_performance", min_rounds=50)
     async def test_database_crud_performance(self, benchmark: Any, db_session: AsyncSession) -> None:
         """Benchmark database CRUD operations."""
 

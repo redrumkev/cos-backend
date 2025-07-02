@@ -68,36 +68,66 @@ async def fake_redis() -> AsyncGenerator[fakeredis.aioredis.FakeRedis, None]:
 class TestDirectRedisBenchmarks:
     """Direct Redis operation benchmarks using pytest-benchmark."""
 
-    def test_redis_set_latency(self, benchmark: Any, fake_redis: fakeredis.aioredis.FakeRedis) -> None:
+    def test_redis_set_latency(self, benchmark: Any) -> None:
         """Benchmark Redis SET operation latency."""
 
+        # Create a new FakeRedis instance for each benchmark run to avoid event loop issues
         def sync_set() -> bool:
-            result = asyncio.run(fake_redis.set("benchmark_key", "benchmark_value"))
-            return bool(result)
+            redis_server = fakeredis.aioredis.FakeRedis(
+                version=(7, 2, 0),
+                decode_responses=False,
+            )
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(redis_server.set("benchmark_key", "benchmark_value"))
+                return bool(result)
+            finally:
+                loop.close()
 
         result = benchmark.pedantic(sync_set, iterations=100, rounds=10)
         assert result is True
 
-    def test_redis_get_latency(self, benchmark: Any, fake_redis: fakeredis.aioredis.FakeRedis) -> None:
+    def test_redis_get_latency(self, benchmark: Any) -> None:
         """Benchmark Redis GET operation latency."""
-        # Setup
-        asyncio.run(fake_redis.set("get_benchmark_key", "get_benchmark_value"))
 
+        # Create a new FakeRedis instance for each benchmark run to avoid event loop issues
         def sync_get() -> bytes:
-            result = asyncio.run(fake_redis.get("get_benchmark_key"))
-            return bytes(result) if result else b""
+            redis_server = fakeredis.aioredis.FakeRedis(
+                version=(7, 2, 0),
+                decode_responses=False,
+            )
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                # Setup
+                loop.run_until_complete(redis_server.set("get_benchmark_key", "get_benchmark_value"))
+                # Get operation
+                result = loop.run_until_complete(redis_server.get("get_benchmark_key"))
+                return bytes(result) if result else b""
+            finally:
+                loop.close()
 
         result = benchmark.pedantic(sync_get, iterations=100, rounds=10)
         assert result == b"get_benchmark_value"
 
-    def test_json_serialization_latency(self, benchmark: Any, fake_redis: fakeredis.aioredis.FakeRedis) -> None:
+    def test_json_serialization_latency(self, benchmark: Any) -> None:
         """Benchmark JSON serialization + Redis publish latency."""
         message = {"type": "benchmark", "data": "test_payload", "timestamp": 1234567890, "metadata": {"key": "value"}}
 
         def sync_json_publish() -> int:
-            serialized = json.dumps(message, separators=(",", ":"))
-            result = asyncio.run(fake_redis.publish("test_channel", serialized))
-            return int(result)
+            redis_server = fakeredis.aioredis.FakeRedis(
+                version=(7, 2, 0),
+                decode_responses=False,
+            )
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                serialized = json.dumps(message, separators=(",", ":"))
+                result = loop.run_until_complete(redis_server.publish("test_channel", serialized))
+                return int(result)
+            finally:
+                loop.close()
 
         result = benchmark.pedantic(sync_json_publish, iterations=100, rounds=10)
         # No subscribers, so result should be 0

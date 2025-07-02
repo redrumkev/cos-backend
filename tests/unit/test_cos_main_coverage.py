@@ -160,7 +160,7 @@ class TestCosMainLogEvent:
         # Test calling it with the same parameters used in cos_main
         result = log_event(source="cos_main", data={"event": "startup"}, memo="COS FastAPI initialized.")
         assert isinstance(result, dict)
-        assert result["status"] == "mem0_stub"
+        assert result["status"] == "fallback"
 
 
 class TestCosMainFileStructure:

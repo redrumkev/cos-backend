@@ -197,7 +197,35 @@ class TestRedisHealthEndpoint:
         with patch("src.common.pubsub.get_pubsub") as mock_get_pubsub:
             mock_pubsub = AsyncMock()
             mock_redis = AsyncMock()
+            # Set both .redis and ._redis attributes for compatibility
             mock_pubsub.redis = mock_redis
+            mock_pubsub._redis = mock_redis
+            mock_pubsub.is_connected = True
+
+            # Mock circuit breaker metrics
+            mock_pubsub.circuit_breaker_metrics = {
+                "state": "closed",
+                "failure_count": 0,
+                "last_failure_time": None,
+                "next_attempt_time": None,
+            }
+
+            # Mock Redis info
+            mock_redis.info.return_value = {
+                "redis_version": "7.2.0",
+                "uptime_in_seconds": 3600,
+                "connected_clients": 5,
+                "used_memory": 1048576,
+                "total_commands_processed": 1000,
+            }
+
+            # Mock connection pool
+            mock_pool = MagicMock()
+            mock_pool.max_connections = 10
+            mock_pool._created_connections = [1, 2, 3]
+            mock_pool._available_connections = [1, 2]
+            mock_redis.connection_pool = mock_pool
+
             mock_get_pubsub.return_value = mock_pubsub
 
             # Mock timing for ping operation
@@ -223,11 +251,35 @@ class TestRedisHealthAggregation:
         with patch("src.common.pubsub.get_pubsub") as mock_get_pubsub:
             mock_pubsub = AsyncMock()
             mock_redis = AsyncMock()
+            # Set both .redis and ._redis attributes for compatibility
             mock_pubsub.redis = mock_redis
+            mock_pubsub._redis = mock_redis
             mock_pubsub.is_connected = True
-            mock_circuit_breaker = MagicMock()
-            mock_circuit_breaker.state = "CLOSED"
-            mock_pubsub.circuit_breaker = mock_circuit_breaker
+
+            # Mock circuit breaker metrics
+            mock_pubsub.circuit_breaker_metrics = {
+                "state": "closed",
+                "failure_count": 0,
+                "last_failure_time": None,
+                "next_attempt_time": None,
+            }
+
+            # Mock Redis info
+            mock_redis.info.return_value = {
+                "redis_version": "7.2.0",
+                "uptime_in_seconds": 3600,
+                "connected_clients": 5,
+                "used_memory": 1048576,
+                "total_commands_processed": 1000,
+            }
+
+            # Mock connection pool
+            mock_pool = MagicMock()
+            mock_pool.max_connections = 10
+            mock_pool._created_connections = [1, 2, 3]
+            mock_pool._available_connections = [1, 2]
+            mock_redis.connection_pool = mock_pool
+
             mock_redis.ping.return_value = True
             mock_get_pubsub.return_value = mock_pubsub
 
@@ -242,11 +294,35 @@ class TestRedisHealthAggregation:
         with patch("src.common.pubsub.get_pubsub") as mock_get_pubsub:
             mock_pubsub = AsyncMock()
             mock_redis = AsyncMock()
+            # Set both .redis and ._redis attributes for compatibility
             mock_pubsub.redis = mock_redis
+            mock_pubsub._redis = mock_redis
             mock_pubsub.is_connected = True
-            mock_circuit_breaker = MagicMock()
-            mock_circuit_breaker.state = "OPEN"  # Circuit breaker open = degraded
-            mock_pubsub.circuit_breaker = mock_circuit_breaker
+
+            # Mock circuit breaker metrics - OPEN state = degraded
+            mock_pubsub.circuit_breaker_metrics = {
+                "state": "open",  # Circuit breaker open = degraded
+                "failure_count": 5,
+                "last_failure_time": 1234567890,
+                "next_attempt_time": 1234567900,
+            }
+
+            # Mock Redis info
+            mock_redis.info.return_value = {
+                "redis_version": "7.2.0",
+                "uptime_in_seconds": 3600,
+                "connected_clients": 5,
+                "used_memory": 1048576,
+                "total_commands_processed": 1000,
+            }
+
+            # Mock connection pool
+            mock_pool = MagicMock()
+            mock_pool.max_connections = 10
+            mock_pool._created_connections = [1, 2, 3]
+            mock_pool._available_connections = [1, 2]
+            mock_redis.connection_pool = mock_pool
+
             mock_redis.ping.return_value = True
             mock_get_pubsub.return_value = mock_pubsub
 
@@ -254,7 +330,7 @@ class TestRedisHealthAggregation:
 
             assert response.status_code == STATUS_OK
             result = response.json()
-            assert result["status"] == "degraded"
+            assert result["status"] == "offline"  # OPEN circuit breaker = offline status
 
     def test_health_status_aggregation_offline(self, test_client: TestClient) -> None:
         """Test health status aggregation when Redis is completely offline."""

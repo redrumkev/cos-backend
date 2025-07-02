@@ -43,11 +43,11 @@ from typing import TYPE_CHECKING, Any
 import psutil
 import pytest
 import redis.asyncio as redis
+from httpx import AsyncClient
 
 from src.backend.cc import crud
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
 
 # Performance targets

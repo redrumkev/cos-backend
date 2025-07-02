@@ -6,6 +6,7 @@ development, therefore we disable mypy and ruff checks for this file.
 # mypy: ignore-errors
 # ruff: noqa
 
+import os
 import uuid
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -16,6 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.logging import log_l1
 from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
+
+# Skip if database integration is not enabled
+ENABLE_DB_INTEGRATION = os.environ.get("ENABLE_DB_INTEGRATION", "").lower() == "true"
 
 
 class TestLogL1Basic:
@@ -624,6 +628,7 @@ class TestLogL1Performance:
         )
 
 
+@pytest.mark.skipif(not ENABLE_DB_INTEGRATION, reason="Database integration tests disabled")
 class TestLogL1DatabaseIntegrity:
     """Test database transaction integrity and consistency."""
 
@@ -631,11 +636,15 @@ class TestLogL1DatabaseIntegrity:
         """Test that transaction rolls back properly on errors."""
         # This test would require mocking database errors
         # For now, we verify normal transaction integrity
-        initial_count = (await test_db_session.execute(select(BaseLog))).rowcount
+        from sqlalchemy import func
+
+        initial_count_result = await test_db_session.execute(select(func.count()).select_from(BaseLog))
+        initial_count = initial_count_result.scalar() or 0
 
         await log_l1(db=test_db_session, event_type="integrity_test")
 
-        final_count = (await test_db_session.execute(select(BaseLog))).rowcount
+        final_count_result = await test_db_session.execute(select(func.count()).select_from(BaseLog))
+        final_count = final_count_result.scalar() or 0
         assert final_count == initial_count + 1
 
     async def test_foreign_key_relationships(self, test_db_session: AsyncSession) -> None:

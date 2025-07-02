@@ -183,7 +183,7 @@ class TestFastAPIInstrumentation:
 
             assert result is False
             assert "Failed to instrument FastAPI application" in caplog.text
-            assert "Failed to apply FastAPI auto-instrumentation" in caplog.text
+            assert "Instrumentation failed" in caplog.text  # Check for the actual exception message
 
     def test_request_attributes_mapper_functionality(self, mock_logfire: MagicMock) -> None:
         """Test the request attributes mapper function works correctly."""

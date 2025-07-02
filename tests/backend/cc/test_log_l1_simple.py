@@ -5,6 +5,7 @@ This diagnostic file is excluded from automated lint/type checks.
 # ruff: noqa
 # mypy: ignore-errors
 
+import os
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -13,8 +14,12 @@ import pytest
 from src.backend.cc.logging import log_l1
 from src.backend.cc.mem0_models import BaseLog
 
+# Skip if database integration is not enabled
+ENABLE_DB_INTEGRATION = os.environ.get("ENABLE_DB_INTEGRATION", "").lower() == "true"
+
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not ENABLE_DB_INTEGRATION, reason="Database integration tests disabled")
 async def test_simple_log_creation():
     """Test basic log creation using the application's connection logic."""
     import os
