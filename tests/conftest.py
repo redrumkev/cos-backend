@@ -1589,6 +1589,29 @@ except ImportError:
 # All async fixtures should use the function-scoped event_loop fixture below
 
 
+@pytest_asyncio.fixture(scope="session")
+async def redis_health_monitor() -> AsyncGenerator[Any, None]:
+    """Session-scoped Redis health monitor for integration tests."""
+    if RUN_INTEGRATION_MODE == "0":
+        # In mock mode, no need for health monitoring
+        yield None
+        return
+
+    try:
+        from src.common.redis_health_monitor import get_redis_health_monitor
+
+        monitor = await get_redis_health_monitor()
+
+        # Ensure Redis is available before starting tests
+        redis_available = await monitor.ensure_redis_available()
+        if not redis_available:
+            pytest.skip("Redis not available and could not be auto-recovered")
+
+        yield monitor
+    except ImportError:
+        yield None
+
+
 @pytest_asyncio.fixture
 async def fake_redis() -> AsyncGenerator[Any, None]:
     """Async fakeredis instance with proper cleanup and performance optimizations."""

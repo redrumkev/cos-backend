@@ -26,6 +26,15 @@ from .redis_config import get_redis_config
 
 logger = logging.getLogger(__name__)
 
+# Import Redis health monitor with graceful degradation
+try:
+    from .redis_health_monitor import ensure_redis_available_for_tests
+
+    _HEALTH_MONITOR_AVAILABLE = True
+except ImportError:
+    logger.debug("Redis health monitor not available")
+    _HEALTH_MONITOR_AVAILABLE = False
+
 # Import Logfire with graceful degradation
 try:
     import logfire
@@ -413,6 +422,15 @@ class RedisPubSub:
         if not _REDIS_AVAILABLE:
             msg = "Redis package is required for connection"
             raise PubSubError(msg)
+
+        # Check Redis health and auto-recover if needed
+        if _HEALTH_MONITOR_AVAILABLE:
+            try:
+                redis_available = await ensure_redis_available_for_tests()
+                if not redis_available:
+                    logger.warning("Redis health check failed - proceeding with connection attempt")
+            except Exception as e:
+                logger.warning("Redis health check error: %s - proceeding with connection attempt", e)
 
         async def _connect_operation() -> None:
             # Create optimized connection pool
