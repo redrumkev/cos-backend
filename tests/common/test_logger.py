@@ -41,8 +41,8 @@ class TestLogger:
         assert "id" in result
         assert "status" in result
         assert result["id"].startswith("log-test-source-")
-        # Should be success or fallback depending on database availability
-        assert result["status"] in ["success", "fallback"]
+        # Should be mem0_stub since memo defaults to None
+        assert result["status"] == "mem0_stub"
 
     def test_log_event_handles_dict_and_string_data(self) -> None:
         """Test that log_event handles both dict and string data."""

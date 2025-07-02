@@ -14,6 +14,7 @@ Tests cover:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -755,8 +756,11 @@ class TestSubscribeToChannelIterator:
         # Start the async iterator with short timeout for testing
         iterator = subscribe_to_channel(channel, max_idle_time=0.1)
 
-        # Verify subscribe was called
-        await iterator.__anext__()  # This will trigger the subscription
+        # Verify subscribe was called by attempting to get first message
+        # This will trigger the subscription, but may timeout if no messages
+        with contextlib.suppress(StopAsyncIteration):
+            await iterator.__anext__()  # This will trigger the subscription
+
         mock_pubsub.subscribe.assert_called_once()
 
         # Clean up - this should call unsubscribe

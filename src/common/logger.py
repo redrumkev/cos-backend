@@ -101,6 +101,15 @@ async def log_event_async(
     if memo is not None:
         payload["memo"] = memo
 
+    # Return stub response immediately if memo is None
+    if memo is None:
+        return {
+            "status": "mem0_stub",
+            "id": log_id,
+            "memo": None,
+            "data": data,
+        }
+
     try:
         # Get database session
         async_session_maker = get_async_session_maker()

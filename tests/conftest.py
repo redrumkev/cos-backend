@@ -1753,3 +1753,40 @@ def redis_test_utils() -> RedisTestUtils:
 @pytest.fixture
 def dummy_fixture() -> str:
     return "working"
+
+
+# ---------------------------------------------------------------------------
+# Additional fixtures for common test utilities
+# ---------------------------------------------------------------------------
+
+from typing import Any  # noqa: E402
+
+from src.common.base_subscriber import BaseSubscriber  # noqa: E402
+
+
+class _GlobalConcreteSubscriber(BaseSubscriber):
+    """Simple concrete subscriber used for module-level pytest fixtures.
+
+    This replicates the behaviour of the `ConcreteSubscriber` defined in
+    individual test modules so that tests in other classes (e.g.
+    `TestBaseSubscriberAdvancedScenarios`) can depend on a shared
+    `subscriber` fixture.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.processed_messages: list[dict[str, Any]] = []
+        self.process_success: bool = True
+        self.process_delay: float = 0.0
+
+    async def process_message(self, message: dict[str, Any]) -> bool:
+        if self.process_delay > 0:
+            await asyncio.sleep(self.process_delay)
+        self.processed_messages.append(message)
+        return self.process_success
+
+
+@pytest.fixture(name="subscriber")
+def subscriber_fixture() -> _GlobalConcreteSubscriber:
+    """Provide a reusable subscriber fixture for tests at module scope."""
+    return _GlobalConcreteSubscriber()
