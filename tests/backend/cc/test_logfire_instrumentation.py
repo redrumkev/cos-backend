@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
@@ -37,30 +36,15 @@ def mock_logfire() -> MagicMock:
 
 
 @pytest.fixture
-def clean_environment() -> Generator[None, None, None]:
+def clean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Clean environment fixture that removes LOGFIRE_TOKEN."""
-    original_token = os.environ.get("LOGFIRE_TOKEN")
-    if "LOGFIRE_TOKEN" in os.environ:
-        del os.environ["LOGFIRE_TOKEN"]
-
-    yield
-
-    if original_token is not None:
-        os.environ["LOGFIRE_TOKEN"] = original_token
+    monkeypatch.delenv("LOGFIRE_TOKEN", raising=False)
 
 
 @pytest.fixture
-def mock_environment_with_token() -> Generator[None, None, None]:
+def mock_environment_with_token(monkeypatch: pytest.MonkeyPatch) -> None:
     """Mock environment with LOGFIRE_TOKEN set."""
-    original_token = os.environ.get("LOGFIRE_TOKEN")
-    os.environ["LOGFIRE_TOKEN"] = "test_token_12345"
-
-    yield
-
-    if original_token is not None:
-        os.environ["LOGFIRE_TOKEN"] = original_token
-    elif "LOGFIRE_TOKEN" in os.environ:
-        del os.environ["LOGFIRE_TOKEN"]
+    monkeypatch.setenv("LOGFIRE_TOKEN", "test_token_12345")
 
 
 class TestLogfireInitialization:

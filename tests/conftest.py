@@ -31,24 +31,28 @@ from src.db.base import Base  # noqa: E402
 
 # SIMPLIFIED: Only production (5432) and dev (5433) databases
 # All testing (local and CI) uses the dev database
-test_db_url = os.getenv("DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev")
+_test_db_url_default = os.getenv(
+    "DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev"
+)
 
 # FORCE tests to use DEV database directly - bypass any caching issues
 # Store database URL but DO NOT create engines at module level to avoid event loop issues
 # Engines will be created inside each test's event loop as needed
-test_db_url_global = test_db_url
+# DEPRECATED: Use test_db_url() fixture instead of global variable
+test_db_url_global = _test_db_url_default  # Keep for backward compatibility
 
 # Initialize engine and session variables as None - they will be created per-test
 engine: Any | None = None
 AsyncSessionLocal: Any | None = None
 
-if test_db_url:
-    os.environ["DATABASE_URL_DEV"] = test_db_url
+if _test_db_url_default:
+    os.environ["DATABASE_URL_DEV"] = _test_db_url_default
 
 T = TypeVar("T", bound=Callable[..., Any])
 
 # RUN_INTEGRATION MODE CONTROL
-RUN_INTEGRATION_MODE = os.getenv("RUN_INTEGRATION", "0")
+# DEPRECATED: Use run_integration_mode() fixture instead of global variable
+RUN_INTEGRATION_MODE = os.getenv("RUN_INTEGRATION", "0")  # Keep for backward compatibility
 # Set the environment variable for modules that check it directly
 os.environ["RUN_INTEGRATION"] = RUN_INTEGRATION_MODE
 
@@ -384,7 +388,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[Any, None]:
+async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode: str) -> AsyncGenerator[Any, None]:
     """Return an *isolated* SQLAlchemy ``AsyncSession`` for each test.
 
     Implementation notes:
@@ -398,7 +402,7 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
     3.  The engine itself is disposed after the test to avoid resource leaks.
     """
     # In mock mode (RUN_INTEGRATION=0), return a mock session instead of real database
-    if RUN_INTEGRATION_MODE == "0":
+    if run_integration_mode == "0":
         from unittest.mock import MagicMock
 
         # Create fresh storage for each test to ensure isolation
@@ -1036,11 +1040,11 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
                                         }
 
                             # Filter out deleted objects
-                            filtered_data = {}
-                            for obj_id, data in combined_data.items():
-                                if obj_id not in self._deleted_ids:
-                                    filtered_data[obj_id] = data
-
+                            filtered_data = {
+                                obj_id: data
+                                for obj_id, data in combined_data.items()
+                                if obj_id not in self._deleted_ids
+                            }
                             return filtered_data
 
                         # Parse query for WHERE conditions (name/id/key searches)
@@ -1391,12 +1395,12 @@ async def db_session(event_loop: asyncio.AbstractEventLoop) -> AsyncGenerator[An
 
 
 @pytest.fixture(scope="function")
-def override_get_db(db_session: Any) -> Generator[None, None, None]:
+def override_get_db(db_session: Any, run_integration_mode: str) -> Generator[None, None, None]:
     """Override FastAPI dependency to use our per-test session.
 
     Ensures app.dependency_overrides.clear() is called reliably for test isolation.
     """
-    if RUN_INTEGRATION_MODE == "1":
+    if run_integration_mode == "1":
         # In integration mode, create fresh sessions within the TestClient's event loop
         async def _get_db() -> AsyncGenerator[Any, None]:
             from src.db.connection import get_async_db
@@ -1466,6 +1470,37 @@ def app() -> FastAPI | None:
         return cos_app
     except ImportError:
         return None
+
+
+# New fixtures for test isolation
+
+
+@pytest.fixture
+def run_integration_mode() -> str:
+    """Fixture for RUN_INTEGRATION mode to ensure proper test isolation."""
+    return os.getenv("RUN_INTEGRATION", "0")
+
+
+@pytest.fixture
+def test_db_url() -> str:
+    """Fixture for test database URL to ensure proper test isolation."""
+    return os.getenv("DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev")
+
+
+@pytest.fixture
+def env_var(monkeypatch: pytest.MonkeyPatch) -> Callable[[str, str], None]:
+    """Fixture for isolated environment variable modification.
+
+    Usage:
+        def test_something(env_var):
+            env_var("RUN_INTEGRATION", "1")
+            # Environment variable is set only for this test
+    """
+
+    def _set_env(key: str, value: str) -> None:
+        monkeypatch.setenv(key, value)
+
+    return _set_env
 
 
 # SEGMENT 7: Legacy Compatibility
@@ -1591,10 +1626,10 @@ except ImportError:
 # All async fixtures should use the function-scoped event_loop fixture below
 
 
-@pytest_asyncio.fixture(scope="session")
-async def redis_health_monitor() -> AsyncGenerator[Any, None]:
-    """Session-scoped Redis health monitor for integration tests."""
-    if RUN_INTEGRATION_MODE == "0":
+@pytest_asyncio.fixture(scope="function")
+async def redis_health_monitor(run_integration_mode: str) -> AsyncGenerator[Any, None]:
+    """Function-scoped Redis health monitor for integration tests."""
+    if run_integration_mode == "0":
         # In mock mode, no need for health monitoring
         yield None
         return
@@ -1616,13 +1651,17 @@ async def redis_health_monitor() -> AsyncGenerator[Any, None]:
 
 @pytest_asyncio.fixture
 async def fake_redis() -> AsyncGenerator[Any, None]:
-    """Async fakeredis instance with proper cleanup and performance optimizations."""
+    """Async fakeredis instance with proper cleanup and performance optimizations.
+
+    Each test gets its own isolated FakeRedis instance to prevent state leakage.
+    """
     try:
         from fakeredis import FakeAsyncRedis
     except ImportError:
         pytest.skip("fakeredis not available")
 
     # Create fakeredis instance with optimized settings
+    # Each test gets a fresh instance - no shared state
     redis_client = FakeAsyncRedis(
         decode_responses=False,  # Match production behavior
         socket_keepalive=True,

@@ -38,10 +38,9 @@ def test_settings_missing_critical() -> None:
         Settings()
 
 
-def test_mem0_schema_default() -> None:
+def test_mem0_schema_default(monkeypatch: pytest.MonkeyPatch) -> None:
     # Unset MEM0_SCHEMA if set
-    if "MEM0_SCHEMA" in os.environ:
-        del os.environ["MEM0_SCHEMA"]
+    monkeypatch.delenv("MEM0_SCHEMA", raising=False)
     s = Settings()
     assert s.MEM0_SCHEMA == "mem0_cc"
 

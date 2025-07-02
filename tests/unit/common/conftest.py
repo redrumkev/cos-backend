@@ -1,7 +1,6 @@
 """Shared fixtures for common module unit tests."""
 
-import asyncio
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import pytest
@@ -12,25 +11,23 @@ SIMULATED_FAILURE_MSG = "Simulated connection failure"
 MAX_FAILURES = 3
 
 
-@pytest.fixture(scope="session")
-def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    """Session-scoped event loop for consistent async testing."""
-    loop = asyncio.new_event_loop()
-    try:
-        yield loop
-    finally:
-        loop.close()
+# Removed session-scoped event loop to prevent conflicts
+# Using pytest-asyncio's default function-scoped event loop instead
 
 
 @pytest_asyncio.fixture
 async def fake_redis() -> AsyncGenerator[Any, None]:
-    """Async fakeredis instance with proper cleanup."""
+    """Async fakeredis instance with proper cleanup.
+
+    Each test gets its own isolated FakeRedis instance to prevent state leakage.
+    """
     try:
-        import fakeredis.aioredis
+        from fakeredis import FakeAsyncRedis
     except ImportError:
         pytest.skip("fakeredis not available")
 
-    redis_client = fakeredis.aioredis.FakeRedis(
+    # Create a fresh isolated instance for each test
+    redis_client = FakeAsyncRedis(
         decode_responses=False,
         socket_keepalive=True,
         retry_on_timeout=True,
@@ -39,6 +36,7 @@ async def fake_redis() -> AsyncGenerator[Any, None]:
     try:
         yield redis_client
     finally:
+        # Ensure complete cleanup
         await redis_client.flushall()
         await redis_client.aclose()
 

@@ -153,13 +153,13 @@ async def test_async_session_can_execute_simple_query() -> None:
 
 
 @pytest.mark.usefixtures("mock_env_settings")
-def test_async_engine_configured_with_pooling_and_timeouts() -> None:
+def test_async_engine_configured_with_pooling_and_timeouts(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verifies async engine is created with agent-specific pool settings."""
     with patch("sqlalchemy.ext.asyncio.create_async_engine") as mock_create:
         # Simulate agent config with edge values
-        os.environ["AGENT_POOL_SIZE"] = "1"
-        os.environ["AGENT_POOL_TIMEOUT"] = "2"
-        os.environ["AGENT_POOL_MAX_OVERFLOW"] = "0"
+        monkeypatch.setenv("AGENT_POOL_SIZE", "1")
+        monkeypatch.setenv("AGENT_POOL_TIMEOUT", "2")
+        monkeypatch.setenv("AGENT_POOL_MAX_OVERFLOW", "0")
 
         # Clear the LRU cache first
         database.get_async_engine.cache_clear()

@@ -20,13 +20,15 @@ ENABLE_DB_INTEGRATION = os.environ.get("ENABLE_DB_INTEGRATION", "").lower() == "
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not ENABLE_DB_INTEGRATION, reason="Database integration tests disabled")
-async def test_simple_log_creation():
+async def test_simple_log_creation(monkeypatch):
     """Test basic log creation using the application's connection logic."""
     import os
 
     # Force use of dev database
-    os.environ["TESTING"] = "false"
-    os.environ["DATABASE_URL_DEV"] = "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
+    monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setenv(
+        "DATABASE_URL_DEV", "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
+    )
 
     # Import models to ensure they're registered
     import src.backend.cc.mem0_models

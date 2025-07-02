@@ -22,7 +22,7 @@ from src.db.base import Base
 POSTGRES_DEV_URL = "postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev"
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def postgres_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create async engine for PostgreSQL test database."""
     engine = create_async_engine(

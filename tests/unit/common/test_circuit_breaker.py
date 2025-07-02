@@ -319,6 +319,9 @@ class TestCircuitBreaker:
 
     async def test_state_reset_on_close(self, circuit_breaker: CircuitBreaker) -> None:
         """Test that state is properly reset when circuit closes."""
+        # Force circuit to HALF_OPEN state first
+        circuit_breaker._state = CircuitBreakerState.HALF_OPEN
+
         # Force some state
         circuit_breaker._failure_count = 5
         circuit_breaker._success_count = 3

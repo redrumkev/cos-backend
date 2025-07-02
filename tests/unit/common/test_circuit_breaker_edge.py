@@ -131,19 +131,26 @@ class TestCircuitBreakerConfiguration:
         await asyncio.sleep(0.2)
 
         # First success should transition to HALF_OPEN
+        # For success_threshold=1, it will immediately close
         result = await circuit_breaker.call(success_func)
         assert result == "success"
-        assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN
 
-        # Additional successes needed based on threshold
-        for i in range(success_threshold - 1):
-            result = await circuit_breaker.call(success_func)
-            assert result == "success"
+        if success_threshold == 1:
+            # With threshold of 1, circuit closes immediately
+            assert circuit_breaker.state == CircuitBreakerState.CLOSED
+        else:
+            # Otherwise it should be in HALF_OPEN
+            assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN
 
-            if i < success_threshold - 2:
-                assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN
-            else:
-                assert circuit_breaker.state == CircuitBreakerState.CLOSED
+            # Additional successes needed based on threshold
+            for i in range(success_threshold - 1):
+                result = await circuit_breaker.call(success_func)
+                assert result == "success"
+
+                if i < success_threshold - 2:
+                    assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN
+                else:
+                    assert circuit_breaker.state == CircuitBreakerState.CLOSED
 
     async def test_custom_exception_types(self) -> None:
         """Test circuit breaker with custom expected exception types."""

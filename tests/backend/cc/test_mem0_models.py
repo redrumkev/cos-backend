@@ -107,21 +107,14 @@ class TestMem0TableArgs:
             assert "schema" not in args
             assert args["extend_existing"] is True
 
-    def test_table_args_default_behavior(self) -> None:
+    def test_table_args_default_behavior(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test table args with default environment."""
         # Remove the env var if it exists
-        env_backup = os.environ.get("ENABLE_DB_INTEGRATION")
-        if "ENABLE_DB_INTEGRATION" in os.environ:
-            del os.environ["ENABLE_DB_INTEGRATION"]
+        monkeypatch.delenv("ENABLE_DB_INTEGRATION", raising=False)
 
-        try:
-            args = get_mem0_table_args()
-            assert "schema" not in args
-            assert args["extend_existing"] is True
-        finally:
-            # Restore env var if it existed
-            if env_backup is not None:
-                os.environ["ENABLE_DB_INTEGRATION"] = env_backup
+        args = get_mem0_table_args()
+        assert "schema" not in args
+        assert args["extend_existing"] is True
 
 
 @pytest.mark.asyncio
