@@ -49,6 +49,8 @@ T = TypeVar("T", bound=Callable[..., Any])
 
 # RUN_INTEGRATION MODE CONTROL
 RUN_INTEGRATION_MODE = os.getenv("RUN_INTEGRATION", "0")
+# Set the environment variable for modules that check it directly
+os.environ["RUN_INTEGRATION"] = RUN_INTEGRATION_MODE
 
 # SEGMENT 2: Model Imports & Infrastructure
 

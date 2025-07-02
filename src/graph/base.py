@@ -50,28 +50,34 @@ try:
             pass
 
     if USING_RUST_DRIVER:
-        log_event(
-            source="graph",
-            data={"driver_type": "rust", "rust_modules": len(rust_modules)},
-            tags=["initialization", "performance"],
-            memo="Neo4j Rust-enhanced driver active for optimized performance",
-        )
+        # Skip logging during test imports to avoid event loop issues
+        if os.getenv("RUN_INTEGRATION", "1") == "1":
+            log_event(
+                source="graph",
+                data={"driver_type": "rust", "rust_modules": len(rust_modules)},
+                tags=["initialization", "performance"],
+                memo="Neo4j Rust-enhanced driver active for optimized performance",
+            )
     else:
-        log_event(
-            source="graph",
-            data={"driver_type": "standard"},
-            tags=["initialization"],
-            memo="Using standard Neo4j driver (install neo4j-rust-ext for 3-10x performance boost)",
-        )
+        # Skip logging during test imports to avoid event loop issues
+        if os.getenv("RUN_INTEGRATION", "1") == "1":
+            log_event(
+                source="graph",
+                data={"driver_type": "standard"},
+                tags=["initialization"],
+                memo="Using standard Neo4j driver (install neo4j-rust-ext for 3-10x performance boost)",
+            )
 except Exception:
     # Fallback to standard if detection fails
     USING_RUST_DRIVER = False
-    log_event(
-        source="graph",
-        data={"driver_type": "standard", "reason": "detection_failed"},
-        tags=["initialization", "fallback"],
-        memo="Using standard Neo4j driver",
-    )
+    # Skip logging during test imports to avoid event loop issues
+    if os.getenv("RUN_INTEGRATION", "1") == "1":
+        log_event(
+            source="graph",
+            data={"driver_type": "standard", "reason": "detection_failed"},
+            tags=["initialization", "fallback"],
+            memo="Using standard Neo4j driver",
+        )
 
 
 class Neo4jClient:

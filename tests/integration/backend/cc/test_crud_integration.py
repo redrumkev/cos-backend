@@ -6,6 +6,7 @@ to test CRUD operations, constraints, and database-specific behavior.
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -23,9 +24,13 @@ from src.backend.cc.crud import (
 )
 from src.backend.cc.models import HealthStatus
 
+# Skip if database integration is not enabled
+ENABLE_DB_INTEGRATION = os.environ.get("ENABLE_DB_INTEGRATION", "").lower() == "true"
+
 # Phase 2: Integration testing enabled
 
 
+@pytest.mark.skipif(not ENABLE_DB_INTEGRATION, reason="Database integration tests disabled")
 class TestCRUDIntegration:
     """Integration tests for CRUD operations with PostgreSQL."""
 

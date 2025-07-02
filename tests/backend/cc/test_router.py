@@ -12,10 +12,10 @@ import pytest
 from httpx import AsyncClient
 
 
+@pytest.mark.asyncio
 class TestModuleRouterEndpoints:
     """Test cases for Module router endpoints."""
 
-    @pytest.mark.asyncio
     async def test_create_module_success(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test creating a module via POST /modules."""
         module_name = f"test_module_{unique_test_id}"
@@ -32,7 +32,6 @@ class TestModuleRouterEndpoints:
         assert "id" in data
         assert "last_active" in data
 
-    @pytest.mark.asyncio
     async def test_create_module_minimal_data(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test creating a module with minimal required data."""
         module_name = f"minimal_module_{unique_test_id}"
@@ -46,7 +45,6 @@ class TestModuleRouterEndpoints:
         assert data["version"] == "1.0.0"
         assert data["config"] is None
 
-    @pytest.mark.asyncio
     async def test_create_module_validation_error(self, async_client: AsyncClient) -> None:
         """Test creating a module with invalid data."""
         module_data = {
@@ -58,7 +56,6 @@ class TestModuleRouterEndpoints:
 
         assert response.status_code == 422  # Validation error
 
-    @pytest.mark.asyncio
     async def test_create_module_duplicate_name(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test creating a module with duplicate name."""
         module_name = f"duplicate_module_{unique_test_id}"
@@ -73,7 +70,6 @@ class TestModuleRouterEndpoints:
         assert response2.status_code == 409
         assert "already exists" in response2.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_list_modules_empty(self, async_client: AsyncClient) -> None:
         """Test listing modules when database is empty."""
         response = await async_client.get("/cc/modules")
@@ -82,7 +78,6 @@ class TestModuleRouterEndpoints:
         data = response.json()
         assert data == []
 
-    @pytest.mark.asyncio
     async def test_list_modules_with_data(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test listing modules with data."""
         # Create multiple modules
@@ -108,7 +103,6 @@ class TestModuleRouterEndpoints:
         expected_names = [f"module_a_{unique_test_id}", f"module_b_{unique_test_id}", f"module_c_{unique_test_id}"]
         assert module_names == expected_names
 
-    @pytest.mark.asyncio
     async def test_list_modules_pagination(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test listing modules with pagination."""
         # Create multiple modules
@@ -133,7 +127,6 @@ class TestModuleRouterEndpoints:
         assert data[0]["name"] == f"module_02_{unique_test_id}"
         assert data[1]["name"] == f"module_03_{unique_test_id}"
 
-    @pytest.mark.asyncio
     async def test_get_module_success(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test getting a specific module by ID."""
         # Create a module first
@@ -152,7 +145,6 @@ class TestModuleRouterEndpoints:
         assert data["name"] == module_name
         assert data["version"] == "1.0.0"
 
-    @pytest.mark.asyncio
     async def test_get_module_not_found(self, async_client: AsyncClient) -> None:
         """Test getting a module that doesn't exist."""
         fake_id = str(uuid4())
@@ -161,7 +153,6 @@ class TestModuleRouterEndpoints:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_update_module_success(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test updating a module successfully."""
         # Create a module first
@@ -182,7 +173,6 @@ class TestModuleRouterEndpoints:
         assert data["active"] is False
         assert data["name"] == module_name  # Unchanged
 
-    @pytest.mark.asyncio
     async def test_update_module_partial(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test updating a module with partial data."""
         # Create a module first
@@ -202,7 +192,6 @@ class TestModuleRouterEndpoints:
         assert data["name"] == module_name  # Unchanged
         assert data["active"] is True  # Unchanged
 
-    @pytest.mark.asyncio
     async def test_update_module_not_found(self, async_client: AsyncClient) -> None:
         """Test updating a module that doesn't exist."""
         fake_id = str(uuid4())
@@ -212,7 +201,6 @@ class TestModuleRouterEndpoints:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_update_module_name_conflict(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test updating a module name to conflict with existing module."""
         # Create two modules
@@ -233,7 +221,6 @@ class TestModuleRouterEndpoints:
         assert response.status_code == 409
         assert "already exists" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_delete_module_success(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test deleting a module successfully."""
         # Create a module first
@@ -254,7 +241,6 @@ class TestModuleRouterEndpoints:
         get_response = await async_client.get(f"/cc/modules/{created_module['id']}")
         assert get_response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_delete_module_not_found(self, async_client: AsyncClient) -> None:
         """Test deleting a module that doesn't exist."""
         fake_id = str(uuid4())
@@ -263,7 +249,6 @@ class TestModuleRouterEndpoints:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_module_crud_workflow(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test a complete CRUD workflow for modules."""
         module_name = f"workflow_module_{unique_test_id}"

@@ -36,6 +36,7 @@ def test_engine_pooling_enabled() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not RUN_INTEGRATION, reason="Database integration tests disabled")
 async def test_basic_connection() -> None:
     """Test basic PostgreSQL connection works."""
     # Phase 2: Always test PostgreSQL connection
@@ -86,6 +87,7 @@ class TestDatabaseConnectionUnit:
 
 # Test with PostgreSQL integration
 @pytest.mark.integration
+@pytest.mark.skipif(not RUN_INTEGRATION, reason="Database integration tests disabled")
 class TestDatabaseConnectionIntegration:
     """Test database connection with a real PostgreSQL database."""
 

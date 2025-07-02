@@ -183,22 +183,11 @@ async def log_l1(
 
     """
     # Import models directly to avoid registry conflicts
-    try:
-        from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
+    from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
 
-        base_log_cls = BaseLog
-        event_log_cls = EventLog
-        prompt_trace_cls = PromptTrace
-    except ImportError as err:
-        # Fallback if import fails during testing - direct import preferred
-        try:
-            from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
-
-            base_log_cls = BaseLog
-            event_log_cls = EventLog
-            prompt_trace_cls = PromptTrace
-        except ImportError:
-            raise ImportError("Failed to load mem0 models") from err
+    base_log_cls = BaseLog
+    event_log_cls = EventLog
+    prompt_trace_cls = PromptTrace
 
     # Get request_id from context if not provided
     if not request_id:
