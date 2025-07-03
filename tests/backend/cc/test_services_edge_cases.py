@@ -57,7 +57,9 @@ class TestReadSystemHealthFunction:
 
         # Mock health record (using MagicMock instead of dict to match HealthStatus type)
         mock_health_record = MagicMock()
-        mock_health_record.id = "test-id"
+        import uuid
+
+        mock_health_record.id = str(uuid.uuid4())
         mock_health_record.module = "cc"
         mock_health_record.status = "healthy"
         mock_health_record.last_updated = datetime.fromisoformat("2025-01-01T00:00:00+00:00")
@@ -288,7 +290,9 @@ class TestUpdateModuleFunction:
     ) -> None:
         """Test update_module raises ValueError for name conflicts."""
         mock_db = MagicMock()
-        module_id = "test-id-1"
+        import uuid
+
+        module_id = str(uuid.uuid4())
 
         # Mock existing module with different ID
         mock_existing_module = MagicMock()
@@ -306,7 +310,9 @@ class TestUpdateModuleFunction:
     ) -> None:
         """Test update_module allows updating name to same module's name."""
         mock_db = MagicMock()
-        module_id = "test-id-1"
+        import uuid
+
+        module_id = str(uuid.uuid4())
 
         # Mock existing module with same ID
         mock_existing_module = MagicMock()
@@ -326,7 +332,9 @@ class TestUpdateModuleFunction:
     async def test_update_module_no_name_field(self, mock_log: Any, mock_update: Any) -> None:
         """Test update_module without name field (no conflict check)."""
         mock_db = MagicMock()
-        module_id = "test-id-1"
+        import uuid
+
+        module_id = str(uuid.uuid4())
 
         mock_updated_module = MagicMock()
         mock_update.return_value = mock_updated_module
@@ -347,13 +355,16 @@ class TestServiceLoggingCalls:
         mock_db = MagicMock()
         mock_crud_get.return_value = None
 
-        await get_module(mock_db, "test-id")
+        import uuid
+
+        test_id = str(uuid.uuid4())
+        await get_module(mock_db, test_id)
 
         mock_log.assert_called_once_with(
             source="cc",
-            data={"module_id": "test-id"},
+            data={"module_id": test_id},
             tags=["service", "module", "read"],
-            memo="Retrieving module test-id",
+            memo=f"Retrieving module {test_id}",
         )
 
     @patch("src.backend.cc.services.crud_get_module_by_name")
@@ -395,11 +406,14 @@ class TestServiceLoggingCalls:
         mock_db = MagicMock()
         mock_crud_delete.return_value = None
 
-        await delete_module(mock_db, "test-id")
+        import uuid
+
+        test_id = str(uuid.uuid4())
+        await delete_module(mock_db, test_id)
 
         mock_log.assert_called_once_with(
             source="cc",
-            data={"module_id": "test-id"},
+            data={"module_id": test_id},
             tags=["service", "module", "delete"],
-            memo="Deleting module test-id",
+            memo=f"Deleting module {test_id}",
         )

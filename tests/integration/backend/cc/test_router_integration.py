@@ -21,21 +21,24 @@ class TestRouterIntegration:
 
     async def test_create_module_endpoint_integration(self, db_session: AsyncSession, async_client: Any) -> None:
         """Test module creation endpoint with real database."""
-        module_data = {"name": "api_test_module", "version": "1.0.0", "config": '{"api_test": true}'}
+        unique_id = str(uuid4())[:8]
+        module_name = f"api_test_module_{unique_id}"
+        module_data = {"name": module_name, "version": "1.0.0", "config": '{"api_test": true}'}
 
         response = await async_client.post("/cc/modules", json=module_data)
 
         assert response.status_code == 201
         data = response.json()
-        assert data["name"] == "api_test_module"
+        assert data["name"] == module_name
         assert data["version"] == "1.0.0"
         assert data["config"] == '{"api_test": true}'
 
     async def test_get_modules_endpoint_pagination(self, db_session: AsyncSession, async_client: Any) -> None:
         """Test modules listing endpoint with pagination."""
+        unique_id = str(uuid4())[:8]
         # Create test modules through the API
         for i in range(12):
-            module_data = {"name": f"api_pagination_module_{i:02d}", "version": "1.0.0"}
+            module_data = {"name": f"api_pagination_module_{unique_id}_{i:02d}", "version": "1.0.0"}
             await async_client.post("/cc/modules", json=module_data)
 
         # Test first page
@@ -52,8 +55,10 @@ class TestRouterIntegration:
 
     async def test_get_module_by_id_endpoint(self, db_session: AsyncSession, async_client: Any) -> None:
         """Test getting a specific module by ID through API."""
+        unique_id = str(uuid4())[:8]
+        module_name = f"api_get_test_module_{unique_id}"
         # Create a module
-        module_data = {"name": "api_get_test_module", "version": "1.0.0"}
+        module_data = {"name": module_name, "version": "1.0.0"}
         create_response = await async_client.post("/cc/modules", json=module_data)
         assert create_response.status_code == 201
         created_module = create_response.json()
@@ -63,12 +68,14 @@ class TestRouterIntegration:
         assert get_response.status_code == 200
         retrieved_module = get_response.json()
         assert retrieved_module["id"] == created_module["id"]
-        assert retrieved_module["name"] == "api_get_test_module"
+        assert retrieved_module["name"] == module_name
 
     async def test_update_module_endpoint(self, db_session: AsyncSession, async_client: Any) -> None:
         """Test module update endpoint."""
+        unique_id = str(uuid4())[:8]
+        module_name = f"api_update_test_module_{unique_id}"
         # Create a module
-        module_data = {"name": "api_update_test_module", "version": "1.0.0"}
+        module_data = {"name": module_name, "version": "1.0.0"}
         create_response = await async_client.post("/cc/modules", json=module_data)
         assert create_response.status_code == 201
         created_module = create_response.json()
@@ -104,8 +111,10 @@ class TestRouterIntegration:
 
     async def test_error_handling_integration(self, db_session: AsyncSession, async_client: Any) -> None:
         """Test API error handling with database constraints."""
+        unique_id = str(uuid4())[:8]
+        module_name = f"duplicate_test_module_{unique_id}"
         # Create a module
-        module_data = {"name": "duplicate_test_module", "version": "1.0.0"}
+        module_data = {"name": module_name, "version": "1.0.0"}
         response1 = await async_client.post("/cc/modules", json=module_data)
         assert response1.status_code == 201
 

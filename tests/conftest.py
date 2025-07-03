@@ -773,6 +773,21 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                     result_data = [known_tables.get(qualified_name)] if qualified_name in known_tables else [None]
                     return _MockAsyncResult(result_data)
 
+                # Handle SQLite table existence queries for schema tests
+                if "sqlite_master" in query_str and "name" in query_str and params:
+                    table_name = params.get("table_name", "")
+                    # For SQLite schema tests, return the table name if it's a known table
+                    known_tables = {
+                        "health_status": "health_status",
+                        "modules": "modules",
+                        "scratch_note": "scratch_note",
+                        "event_log": "event_log",
+                        "base_log": "base_log",
+                        "prompt_trace": "prompt_trace",
+                    }
+                    result_data = [known_tables.get(table_name)] if table_name in known_tables else [None]
+                    return _MockAsyncResult(result_data)
+
                 # Handle raw text() queries for TTL/cleanup operations
                 if "select key from" in query_str and "scratch_note" in query_str:
                     # This is the TTL query that needs special handling

@@ -31,8 +31,11 @@ class TestFieldSerializers:
         test_datetime = datetime(2025, 1, 1, 12, 0, 0)
 
         # Create HealthStatusResponse instance
+        import uuid
+
+        test_uuid = str(uuid.uuid4())
         health_status = HealthStatusResponse(
-            id="test-id", module="cc", status="healthy", last_updated=test_datetime, details="Test details"
+            id=test_uuid, module="cc", status="healthy", last_updated=test_datetime, details="Test details"
         )
 
         # Convert to dict (triggers serialization)
@@ -51,8 +54,11 @@ class TestFieldSerializers:
         test_datetime = datetime(2025, 1, 1, 12, 0, 0)
 
         # Create Module instance
+        import uuid
+
+        test_uuid = str(uuid.uuid4())
         module = Module(
-            id="test-id",
+            id=test_uuid,
             name="test_module",
             version="1.0.0",
             active=True,
@@ -177,10 +183,13 @@ class TestSchemaConfigDict:
 
     def test_health_status_response_from_attributes(self) -> None:
         """Test HealthStatusResponse can be created from SQLAlchemy model attributes."""
-
         # Mock an SQLAlchemy model object
+        import uuid
+
+        test_uuid = str(uuid.uuid4())
+
         class MockModel:
-            id = "test-id"
+            id = test_uuid
             module = "cc"
             status = "healthy"
             last_updated = datetime(2025, 1, 1, 12, 0, 0)
@@ -190,16 +199,19 @@ class TestSchemaConfigDict:
 
         # Test from_attributes=True allows creation from model
         health = HealthStatusResponse.model_validate(mock_model)
-        assert health.id == "test-id"
+        assert health.id == test_uuid
         assert health.module == "cc"
         assert health.status == "healthy"
 
     def test_module_from_attributes(self) -> None:
         """Test Module can be created from SQLAlchemy model attributes."""
-
         # Mock an SQLAlchemy model object
+        import uuid
+
+        test_uuid = str(uuid.uuid4())
+
         class MockModel:
-            id = "test-id"
+            id = test_uuid
             name = "test_module"
             version = "1.0.0"
             active = True
@@ -210,7 +222,7 @@ class TestSchemaConfigDict:
 
         # Test from_attributes=True allows creation from model
         module = Module.model_validate(mock_model)
-        assert module.id == "test-id"
+        assert module.id == test_uuid
         assert module.name == "test_module"
         assert module.version == "1.0.0"
         assert module.active is True

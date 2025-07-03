@@ -166,18 +166,21 @@ class TestSchemaValidation:
 
     def test_health_status_response_serialization(self) -> None:
         """Test HealthStatusResponse serialization."""
+        import uuid
+
         from src.backend.cc.schemas import HealthStatusResponse
 
         # Test basic serialization
+        test_uuid = str(uuid.uuid4())
         response = HealthStatusResponse(
-            id="test-id",
+            id=test_uuid,
             module="cc",
             status="healthy",
             last_updated="2025-01-01T00:00:00Z",
             details=None,
         )
 
-        assert response.id == "test-id"
+        assert response.id == test_uuid
         assert response.module == "cc"
         assert response.status == "healthy"
 

@@ -144,6 +144,8 @@ async def create_module(db: AsyncSession, name: str, version: str, config: str |
         ```
 
     """
+    from datetime import UTC, datetime
+
     log_event(
         source="cc",
         data={"name": name, "version": version},
@@ -151,7 +153,14 @@ async def create_module(db: AsyncSession, name: str, version: str, config: str |
         memo=f"Creating new module {name} version {version}",
     )
 
-    module = Module(name=name, version=version, config=config)
+    # Explicitly set default values to ensure they're present in test environment
+    module = Module(
+        name=name,
+        version=version,
+        config=config,
+        active=True,  # Explicit default
+        last_active=datetime.now(UTC),  # Explicit default
+    )
     db.add(module)
     await db.commit()
     await db.refresh(module)
