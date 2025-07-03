@@ -9,17 +9,18 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest  # Phase 2: Remove for skip removal
-from backend.cc.deps import DBSession, get_cc_db
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.backend.cc.deps import DBSession, get_cc_db
 
 # Phase 2: Skip block removed - dependency injection wiring completed (P2-DEPS-001)
 
 
 def test_dependency_imports() -> None:
     """Test that we can import the dependencies without errors."""
-    from backend.cc.deps import DBSession, get_cc_db, get_db_session
+    from src.backend.cc.deps import DBSession, get_cc_db, get_db_session
 
     # Verify backward compatibility alias exists
     assert get_db_session is get_cc_db

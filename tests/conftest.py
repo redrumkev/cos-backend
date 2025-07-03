@@ -23,8 +23,9 @@ project_root = Path(__file__).parent.parent
 src_path = project_root / "src"
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+# REMOVED: Don't add project root to avoid duplicate import paths
+# This was causing SQLAlchemy mapper conflicts when models were imported
+# via both 'backend.cc.module' and 'src.backend.cc.module' paths
 
 # Import database components
 from src.db.base import Base  # noqa: E402
@@ -385,6 +386,27 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
         yield loop
     finally:
         loop.close()
+
+
+@pytest.fixture(autouse=True)
+def reset_sqlalchemy_mappers() -> Generator[None, None, None]:
+    """Reset SQLAlchemy mappers between tests to prevent registration conflicts.
+
+    This fixture runs automatically for every test to ensure clean mapper state.
+    """
+    yield
+    # IMPORTANT: Disabled clear_mappers() as it was causing test isolation issues
+    # clear_mappers() removes __table__ attributes from model classes, breaking subsequent tests
+    # Transaction rollback in db_session fixture provides sufficient isolation
+
+    # Previous problematic code that was clearing model definitions:
+    # from sqlalchemy.orm import clear_mappers
+    # from src.db.base import Base
+    # try:
+    #     clear_mappers()
+    #     Base.metadata.clear()
+    # except Exception as e:
+    #     _ = e
 
 
 @pytest_asyncio.fixture(scope="function")

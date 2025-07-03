@@ -71,14 +71,6 @@ class HealthStatus(Base):
     last_updated = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
     details = Column(String, nullable=True)
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize HealthStatus with defaults."""
-        if "id" not in kwargs:
-            kwargs["id"] = str(uuid4())
-        if "last_updated" not in kwargs:
-            kwargs["last_updated"] = datetime.now(UTC)
-        super().__init__(**kwargs)
-
     def __repr__(self) -> str:
         """Return string representation of HealthStatus."""
         return f"<HealthStatus(module='{self.module}', status='{self.status}')>"
@@ -100,16 +92,6 @@ class Module(Base):
     active = Column(Boolean, nullable=False, default=True)
     last_active = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
     config = Column(String, nullable=True)  # JSON string
-
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize Module with defaults."""
-        if "id" not in kwargs:
-            kwargs["id"] = str(uuid4())
-        if "active" not in kwargs:
-            kwargs["active"] = True
-        if "last_active" not in kwargs:
-            kwargs["last_active"] = datetime.now(UTC)
-        super().__init__(**kwargs)
 
     def __repr__(self) -> str:
         """Return string representation of Module object."""
