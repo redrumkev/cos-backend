@@ -26,11 +26,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import shutil
-import subprocess
 import time
-from asyncio import create_subprocess_exec
-from asyncio import subprocess as aio_subprocess
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
@@ -39,6 +35,10 @@ import pytest
 import redis.asyncio as redis
 
 from src.backend.cc import crud
+from src.common.redis_health_monitor import RedisHealthMonitor
+
+from .docker_utils import DockerHealthManager
+from .mock_service_utils import mock_service_interruption
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -53,97 +53,87 @@ OPERATION_TIMEOUT_S = 2.0
 logger = logging.getLogger(__name__)
 
 
-class ServiceController:
-    """Utility class for controlling Docker services during testing.
-
-    All Docker interactions are executed via non-blocking subprocess calls to
-    avoid blocking the asyncio event-loop, satisfying **ASYNC101** and related
-    linter rules.
-    """
-
-    @staticmethod
-    async def _docker_cmd(*args: str) -> None:
-        """Execute a docker CLI command asynchronously.
-
-        Raises
-        ------
-        subprocess.CalledProcessError
-            If the underlying docker command exits with a non-zero status.
-
-        """
-        docker_path = shutil.which("docker")
-        if docker_path is None:
-            raise RuntimeError("`docker` executable not found in PATH; required for tests.")
-
-        proc = await create_subprocess_exec(
-            docker_path,
-            *args,
-            stdout=aio_subprocess.PIPE,
-            stderr=aio_subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            cmd_list = [docker_path, *args]
-            raise subprocess.CalledProcessError(
-                proc.returncode or -1,
-                cmd_list,
-                output=stdout,
-                stderr=stderr,
-            )
-
-    @classmethod
-    async def pause_service(cls, service_name: str) -> None:
-        await cls._docker_cmd("pause", service_name)
-        logger.info("Paused service: %s", service_name)
-
-    @classmethod
-    async def unpause_service(cls, service_name: str) -> None:
-        await cls._docker_cmd("unpause", service_name)
-        logger.info("Unpaused service: %s", service_name)
-
-    @classmethod
-    async def stop_service(cls, service_name: str) -> None:
-        await cls._docker_cmd("stop", service_name)
-        logger.info("Stopped service: %s", service_name)
-
-    @classmethod
-    async def start_service(cls, service_name: str) -> None:
-        await cls._docker_cmd("start", service_name)
-        logger.info("Started service: %s", service_name)
-
-    @classmethod
-    async def wait_for_service_ready(cls, service_name: str, max_attempts: int = 20) -> None:
-        """Poll the service until a simple command succeeds."""
-        for _ in range(max_attempts):
-            try:
-                await cls._docker_cmd("exec", service_name, "echo", "ready")
-                logger.info("Service %s is ready", service_name)
-                return
-            except subprocess.CalledProcessError:
-                await asyncio.sleep(0.5)
-
-        raise RuntimeError(f"Service {service_name} not ready after {max_attempts} attempts")
+# ServiceController removed - using DockerHealthManager instead
 
 
 @asynccontextmanager
-async def service_interruption(service_name: str, interruption_type: str = "pause") -> AsyncGenerator[None, None]:
-    """Context manager for temporary service interruption."""
-    controller = ServiceController()
+async def service_interruption(
+    service_name: str, 
+    interruption_type: str = "pause",
+    use_mock: bool = True
+) -> AsyncGenerator[None, None]:
+    """Context manager for temporary service interruption with auto-recovery.
+    
+    Args:
+    ----
+        service_name: Name of the service to interrupt (e.g., "cos_redis")
+        interruption_type: Type of interruption - "pause", "stop", or mock types:
+            - "connection_error": Mock connection failures
+            - "timeout": Mock timeout failures  
+            - "pubsub_failure": Mock pub/sub failures
+        use_mock: If True, use mocks instead of actual Docker operations (default: True)
+    
+    """
+    # Use mocks by default to avoid Docker Desktop manual intervention
+    if use_mock:
+        # Map Docker interruption types to mock types
+        mock_type = interruption_type
+        if interruption_type == "pause":
+            mock_type = "connection_error"
+        elif interruption_type == "stop":
+            mock_type = "connection_error"
+            
+        async with mock_service_interruption(service_name, mock_type):
+            yield
+        return
+    
+    # Original Docker-based implementation (kept for backward compatibility)
+    manager = DockerHealthManager(service_name, command_timeout=60.0)
+    
+    # For Redis, also use RedisHealthMonitor for additional recovery
+    redis_monitor = None
+    if service_name == "cos_redis":
+        redis_monitor = RedisHealthMonitor(container_name=service_name, auto_recovery=True)
 
     try:
+        # Interrupt the service
         if interruption_type == "pause":
-            await controller.pause_service(service_name)
+            success = await manager.pause_container()
+            if not success:
+                pytest.skip(f"Failed to pause {service_name} for test")
         elif interruption_type == "stop":
-            await controller.stop_service(service_name)
+            success = await manager.stop_container()
+            if not success:
+                pytest.skip(f"Failed to stop {service_name} for test")
 
         yield
 
     finally:
-        if interruption_type == "pause":
-            await controller.unpause_service(service_name)
-        elif interruption_type == "stop":
-            await controller.start_service(service_name)
-            await controller.wait_for_service_ready(service_name)
+        # Always attempt to restore service, even if test failed
+        try:
+            if interruption_type == "pause":
+                logger.info(f"Restoring {service_name} from paused state")
+                success = await manager.unpause_container()
+                
+                # For Redis, use health monitor for additional recovery
+                if redis_monitor and not success:
+                    logger.warning("Using RedisHealthMonitor for recovery")
+                    health_status = await redis_monitor.check_health()
+                    if health_status.auto_recovery_successful:
+                        success = True
+                
+                if not success:
+                    logger.error(f"Failed to unpause {service_name} - manual intervention may be required")
+                    
+            elif interruption_type == "stop":
+                logger.info(f"Restarting {service_name}")
+                success = await manager.start_container()
+                if not success:
+                    logger.error(f"Failed to start {service_name} - manual intervention may be required")
+                    
+        except Exception as e:
+            logger.exception(f"Error during service restoration for {service_name}: {e}")
+            # Don't re-raise to allow test cleanup to continue
 
 
 class TestRedisFailureScenarios:

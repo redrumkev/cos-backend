@@ -8,17 +8,21 @@ Reference implementation for future module API patterns.
 
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import mem0_service
-from .deps import DBSession
+from .deps import get_cc_db
 from .schemas import CleanupResponse, ScratchNoteCreate, ScratchNoteResponse, ScratchNoteUpdate, ScratchStatsResponse
 
 router = APIRouter(prefix="/scratch", tags=["scratch"])
 
 
 @router.post("/notes", response_model=ScratchNoteResponse)
-async def create_note(data: ScratchNoteCreate, db: DBSession) -> ScratchNoteResponse:
+async def create_note(
+    data: ScratchNoteCreate, 
+    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+) -> ScratchNoteResponse:
     """Create a scratch note with optional TTL."""
     try:
         note = await mem0_service.create_note(db, data.key, data.content, data.ttl_days)
@@ -30,7 +34,10 @@ async def create_note(data: ScratchNoteCreate, db: DBSession) -> ScratchNoteResp
 
 
 @router.get("/notes/{note_id}", response_model=ScratchNoteResponse)
-async def get_note(note_id: int, db: DBSession) -> ScratchNoteResponse:
+async def get_note(
+    note_id: int, 
+    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+) -> ScratchNoteResponse:
     """Get a scratch note by ID."""
     note = await mem0_service.get_note(db, note_id)
     if not note:
@@ -39,7 +46,10 @@ async def get_note(note_id: int, db: DBSession) -> ScratchNoteResponse:
 
 
 @router.get("/notes/key/{key}", response_model=ScratchNoteResponse)
-async def get_note_by_key(key: str, db: DBSession) -> ScratchNoteResponse:
+async def get_note_by_key(
+    key: str, 
+    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+) -> ScratchNoteResponse:
     """Get a scratch note by key."""
     note = await mem0_service.get_note_by_key(db, key)
     if not note:
@@ -49,7 +59,7 @@ async def get_note_by_key(key: str, db: DBSession) -> ScratchNoteResponse:
 
 @router.get("/notes", response_model=list[ScratchNoteResponse])
 async def list_notes(
-    db: DBSession,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
     key_prefix: str | None = Query(None, description="Filter by key prefix"),
     include_expired: bool = Query(False, description="Include expired notes"),
     limit: int = Query(100, description="Maximum number of notes to return", ge=1, le=1000),
@@ -61,7 +71,11 @@ async def list_notes(
 
 
 @router.put("/notes/{note_id}", response_model=ScratchNoteResponse)
-async def update_note(note_id: int, data: ScratchNoteUpdate, db: DBSession) -> ScratchNoteResponse:
+async def update_note(
+    note_id: int, 
+    data: ScratchNoteUpdate, 
+    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+) -> ScratchNoteResponse:
     """Update a scratch note's content and/or TTL."""
     note = await mem0_service.update_note(db, note_id, data.content, data.ttl_days)
     if not note:
@@ -70,7 +84,10 @@ async def update_note(note_id: int, data: ScratchNoteUpdate, db: DBSession) -> S
 
 
 @router.delete("/notes/{note_id}")
-async def delete_note(note_id: int, db: DBSession) -> dict[str, Any]:
+async def delete_note(
+    note_id: int, 
+    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+) -> dict[str, Any]:
     """Delete a scratch note by ID."""
     deleted = await mem0_service.delete_note(db, note_id)
     if not deleted:
@@ -79,14 +96,19 @@ async def delete_note(note_id: int, db: DBSession) -> dict[str, Any]:
 
 
 @router.get("/stats", response_model=ScratchStatsResponse)
-async def get_stats(db: DBSession) -> ScratchStatsResponse:
+async def get_stats(
+    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+) -> ScratchStatsResponse:
     """Get comprehensive statistics about scratch notes."""
     stats = await mem0_service.get_stats(db)
     return ScratchStatsResponse.model_validate(stats)
 
 
 @router.post("/cleanup", response_model=CleanupResponse)
-async def trigger_cleanup(background_tasks: BackgroundTasks, db: DBSession) -> CleanupResponse:
+async def trigger_cleanup(
+    background_tasks: BackgroundTasks, 
+    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+) -> CleanupResponse:
     """Trigger cleanup manually and get immediate results."""
     # Run cleanup immediately and return results
     result = await mem0_service.run_cleanup(db)

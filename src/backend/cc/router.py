@@ -10,11 +10,12 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.logging import log_l1
 from src.common.logger import log_event
 
-from .deps import DBSession, ModuleConfig, get_module_config
+from .deps import get_cc_db, ModuleConfig, get_module_config
 from .mem0_router import router as mem0_router
 from .schemas import (
     CCConfig,
@@ -57,7 +58,7 @@ router.include_router(mem0_router, prefix="/mem0", tags=["mem0"])
     description="Provides a simple health status check for the service.",
     tags=["Health"],
 )
-async def health_check(db: DBSession) -> HealthStatusResponse:
+async def health_check(db: AsyncSession = Depends(get_cc_db)) -> HealthStatusResponse:  # noqa: B008
     """Return the health status of the service."""
     log_event(
         source="cc",
@@ -102,7 +103,7 @@ async def get_config(
     tags=["Health"],
 )
 async def system_health_report(
-    db: DBSession,
+    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
 ) -> SystemHealthReport:
     """Get a comprehensive health report for all system modules."""
     log_event(
@@ -264,7 +265,7 @@ async def metrics() -> Any:
 )
 async def ping(
     request: ModulePingRequest,
-    db: DBSession,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> ModulePingResponse:
     """Ping a specific module to verify its health status."""
     log_event(
@@ -303,7 +304,7 @@ async def get_status() -> dict[str, str]:
 )
 async def create_debug_log(
     request: DebugLogRequest,
-    db: DBSession,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> DebugLogResponse:
     """Create debug log entries for testing and diagnostic purposes with Redis validation.
 
@@ -594,7 +595,7 @@ async def redis_health_check() -> RedisHealthResponse:
 )
 async def create_module(
     module_data: ModuleCreate,
-    db: DBSession,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> Module:
     """Create a new module."""
     log_event(
@@ -621,7 +622,7 @@ async def create_module(
     tags=["Modules"],
 )
 async def list_modules(
-    db: DBSession,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
     skip: int = 0,
     limit: int = 100,
 ) -> list[Module]:
@@ -646,7 +647,7 @@ async def list_modules(
 )
 async def get_module(
     module_id: str,
-    db: DBSession,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> Module:
     """Get a specific module by ID."""
     log_event(
@@ -673,7 +674,7 @@ async def get_module(
 async def update_module(
     module_id: str,
     module_data: ModuleUpdate,
-    db: DBSession,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> Module:
     """Update a specific module by ID."""
     log_event(
@@ -705,7 +706,7 @@ async def update_module(
 )
 async def delete_module(
     module_id: str,
-    db: DBSession,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> Module:
     """Delete a specific module by ID."""
     log_event(

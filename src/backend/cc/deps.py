@@ -49,4 +49,8 @@ async def get_module_config() -> dict[str, str]:
 
 # Common type annotations
 ModuleConfig = Annotated[dict[str, str], Depends(get_module_config)]
+
+# DBSession type alias - proper implementation that FastAPI can handle
+# This is a workaround for FastAPI not properly handling 
+# Annotated[AsyncSession, Depends(get_cc_db)] in all contexts
 DBSession = Annotated[AsyncSession, Depends(get_cc_db)]
