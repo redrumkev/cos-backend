@@ -76,6 +76,39 @@ DLQ_ERROR_MSG = "DLQ error"
 REDIS_ERROR_MSG = "Redis error"
 
 
+class TestSynchronizer:
+    """Helper class for event-based test synchronization."""
+
+    def __init__(self) -> None:
+        self.processing_started = asyncio.Event()
+        self.processing_complete = asyncio.Event()
+        self.can_continue = asyncio.Event()
+        self.message_count = 0
+        self.target_count = 0
+
+    def reset(self) -> None:
+        """Reset all events for reuse."""
+        self.processing_started.clear()
+        self.processing_complete.clear()
+        self.can_continue.clear()
+        self.message_count = 0
+        self.target_count = 0
+
+    async def wait_for_processing(self, timeout: float = 1.0) -> None:
+        """Wait for processing to complete with timeout."""
+        await asyncio.wait_for(self.processing_complete.wait(), timeout=timeout)
+
+    async def signal_processing_started(self) -> None:
+        """Signal that processing has started."""
+        self.processing_started.set()
+
+    async def signal_message_processed(self) -> None:
+        """Signal that a message was processed."""
+        self.message_count += 1
+        if self.message_count >= self.target_count:
+            self.processing_complete.set()
+
+
 class ConcreteTestSubscriber(BaseSubscriber):
     """Concrete implementation of BaseSubscriber for testing."""
 
@@ -92,6 +125,7 @@ class ConcreteTestSubscriber(BaseSubscriber):
         self.processing_results: list[bool] = []
         self.should_fail = False
         self.processing_delay = 0.0
+        self.synchronizer: TestSynchronizer | None = None
 
     async def process_message(self, message: MessageDict) -> bool:
         """Test implementation that records processed messages.
@@ -109,10 +143,25 @@ class ConcreteTestSubscriber(BaseSubscriber):
             ValueError: When should_fail is True
 
         """
+        # Signal processing started if synchronizer is available
+        if self.synchronizer:
+            await self.synchronizer.signal_processing_started()
+
+        # Use event-based waiting if synchronizer is available, otherwise use sleep
         if self.processing_delay > 0:
-            await asyncio.sleep(self.processing_delay)
+            if self.synchronizer:
+                # Wait for permission to continue if synchronizer is available
+                await self.synchronizer.can_continue.wait()
+            else:
+                # Only use sleep if no synchronizer available (backward compatibility)
+                await asyncio.sleep(self.processing_delay)
 
         self.processed_messages.append(message)
+
+        # Signal message processed if synchronizer is available
+        if self.synchronizer:
+            with contextlib.suppress(Exception):
+                await self.synchronizer.signal_message_processed()
 
         if self.should_fail:
             msg = SIMULATED_FAILURE_MSG
@@ -135,8 +184,18 @@ class ConcreteTestSubscriber(BaseSubscriber):
             List of processing success statuses
 
         """
+        # Signal processing started if synchronizer is available
+        if self.synchronizer:
+            await self.synchronizer.signal_processing_started()
+
         # Record all messages
         self.processed_messages.extend(messages)
+
+        # Signal messages processed if synchronizer is available
+        if self.synchronizer:
+            with contextlib.suppress(Exception):
+                for _ in messages:
+                    await self.synchronizer.signal_message_processed()
 
         # Return results based on processing_results or default to success
         results = []
@@ -233,6 +292,9 @@ class TestLifecycleManagement:
     @patch("src.common.base_subscriber.subscribe_to_channel")
     async def test_start_consuming_single_channel(self, mock_subscribe: AsyncMock) -> None:
         """Test starting consumption from a single channel."""
+        # Set up synchronizer
+        sync = TestSynchronizer()
+        sync.target_count = 2  # Expecting 2 messages
 
         # Mock the async generator
         async def mock_message_generator() -> AsyncGenerator[MessageDict, None]:
@@ -242,6 +304,7 @@ class TestLifecycleManagement:
         mock_subscribe.return_value = mock_message_generator()
 
         subscriber = ConcreteTestSubscriber()
+        subscriber.synchronizer = sync
 
         # Start consuming
         await subscriber.start_consuming("test_channel")
@@ -251,8 +314,8 @@ class TestLifecycleManagement:
         assert "test_channel" in subscriber._channels
         assert len(subscriber._consuming_tasks) == 1
 
-        # Allow some processing time
-        await asyncio.sleep(PROCESSING_TIME)
+        # Wait for processing to complete using event
+        await sync.wait_for_processing(timeout=1.0)
 
         # Stop consuming
         await subscriber.stop_consuming()
@@ -280,13 +343,15 @@ class TestLifecycleManagement:
     async def test_stop_consuming_cleans_up_resources(self) -> None:
         """Test that stop_consuming properly cleans up all resources."""
         subscriber = ConcreteTestSubscriber()
+        stop_event = asyncio.Event()
 
         with patch("src.common.base_subscriber.subscribe_to_channel") as mock_subscribe:
-            # Mock async generator that yields indefinitely
+            # Mock async generator that yields until stop event
             async def endless_generator() -> AsyncGenerator[MessageDict, None]:
-                while True:
+                while not stop_event.is_set():
                     yield {"test": "message"}
-                    await asyncio.sleep(0.01)
+                    # Yield control without sleep
+                    await asyncio.sleep(0)
 
             mock_subscribe.return_value = endless_generator()
 
@@ -297,7 +362,8 @@ class TestLifecycleManagement:
             assert subscriber.is_consuming
             assert len(subscriber._consuming_tasks) == 1
 
-            # Stop consuming
+            # Signal stop and then stop consuming
+            stop_event.set()
             await subscriber.stop_consuming()
 
             # Verify cleanup
@@ -333,14 +399,19 @@ class TestMessageProcessing:
 
         mock_subscribe.return_value = message_generator()
 
+        # Set up synchronizer
+        sync = TestSynchronizer()
+        sync.target_count = 2
+
         subscriber = ConcreteTestSubscriber()
         subscriber._batch_size = 1  # Disable batching
+        subscriber.synchronizer = sync
 
         # Start consuming
         await subscriber.start_consuming("test_channel")
 
-        # Allow processing time
-        await asyncio.sleep(0.1)
+        # Wait for messages to be processed
+        await sync.wait_for_processing(timeout=1.0)
 
         # Stop consuming
         await subscriber.stop_consuming()
@@ -410,8 +481,8 @@ class TestBatchProcessing:
                 if len(subscriber._batch_buffer) >= subscriber._batch_size:
                     await subscriber._process_batch_buffer()
 
-        # Allow processing time
-        await asyncio.sleep(0.1)
+        # Yield control to let async operations complete
+        await asyncio.sleep(0)  # Minimal yield
 
         # Verify batch was processed
         assert len(subscriber.processed_messages) == TEST_BATCH_SIZE
@@ -426,7 +497,12 @@ class TestBatchProcessing:
         mock_pubsub._redis = mock_redis
         mock_get_pubsub.return_value = mock_pubsub
 
+        # Set up synchronizer
+        sync = TestSynchronizer()
+        sync.target_count = 1
+
         subscriber = ConcreteTestSubscriber(batch_size=10, batch_window=0.1)  # Small window
+        subscriber.synchronizer = sync
 
         # Start batch processing loop
         subscriber._batch_task = asyncio.create_task(subscriber._batch_processing_loop())
@@ -436,8 +512,12 @@ class TestBatchProcessing:
         async with subscriber._batch_lock:
             subscriber._batch_buffer.append(test_message)
 
-        # Wait for time window to trigger processing
-        await asyncio.sleep(0.2)
+        # For time-based test, use minimal sleep instead of time machine
+        # This is still fast enough (0.15s instead of 0.2s)
+        await asyncio.sleep(0.15)
+
+        # Wait for processing
+        await sync.wait_for_processing(timeout=1.0)
 
         # Stop batch processing
         subscriber._stop_event.set()
@@ -901,13 +981,18 @@ class TestIntegrationScenarios:
         batch2 = messages[2:4]
         single_message = messages[4]
 
+        # Set up synchronizer
+        sync = TestSynchronizer()
+        sync.target_count = INTEGRATION_TOTAL_MESSAGES
+        subscriber.synchronizer = sync
+
         # Process batches
         await subscriber._handle_message_batch(batch1)
         await subscriber._handle_message_batch(batch2)
         await subscriber._handle_single_message(single_message)
 
-        # Allow processing to complete
-        await asyncio.sleep(0.1)
+        # Wait for all messages to be processed
+        await sync.wait_for_processing(timeout=1.0)
 
         # Verify results
         assert len(subscriber.processed_messages) == INTEGRATION_TOTAL_MESSAGES

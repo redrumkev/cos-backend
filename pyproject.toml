@@ -56,6 +56,7 @@ dev = [
     "fakeredis>=2.20.0",  # Fast in-memory Redis for testing
     "testcontainers[redis]>=3.7.0",  # Real Redis containers for integration tests
     "freezegun>=1.2.2",  # Time manipulation for deterministic tests
+    "time-machine>=2.13.0",  # Fast time travel for async tests
     "prometheus-fastapi-instrumentator>=7.0.0",  # Prometheus metrics for FastAPI
 ]
 rust-extensions = [

@@ -109,6 +109,7 @@ class PerformanceTestUtils:
         return {
             "mean": statistics.mean(sorted_latencies),
             "median": statistics.median(sorted_latencies),
+            "p50": statistics.median(sorted_latencies),  # p50 is the median
             "p95": sorted_latencies[int(0.95 * n)],
             "p99": sorted_latencies[int(0.99 * n)],
             "min": min(sorted_latencies),

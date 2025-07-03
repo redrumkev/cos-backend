@@ -287,7 +287,7 @@ class PerformanceCollector:
         try:
             for _ in range(5):
                 start = time.perf_counter_ns()
-                response = await api_client.get("/cc/health")
+                response = await api_client.get("/cc/health/enhanced")
                 latency = (time.perf_counter_ns() - start) / 1_000_000
                 api_latencies.append(latency)
 
@@ -299,7 +299,7 @@ class PerformanceCollector:
 
             # API throughput test
             start_time = time.perf_counter()
-            tasks = [api_client.get("/cc/health") for _ in range(20)]
+            tasks = [api_client.get("/cc/health/enhanced") for _ in range(20)]
             _ = await asyncio.gather(*tasks, return_exceptions=True)  # Execute concurrent requests
             api_throughput = 20 / (time.perf_counter() - start_time)
 
@@ -585,6 +585,7 @@ class TestPerformanceMetricsCollection:
         # Collect API metrics
         latencies = []
         error_count = 0
+        success_count = 0
         total_operations = 50
 
         start_time = time.perf_counter()
@@ -594,16 +595,20 @@ class TestPerformanceMetricsCollection:
                 op_start = time.perf_counter_ns()
 
                 if i % 10 == 0:
-                    # Create module endpoint
-                    module_data = {"name": f"api_perf_module_{i}", "version": "1.0.0"}
-                    response = await async_client.post("/cc/modules/", json=module_data)
-                    if response.status_code not in [200, 201]:
+                    # Create module endpoint with unique name
+                    module_data = {"name": f"api_perf_module_{i}_{int(time.time() * 1000000)}", "version": "1.0.0"}
+                    response = await async_client.post("/cc/modules", json=module_data)
+                    if response.status_code not in [200, 201, 409]:  # 409 for duplicates is OK in perf tests
                         error_count += 1
+                    else:
+                        success_count += 1
                 else:
                     # Health check endpoint
-                    response = await async_client.get("/cc/health")
+                    response = await async_client.get("/cc/health/enhanced")
                     if response.status_code != 200:
                         error_count += 1
+                    else:
+                        success_count += 1
 
                 latency = (time.perf_counter_ns() - op_start) / 1_000_000
                 latencies.append(latency)
