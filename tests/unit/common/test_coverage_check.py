@@ -68,11 +68,13 @@ class TestCoverageCheck:
 
     def test_redis_config_properties(self) -> None:
         """Test Redis config computed properties."""
-        config = RedisConfig()
+        # Mock environment to ensure clean state without password/custom host
+        with patch.dict("os.environ", {}, clear=True):
+            config = RedisConfig()
 
-        assert config.redis_url == "redis://localhost:6379/0"
-        assert config.is_development is True
-        assert config.connection_pool_config["max_connections"] == 20
+            assert config.redis_url == "redis://localhost:6379/0"
+            assert config.is_development is True
+            assert config.connection_pool_config["max_connections"] == 20
 
     async def test_subscriber_health_check(self) -> None:
         """Test subscriber health check."""

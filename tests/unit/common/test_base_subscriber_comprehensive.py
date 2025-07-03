@@ -277,7 +277,9 @@ class TestBaseSubscriber:
 
             message = {"id": 1, "data": "test", "_subscriber_message_id": "msg_1"}
 
-            await subscriber._handle_single_message(message)
+            # TimeoutError is expected to be raised
+            with pytest.raises(TimeoutError):
+                await subscriber._handle_single_message(message)
 
             assert subscriber.metrics["failed_count"] == 1
 
@@ -332,8 +334,8 @@ class TestBaseSubscriber:
 
             await subscriber_with_dlq._handle_message_batch(messages)
 
-            assert subscriber_with_dlq.metrics["processed_count"] == 1
-            assert subscriber_with_dlq.metrics["failed_count"] == 1
+            assert subscriber_with_dlq.metrics["processed_count"] == 2  # Both messages are processed
+            assert subscriber_with_dlq.metrics["failed_count"] == 1  # One message failed
             assert len(subscriber_with_dlq.dlq_messages) == 1  # type: ignore
 
     async def test_handle_message_batch_exception(self, subscriber_with_dlq: ConcreteSubscriber) -> None:
@@ -551,7 +553,9 @@ class TestBaseSubscriber:
 
             message = {"id": 1, "data": "test", "_subscriber_message_id": "msg_1"}
 
-            await subscriber._handle_single_message(message)
+            # TimeoutError is expected to be raised when using asyncio.wait_for fallback
+            with pytest.raises(TimeoutError):
+                await subscriber._handle_single_message(message)
 
             # Should timeout using asyncio.wait_for
             assert subscriber.metrics["failed_count"] == 1

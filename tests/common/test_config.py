@@ -30,10 +30,16 @@ def test_settings_type_coercion() -> None:
     assert s.REDIS_PORT == 6379
 
 
-@pytest.mark.skip(reason="Requires real environment setup to test validation failures")
-def test_settings_missing_critical() -> None:
+@pytest.mark.skip(reason="Settings class has defaults for all fields - validation error test not applicable")
+def test_settings_missing_critical(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that Settings validation fails when critical environment variables are missing."""
     from pydantic_core import ValidationError
 
+    # Clear all relevant environment variables
+    for var in ["POSTGRES_DEV_URL", "POSTGRES_TEST_URL", "DATABASE_URL_DEV", "REDIS_HOST", "REDIS_PASSWORD"]:
+        monkeypatch.delenv(var, raising=False)
+
+    # This should fail validation due to missing required configuration
     with pytest.raises(ValidationError):
         Settings()
 

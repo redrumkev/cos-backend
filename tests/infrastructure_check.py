@@ -12,10 +12,18 @@ async def check_postgres_availability() -> bool:
     try:
         import asyncpg
 
-        db_url = os.getenv("POSTGRES_TEST_URL") or os.getenv("DATABASE_URL_TEST")
-        if not db_url:
-            logger.debug("No PostgreSQL test URL found in environment")
-            return False
+        # Try multiple possible URL env vars, with DEV as fallback
+        db_url = (
+            os.getenv("POSTGRES_TEST_URL")
+            or os.getenv("DATABASE_URL_TEST")
+            or os.getenv("DATABASE_URL_DEV")
+            or "postgresql://cos_user:Police9119%21%21Sql_dev@localhost:5433/cos_db_dev"  # URL-encoded fallback
+        )
+
+        # Convert SQLAlchemy URL to asyncpg format if needed
+        if "+asyncpg" in db_url:
+            db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+
         conn = await asyncpg.connect(db_url)
         await conn.close()
         return True
@@ -42,13 +50,22 @@ def check_redis_availability() -> bool:
     try:
         import redis
 
-        redis_host = os.getenv("REDIS_HOST", "localhost")
+        # Try both localhost (for local development) and redis (for docker)
+        redis_hosts = [os.getenv("REDIS_HOST", "localhost"), "localhost"]
         redis_port = int(os.getenv("REDIS_PORT", "6379"))
-        redis_password = os.getenv("REDIS_PASSWORD") or None
+        redis_password = os.getenv("REDIS_PASSWORD", "Police9119!!Red")  # fallback to known password
 
-        r = redis.Redis(host=redis_host, port=redis_port, password=redis_password, decode_responses=True)
-        r.ping()
-        return True
+        for host in redis_hosts:
+            try:
+                r = redis.Redis(host=host, port=redis_port, password=redis_password, decode_responses=True)
+                r.ping()
+                logger.debug(f"Redis connection successful on {host}:{redis_port}")
+                return True
+            except Exception as host_e:
+                logger.debug(f"Redis check failed for {host}:{redis_port} - {host_e}")
+                continue
+
+        return False
     except Exception as e:
         logger.debug(f"Redis check failed: {e}")
         return False
