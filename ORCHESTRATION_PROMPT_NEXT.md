@@ -44,7 +44,8 @@ Launch all 4 agents in parallel targeting infrastructure reliability:
 2. Replace asyncio.run() calls with proper async fixtures
 3. Fix "Queue bound to different event loop" errors in Redis tests
 4. Ensure all performance tests use existing event loop properly
-5. Use mcp__zen__debug with o3-mini-high to trace complex async issues
+
+5b. Use mcp__zen__debug with o3 high resasoning and gemini 2.5 pro to trace complex async issues
 6. Run pytest on specific failing async tests to verify fixes
 
 **Expected fixes**: All asyncio runtime errors and event loop conflicts
@@ -64,7 +65,8 @@ Launch all 4 agents in parallel targeting infrastructure reliability:
 2. Implement graceful container state checking before pause/unpause operations
 3. Add container health verification and retry logic
 4. Replace brittle pause/unpause cycles with stable test isolation
-5. Use mcp__zen__thinkdeep with o3 to design robust container lifecycle patterns
+5a. Use Tavily for search and context7 for docs
+5b. Use mcp__zen__thinkdeep with o3 high resasoning and gemini 2.5 pro tdesign robust container lifecycle patterns
 6. Ensure tests handle Redis unavailability gracefully without manual intervention
 
 **Expected fixes**: All Docker container management failures + zero manual clicks required
@@ -84,7 +86,8 @@ Launch all 4 agents in parallel targeting infrastructure reliability:
 2. Investigate why API endpoints return 404 instead of 200
 3. Fix database session dependency injection in test environment
 4. Ensure test server configuration matches expectations
-5. Use mcp__zen__codereview with gemini-2.5-pro to validate dependency patterns
+5a. Use Tavily for search and context7 for docs
+5b. Use mcp__zen__codereview with gemini-2.5-pro to validate dependency patterns and o4-mini on high reasoning for coding review
 6. Run targeted API endpoint tests to verify routing works
 
 **Expected fixes**: All API endpoint 404 errors and dependency injection failures
@@ -102,7 +105,8 @@ Launch all 4 agents in parallel targeting infrastructure reliability:
 2. Investigate why _publish_l1_event is not being called
 3. Restore Redis pub/sub integration with SQLAlchemy sessions
 4. Fix after-commit listener registration in test environment
-5. Use mcp__zen__tracer with o3-mini to trace the pub/sub integration flow
+5a. Use Tavily for search and context7 for docs
+5b. Use mcp__zen__tracer with o4-mini on high to trace the pub/sub integration flow and gemini 2.5 pro for reasoning
 6. Ensure Redis publishing works properly in test isolation
 
 **Expected fixes**: All Redis pub/sub integration failures + L1.5 memory layer restoration

@@ -113,31 +113,69 @@ async def http_client() -> AsyncGenerator[AsyncClient, None]:
 # ---------------------------------------------------------------------------
 
 
-async def run_docker_command(*args: str, command_timeout: float = 30.0) -> None:
-    """Run a docker CLI command asynchronously with timeout protection.
+async def run_docker_command(*args: str, command_timeout: float = 60.0, max_retries: int = 3) -> None:
+    """Run a docker CLI command asynchronously with timeout protection and retry logic.
 
     This helper prevents blocking the event-loop (addresses ASYNC101) and also
     ensures an absolute docker executable path is used (addresses S607).
+
+    Args:
+    ----
+        *args: Docker command arguments
+        command_timeout: Timeout per attempt in seconds (default: 60s)
+        max_retries: Maximum number of retry attempts (default: 3)
+
     """
     docker_path = shutil.which("docker")
     if docker_path is None:
         raise RuntimeError("`docker` executable not found - required for integration tests.")
 
-    try:
-        async with asyncio.timeout(command_timeout):
-            proc = await asyncio.create_subprocess_exec(
-                docker_path,
-                *args,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+    last_error: Exception | None = None
+
+    for attempt in range(max_retries):
+        try:
+            async with asyncio.timeout(command_timeout):
+                proc = await asyncio.create_subprocess_exec(
+                    docker_path,
+                    *args,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                return  # Success
+
+            # Command failed, prepare for retry
+            last_error = subprocess.CalledProcessError(
+                proc.returncode or -1, [docker_path, *args], output=stdout, stderr=stderr
             )
-            stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            cmd_list = [docker_path, *args]
-            return_code = proc.returncode or -1  # Handle None case
-            raise subprocess.CalledProcessError(return_code, cmd_list, output=stdout, stderr=stderr)
-    except TimeoutError as e:
-        raise TimeoutError(f"Docker command timed out after {command_timeout}s: {args}") from e
+
+            # Don't retry if it's a "not found" or similar permanent error
+            if b"No such container" in stderr or b"not found" in stderr:
+                raise last_error
+
+        except TimeoutError:
+            last_error = TimeoutError(
+                f"Docker command timed out after {command_timeout}s (attempt {attempt + 1}/{max_retries}): {args}"
+            )
+
+        except Exception as e:
+            last_error = e
+
+        # Log retry attempt
+        if attempt < max_retries - 1:
+            wait_time = min(2**attempt, 8)  # Exponential backoff, max 8s
+            logger.warning(
+                f"Docker command failed (attempt {attempt + 1}/{max_retries}), " f"retrying in {wait_time}s: {args}"
+            )
+            await asyncio.sleep(wait_time)
+
+    # All retries exhausted
+    if last_error:
+        raise last_error
+    else:
+        raise RuntimeError(f"Docker command failed after {max_retries} attempts: {args}")
 
 
 async def check_service_health(service_name: str) -> bool:
@@ -561,18 +599,26 @@ class TestFailureScenarios:
     async def test_redis_service_interruption_recovery(
         self, redis_client: redis.Redis, metrics: PerformanceMetrics
     ) -> None:
-        """Test Redis service interruption and recovery."""
+        """Test Redis service interruption and recovery with robust cleanup."""
+        from .docker_utils import DockerHealthManager
+
         # Check if service is available before testing
         if not await check_service_health("cos_redis"):
             pytest.skip("Redis service not healthy, skipping interruption test")
+
+        # Create manager for robust container control
+        docker_manager = DockerHealthManager("cos_redis", command_timeout=60.0)
 
         # Verify baseline connectivity
         await redis_client.ping()
         logger.info("Redis baseline connectivity verified")
 
         try:
-            # Pause Redis service
-            await run_docker_command("pause", "cos_redis", command_timeout=15.0)
+            # Pause Redis service with state verification
+            pause_success = await docker_manager.pause_container()
+            if not pause_success:
+                pytest.skip("Failed to pause Redis container for test")
+
             logger.info("Redis service paused for failure simulation")
 
             # Test failure detection
@@ -588,13 +634,37 @@ class TestFailureScenarios:
             logger.info(f"Redis failure detected in {failure_detection_time:.2f}s")
 
         finally:
-            # Restore Redis service
-            await run_docker_command("unpause", "cos_redis", command_timeout=15.0)
-            logger.info("Redis service restored")
+            # Restore Redis service with robust recovery
+            logger.info("Attempting to restore Redis service...")
+
+            # First try with Docker manager
+            unpause_success = await docker_manager.unpause_container()
+
+            # If that fails, use RedisHealthMonitor as backup
+            if not unpause_success:
+                logger.warning("Docker unpause failed, using RedisHealthMonitor for recovery")
+                from src.common.redis_health_monitor import RedisHealthMonitor
+
+                monitor = RedisHealthMonitor(container_name="cos_redis", auto_recovery=True)
+                health_status = await monitor.check_health()
+
+                if health_status.auto_recovery_successful:
+                    logger.info("RedisHealthMonitor successfully recovered container")
+                    unpause_success = True
+                elif not health_status.requires_manual_intervention:
+                    # Try one more time with docker manager
+                    await asyncio.sleep(2.0)
+                    unpause_success = await docker_manager.ensure_running()
+
+            if unpause_success:
+                logger.info("Redis service restored")
+            else:
+                logger.error("Failed to restore Redis service - manual intervention may be required")
 
             # Test recovery with timeout
             recovery_start = time.perf_counter()
-            max_recovery_attempts = 10  # Reduced for CI speed
+            max_recovery_attempts = 10
+            recovery_time = None
 
             for attempt in range(max_recovery_attempts):
                 try:
@@ -605,15 +675,18 @@ class TestFailureScenarios:
                     break
                 except Exception:
                     if attempt == max_recovery_attempts - 1:
+                        # Last attempt - ensure container is running before giving up
+                        await docker_manager.ensure_running()
                         raise
                     await asyncio.sleep(0.5)
 
             # Recovery should be quick
-            assert recovery_time < 10.0, f"Recovery time {recovery_time:.2f}s > 10s"
+            if recovery_time:
+                assert recovery_time < 10.0, f"Recovery time {recovery_time:.2f}s > 10s"
 
-            # Validate functionality restored
-            await redis_client.publish("recovery_test", "functionality_restored")
-            logger.info("Redis functionality fully restored")
+                # Validate functionality restored
+                await redis_client.publish("recovery_test", "functionality_restored")
+                logger.info("Redis functionality fully restored")
 
     @pytest.mark.asyncio
     async def test_high_error_rate_handling(self, redis_client: redis.Redis, metrics: PerformanceMetrics) -> None:

@@ -10,6 +10,7 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from freezegun import freeze_time
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import RedisError
 
@@ -96,27 +97,28 @@ class TestCircuitBreaker:
 
     async def test_half_open_transition(self, circuit_breaker: CircuitBreaker) -> None:
         """Test transition from OPEN to HALF_OPEN after timeout."""
+        with freeze_time("2023-01-01 00:00:00") as frozen_time:
 
-        async def failing_func() -> None:
-            raise CircuitBreakerTestError("Test failure")
+            async def failing_func() -> None:
+                raise CircuitBreakerTestError("Test failure")
 
-        # Open the circuit breaker
-        for _ in range(circuit_breaker.failure_threshold):
-            with pytest.raises(CircuitBreakerTestError):
-                await circuit_breaker.call(failing_func)
+            # Open the circuit breaker
+            for _ in range(circuit_breaker.failure_threshold):
+                with pytest.raises(CircuitBreakerTestError):
+                    await circuit_breaker.call(failing_func)
 
-        assert circuit_breaker.state == CircuitBreakerState.OPEN
+            assert circuit_breaker.state == CircuitBreakerState.OPEN
 
-        # Wait for recovery timeout
-        await asyncio.sleep(circuit_breaker.recovery_timeout + 0.1)
+            # Advance time past recovery timeout
+            frozen_time.tick(circuit_breaker.recovery_timeout + 0.1)
 
-        # Next call should transition to HALF_OPEN
-        async def success_func() -> str:
-            return "success"
+            # Next call should transition to HALF_OPEN
+            async def success_func() -> str:
+                return "success"
 
-        result = await circuit_breaker.call(success_func)
-        assert result == "success"
-        assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN  # type: ignore[comparison-overlap]
+            result = await circuit_breaker.call(success_func)
+            assert result == "success"
+            assert circuit_breaker.state == CircuitBreakerState.HALF_OPEN  # type: ignore[comparison-overlap]
 
     async def test_half_open_to_closed_transition(self, circuit_breaker: CircuitBreaker) -> None:
         """Test transition from HALF_OPEN to CLOSED after enough successes."""
@@ -155,7 +157,7 @@ class TestCircuitBreaker:
         """Test that timeouts are treated as failures."""
 
         async def slow_func() -> str:
-            await asyncio.sleep(circuit_breaker.timeout + 0.1)
+            await asyncio.sleep(circuit_breaker.timeout * 1.1)  # 10% over timeout
             return "too slow"
 
         with pytest.raises(asyncio.TimeoutError):
@@ -186,30 +188,31 @@ class TestCircuitBreaker:
 
     async def test_exponential_backoff(self, circuit_breaker: CircuitBreaker) -> None:
         """Test exponential backoff behavior."""
+        with freeze_time("2023-01-01 00:00:00") as frozen_time:
 
-        async def failing_func() -> None:
-            raise CircuitBreakerTestError("Test failure")
+            async def failing_func() -> None:
+                raise CircuitBreakerTestError("Test failure")
 
-        # Open the circuit breaker
-        for _ in range(circuit_breaker.failure_threshold):
+            # Open the circuit breaker
+            for _ in range(circuit_breaker.failure_threshold):
+                with pytest.raises(CircuitBreakerTestError):
+                    await circuit_breaker.call(failing_func)
+
+            assert circuit_breaker.state == CircuitBreakerState.OPEN
+
+            # Check that next attempt time increases with more failures
+            first_next_attempt = circuit_breaker._next_attempt_time
+
+            # Advance time past recovery timeout
+            frozen_time.tick(circuit_breaker.recovery_timeout + 0.1)
+
             with pytest.raises(CircuitBreakerTestError):
                 await circuit_breaker.call(failing_func)
 
-        assert circuit_breaker.state == CircuitBreakerState.OPEN
-
-        # Check that next attempt time increases with more failures
-        first_next_attempt = circuit_breaker._next_attempt_time
-
-        # Trigger more failures after recovery timeout
-        await asyncio.sleep(circuit_breaker.recovery_timeout + 0.1)
-
-        with pytest.raises(CircuitBreakerTestError):
-            await circuit_breaker.call(failing_func)
-
-        second_next_attempt = circuit_breaker._next_attempt_time
-        assert first_next_attempt is not None
-        assert second_next_attempt is not None
-        assert second_next_attempt > first_next_attempt
+            second_next_attempt = circuit_breaker._next_attempt_time
+            assert first_next_attempt is not None
+            assert second_next_attempt is not None
+            assert second_next_attempt > first_next_attempt
 
 
 class TestRedisPubSubCircuitBreaker:
@@ -341,35 +344,35 @@ class TestRedisPubSubCircuitBreaker:
 
     async def test_circuit_breaker_recovery(self, pubsub_with_mocks: Any) -> None:
         """Test circuit breaker recovery after Redis comes back online."""
-        pubsub, mock_redis = pubsub_with_mocks
-        pubsub._connected = True
+        with freeze_time("2023-01-01 00:00:00") as frozen_time:
+            pubsub, mock_redis = pubsub_with_mocks
+            pubsub._connected = True
 
-        # Cause failures to open circuit breaker
+            # Cause failures to open circuit breaker
+            mock_redis.publish.side_effect = RedisError("Redis down")
 
-        mock_redis.publish.side_effect = RedisError("Redis down")
+            for _ in range(pubsub._circuit_breaker.failure_threshold):
+                with pytest.raises(PublishError):
+                    await pubsub.publish("test_channel", {"message": "test"})
 
-        for _ in range(pubsub._circuit_breaker.failure_threshold):
-            with pytest.raises(PublishError):
+            assert pubsub._circuit_breaker.state == CircuitBreakerState.OPEN
+
+            # Advance time past recovery timeout
+            frozen_time.tick(pubsub._circuit_breaker.recovery_timeout + 0.1)
+
+            # Redis comes back online
+            mock_redis.publish.side_effect = None
+            mock_redis.publish.return_value = 1
+
+            # Should transition to HALF_OPEN and then CLOSED
+            result = await pubsub.publish("test_channel", {"message": "test"})
+            assert result == 1
+
+            # After enough successes, should be closed
+            for _ in range(pubsub._circuit_breaker.success_threshold - 1):
                 await pubsub.publish("test_channel", {"message": "test"})
 
-        assert pubsub._circuit_breaker.state == CircuitBreakerState.OPEN
-
-        # Wait for recovery timeout
-        await asyncio.sleep(pubsub._circuit_breaker.recovery_timeout + 0.1)
-
-        # Redis comes back online
-        mock_redis.publish.side_effect = None
-        mock_redis.publish.return_value = 1
-
-        # Should transition to HALF_OPEN and then CLOSED
-        result = await pubsub.publish("test_channel", {"message": "test"})
-        assert result == 1
-
-        # After enough successes, should be closed
-        for _ in range(pubsub._circuit_breaker.success_threshold - 1):
-            await pubsub.publish("test_channel", {"message": "test"})
-
-        assert pubsub._circuit_breaker.state == CircuitBreakerState.CLOSED
+            assert pubsub._circuit_breaker.state == CircuitBreakerState.CLOSED
 
 
 class TestCircuitBreakerConfiguration:

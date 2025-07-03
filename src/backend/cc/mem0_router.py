@@ -20,8 +20,8 @@ router = APIRouter(prefix="/scratch", tags=["scratch"])
 
 @router.post("/notes", response_model=ScratchNoteResponse)
 async def create_note(
-    data: ScratchNoteCreate, 
-    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+    data: ScratchNoteCreate,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> ScratchNoteResponse:
     """Create a scratch note with optional TTL."""
     try:
@@ -35,8 +35,8 @@ async def create_note(
 
 @router.get("/notes/{note_id}", response_model=ScratchNoteResponse)
 async def get_note(
-    note_id: int, 
-    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+    note_id: int,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> ScratchNoteResponse:
     """Get a scratch note by ID."""
     note = await mem0_service.get_note(db, note_id)
@@ -47,8 +47,8 @@ async def get_note(
 
 @router.get("/notes/key/{key}", response_model=ScratchNoteResponse)
 async def get_note_by_key(
-    key: str, 
-    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+    key: str,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> ScratchNoteResponse:
     """Get a scratch note by key."""
     note = await mem0_service.get_note_by_key(db, key)
@@ -72,9 +72,9 @@ async def list_notes(
 
 @router.put("/notes/{note_id}", response_model=ScratchNoteResponse)
 async def update_note(
-    note_id: int, 
-    data: ScratchNoteUpdate, 
-    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+    note_id: int,
+    data: ScratchNoteUpdate,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> ScratchNoteResponse:
     """Update a scratch note's content and/or TTL."""
     note = await mem0_service.update_note(db, note_id, data.content, data.ttl_days)
@@ -85,8 +85,8 @@ async def update_note(
 
 @router.delete("/notes/{note_id}")
 async def delete_note(
-    note_id: int, 
-    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+    note_id: int,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> dict[str, Any]:
     """Delete a scratch note by ID."""
     deleted = await mem0_service.delete_note(db, note_id)
@@ -97,7 +97,7 @@ async def delete_note(
 
 @router.get("/stats", response_model=ScratchStatsResponse)
 async def get_stats(
-    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> ScratchStatsResponse:
     """Get comprehensive statistics about scratch notes."""
     stats = await mem0_service.get_stats(db)
@@ -106,8 +106,8 @@ async def get_stats(
 
 @router.post("/cleanup", response_model=CleanupResponse)
 async def trigger_cleanup(
-    background_tasks: BackgroundTasks, 
-    db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_cc_db),  # noqa: B008
 ) -> CleanupResponse:
     """Trigger cleanup manually and get immediate results."""
     # Run cleanup immediately and return results

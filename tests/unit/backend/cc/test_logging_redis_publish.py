@@ -45,8 +45,8 @@ class TestLogL1RedisPublishAfterCommit:
         log_id, event_data = call_args
 
         assert log_id == result["event_log_id"]
-        assert event_data["event_type"] == "test_event"
-        assert event_data["event_data"] == payload
+        assert event_data["event"]["event_type"] == "test_event"
+        assert event_data["event"]["event_data"] == payload
         assert "created_at" in event_data
         assert "log_id" in event_data
 
@@ -78,7 +78,7 @@ class TestLogL1RedisPublishAfterCommit:
         call_args = mock_publish.call_args[0]
         log_id, event_data = call_args
 
-        assert event_data["trace_id"] == trace_id
+        assert event_data["event"]["trace_id"] == trace_id
 
     @patch("src.backend.cc.logging._publish_l1_event")
     async def test_publish_with_request_id(self, mock_publish: AsyncMock, test_db_session: AsyncSession) -> None:
@@ -93,7 +93,7 @@ class TestLogL1RedisPublishAfterCommit:
         call_args = mock_publish.call_args[0]
         log_id, event_data = call_args
 
-        assert event_data["request_id"] == request_id
+        assert event_data["event"]["request_id"] == request_id
 
 
 class TestLogL1RedisPublishErrorIsolation:
@@ -256,6 +256,9 @@ class TestRedisChannelAndMessageFormat:
 
         await log_l1(db=test_db_session, event_type="channel_test", payload=payload)
 
+        # Allow the fire-and-forget task to execute
+        await asyncio.sleep(0.01)
+
         # Verify correct channel is used
         mock_pubsub.publish.assert_called_once()
         call_args = mock_pubsub.publish.call_args[0]
@@ -276,6 +279,9 @@ class TestRedisChannelAndMessageFormat:
         await log_l1(
             db=test_db_session, event_type="format_test", payload=payload, request_id=request_id, trace_id=trace_id
         )
+
+        # Allow the fire-and-forget task to execute
+        await asyncio.sleep(0.01)
 
         # Verify message structure
         mock_pubsub.publish.assert_called_once()

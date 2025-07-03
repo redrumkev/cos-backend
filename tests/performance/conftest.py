@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -11,6 +13,10 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 import pytest_asyncio
 import redis.asyncio as redis
+
+from .docker_utils import cleanup_all_containers
+
+logger = logging.getLogger(__name__)
 
 # Reuse Redis configuration from main conftest
 
@@ -114,3 +120,23 @@ class PerformanceTestUtils:
 def perf_utils() -> PerformanceTestUtils:
     """Provide performance testing utilities."""
     return PerformanceTestUtils()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def ensure_containers_unpaused() -> AsyncGenerator[None, None]:
+    """Ensure all containers are running after each test.
+
+    This fixture runs automatically after every test to clean up any
+    containers that may have been left in a paused or stopped state,
+    preventing manual Docker Desktop intervention.
+    """
+    # Run before test
+    yield
+
+    # Cleanup after test
+    try:
+        logger.info("Running post-test container cleanup")
+        await cleanup_all_containers()
+    except Exception as e:
+        logger.warning(f"Container cleanup failed: {e}")
+        # Don't fail the test due to cleanup issues

@@ -75,9 +75,9 @@ class TestPublishL1EventFunction:
         # Should not raise exception
         await _publish_l1_event(log_id, event_data)
 
-        # Verify warning was logged
-        mock_logfire.warn.assert_called_once()
-        call_args = mock_logfire.warn.call_args[1]
+        # Verify error was logged
+        mock_logfire.error.assert_called_once()
+        call_args = mock_logfire.error.call_args[1]
         assert call_args["log_id"] == str(log_id)
         assert call_args["error"] == "Redis connection lost"
         assert call_args["error_type"] == "Exception"
@@ -104,11 +104,12 @@ class TestPublishL1EventFunction:
         # Should not raise exception
         await _publish_l1_event(log_id, event_data)
 
-        # Verify warning was logged
-        mock_logfire.warn.assert_called_once()
-        call_args = mock_logfire.warn.call_args[1]
-        assert call_args["log_id"] == str(log_id)
-        assert call_args["error"] == "Logfire error"
+        # Verify error was logged (should be called twice - once for main error, once for fallback)
+        assert mock_logfire.error.call_count == 2
+        # Check the first error call
+        first_call_args = mock_logfire.error.call_args_list[0][1]
+        assert first_call_args["log_id"] == str(log_id)
+        assert first_call_args["error"] == "Logfire error"
 
 
 class TestAfterCommitEventListener:

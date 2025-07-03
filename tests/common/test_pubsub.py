@@ -205,15 +205,22 @@ class TestRedisPubSub:
         """Test publish performance warning for slow operations."""
         mock_redis = AsyncMock()
 
-        # Mock slow publish operation
+        # Mock slow publish operation without actual sleep
         async def slow_publish(*args: Any, **kwargs: Any) -> int:
-            await asyncio.sleep(0.002)  # 2ms delay
+            # Simulate slow operation by recording time difference
+            # without actually sleeping
             return 1
 
         mock_redis.publish = slow_publish
         connected_pubsub._redis = mock_redis
 
-        await connected_pubsub.publish("test", {"data": "test"})
+        # Patch time.perf_counter to simulate slow operation
+        # Need to provide enough values for all calls to perf_counter
+        with patch("time.perf_counter") as mock_perf_counter:
+            # Provide values for: start time, end time for operation metrics,
+            # and potentially more calls from circuit breaker
+            mock_perf_counter.side_effect = [0, 0.002, 0.002, 0.002, 0.002, 0.002]
+            await connected_pubsub.publish("test", {"data": "test"})
 
         # Check for performance warning
         assert "exceeded 1ms target" in caplog.text
@@ -524,9 +531,12 @@ class TestRedisPubSub:
 
     async def test_listen_loop_cancelled(self, connected_pubsub: RedisPubSub) -> None:
         """Test listen loop handles cancellation gracefully."""
+        # Create an event that will never be set, simulating infinite wait
+        never_set_event = asyncio.Event()
 
         async def mock_listen() -> AsyncGenerator[dict[str, Any], None]:
-            await asyncio.sleep(1)  # Simulate long operation
+            # Wait on event that will never be set - allows immediate cancellation
+            await never_set_event.wait()
             yield {"type": "message", "channel": "test", "data": "{}"}  # pragma: no cover
 
         mock_pubsub = AsyncMock()
@@ -534,7 +544,7 @@ class TestRedisPubSub:
         connected_pubsub._pubsub = mock_pubsub
 
         task = asyncio.create_task(connected_pubsub._listen_loop())
-        await asyncio.sleep(0.01)  # Let task start
+        await asyncio.sleep(0)  # Yield control to let task start
         task.cancel()
 
         with pytest.raises(asyncio.CancelledError):
@@ -785,8 +795,8 @@ class TestRedisPubSubIntegration:
         # Subscribe to channel (using the properly mocked pubsub from fixture)
         await redis_pubsub_with_mocks.subscribe("integration_test", message_handler)
 
-        # Give subscription time to establish
-        await asyncio.sleep(0.1)
+        # Yield control to allow subscription to establish
+        await asyncio.sleep(0)
 
         # Test message data
         test_message = {"test": "integration", "timestamp": time.time(), "data": {"nested": "value", "number": 123}}
@@ -794,10 +804,7 @@ class TestRedisPubSubIntegration:
         # Publish message
         subscriber_count = await redis_pubsub_with_mocks.publish("integration_test", test_message)
 
-        # Wait for message processing
-        await asyncio.sleep(0.1)
-
-        # For mocked integration test, simulate message handling
+        # For mocked integration test, simulate message handling immediately
         await redis_pubsub_with_mocks._handle_message(
             {"type": "message", "channel": "integration_test", "data": json.dumps(test_message)}
         )

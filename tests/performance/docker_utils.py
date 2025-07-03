@@ -10,7 +10,7 @@ import asyncio
 import logging
 import time
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +159,7 @@ class DockerHealthManager:
     async def pause_container(self) -> bool:
         """Pause container with retry logic and state verification.
 
-        Returns:
+        Returns
         -------
             True if successfully paused, False otherwise
 
@@ -174,16 +174,14 @@ class DockerHealthManager:
                 return True
 
             if current_state != ContainerState.RUNNING:
-                logger.warning(
-                    f"Cannot pause container {self.container_name} in state {current_state.value}"
-                )
+                logger.warning(f"Cannot pause container {self.container_name} in state {current_state.value}")
                 return False
 
             # Retry with exponential backoff
             for attempt in range(self.max_retries):
                 try:
                     logger.info(f"Pausing container {self.container_name} (attempt {attempt + 1})")
-                    
+
                     client = self._get_docker_client()
                     container = await asyncio.to_thread(client.containers.get, self.container_name)
                     await asyncio.to_thread(container.pause)
@@ -202,7 +200,7 @@ class DockerHealthManager:
                     )
 
                     if attempt < self.max_retries - 1:
-                        wait_time = min(2 ** attempt, 16)  # Max 16 seconds
+                        wait_time = min(2**attempt, 16)  # Max 16 seconds
                         logger.info(f"Retrying in {wait_time} seconds...")
                         await asyncio.sleep(wait_time)
 
@@ -212,7 +210,7 @@ class DockerHealthManager:
     async def unpause_container(self) -> bool:
         """Unpause container with retry logic and state verification.
 
-        Returns:
+        Returns
         -------
             True if successfully unpaused, False otherwise
 
@@ -227,16 +225,14 @@ class DockerHealthManager:
                 return True
 
             if current_state != ContainerState.PAUSED:
-                logger.warning(
-                    f"Cannot unpause container {self.container_name} in state {current_state.value}"
-                )
+                logger.warning(f"Cannot unpause container {self.container_name} in state {current_state.value}")
                 return False
 
             # Retry with exponential backoff
             for attempt in range(self.max_retries):
                 try:
                     logger.info(f"Unpausing container {self.container_name} (attempt {attempt + 1})")
-                    
+
                     client = self._get_docker_client()
                     container = await asyncio.to_thread(client.containers.get, self.container_name)
                     await asyncio.to_thread(container.unpause)
@@ -255,7 +251,7 @@ class DockerHealthManager:
                     )
 
                     if attempt < self.max_retries - 1:
-                        wait_time = min(2 ** attempt, 16)  # Max 16 seconds
+                        wait_time = min(2**attempt, 16)  # Max 16 seconds
                         logger.info(f"Retrying in {wait_time} seconds...")
                         await asyncio.sleep(wait_time)
 
@@ -275,7 +271,7 @@ class DockerHealthManager:
             for attempt in range(self.max_retries):
                 try:
                     logger.info(f"Stopping container {self.container_name} (attempt {attempt + 1})")
-                    
+
                     client = self._get_docker_client()
                     container = await asyncio.to_thread(client.containers.get, self.container_name)
                     await asyncio.to_thread(container.stop, timeout=10)
@@ -290,7 +286,7 @@ class DockerHealthManager:
                     )
 
                     if attempt < self.max_retries - 1:
-                        wait_time = min(2 ** attempt, 16)
+                        wait_time = min(2**attempt, 16)
                         await asyncio.sleep(wait_time)
 
             return False
@@ -308,7 +304,7 @@ class DockerHealthManager:
             for attempt in range(self.max_retries):
                 try:
                     logger.info(f"Starting container {self.container_name} (attempt {attempt + 1})")
-                    
+
                     client = self._get_docker_client()
                     container = await asyncio.to_thread(client.containers.get, self.container_name)
                     await asyncio.to_thread(container.start)
@@ -323,7 +319,7 @@ class DockerHealthManager:
                     )
 
                     if attempt < self.max_retries - 1:
-                        wait_time = min(2 ** attempt, 16)
+                        wait_time = min(2**attempt, 16)
                         await asyncio.sleep(wait_time)
 
             return False
@@ -331,7 +327,7 @@ class DockerHealthManager:
     async def ensure_running(self) -> bool:
         """Ensure container is in running state, recovering if necessary.
 
-        Returns:
+        Returns
         -------
             True if container is running, False if unable to recover
 
@@ -345,15 +341,13 @@ class DockerHealthManager:
         elif current_state == ContainerState.STOPPED:
             return await self.start_container()
         else:
-            logger.error(
-                f"Cannot ensure running state for {self.container_name} in state {current_state.value}"
-            )
+            logger.error(f"Cannot ensure running state for {self.container_name} in state {current_state.value}")
             return False
 
     async def health_check(self) -> dict[str, Any]:
         """Perform comprehensive health check.
 
-        Returns:
+        Returns
         -------
             Dictionary with health status information
 
@@ -388,15 +382,15 @@ async def ensure_container_running(container_name: str) -> bool:
 async def cleanup_all_containers() -> None:
     """Ensure all test containers are in running state."""
     containers = ["cos_redis", "cos_postgres_dev"]
-    
+
     tasks = []
     for container in containers:
         task = ensure_container_running(container)
         tasks.append(task)
-    
+
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    for container, result in zip(containers, results):
+
+    for container, result in zip(containers, results, strict=False):
         if isinstance(result, Exception):
             logger.error(f"Failed to ensure {container} is running: {result}")
         elif not result:

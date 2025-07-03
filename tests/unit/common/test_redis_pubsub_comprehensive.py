@@ -97,16 +97,17 @@ class TestRedisPubSubComprehensive:
 
     async def test_publish_performance_logging(self, connected_pubsub: RedisPubSub, caplog: Any) -> None:
         """Test publish performance logging for slow operations."""
+        with freeze_time("2023-01-01 00:00:00") as frozen_time:
 
-        async def slow_publish(*args: Any, **kwargs: Any) -> int:
-            await asyncio.sleep(0.002)  # 2ms delay
-            return 1
+            async def slow_publish(*args: Any, **kwargs: Any) -> int:
+                frozen_time.tick(0.002)  # Simulate 2ms delay
+                return 1
 
-        connected_pubsub._redis.publish = slow_publish
+            connected_pubsub._redis.publish = slow_publish
 
-        await connected_pubsub.publish("test", {"data": "test"})
+            await connected_pubsub.publish("test", {"data": "test"})
 
-        assert "exceeded 1ms target" in caplog.text
+            assert "exceeded 1ms target" in caplog.text
 
     async def test_publish_json_serialization_edge_cases(self, connected_pubsub: RedisPubSub) -> None:
         """Test JSON serialization edge cases."""
@@ -260,7 +261,7 @@ class TestRedisPubSubComprehensive:
                 self.count += 1
                 if self.count == 1:
                     return {"type": "message", "channel": b"test", "data": b"test data"}
-                # After first message, sleep forever until cancelled
+                # After first message, wait until cancelled
                 await asyncio.sleep(10)
                 return {"type": "message", "channel": b"test", "data": b"test data 2"}
 

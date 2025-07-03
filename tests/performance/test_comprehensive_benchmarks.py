@@ -29,7 +29,6 @@ import json
 import logging
 import time
 import tracemalloc
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
@@ -63,31 +62,30 @@ logger = logging.getLogger(__name__)
 class TestAPIEndpointBenchmarks:
     """API endpoint performance benchmarks."""
 
-    @pytest.mark.asyncio
     @pytest.mark.benchmark(group="api_latency", min_rounds=100)
-    async def test_cc_module_endpoints_latency(self, benchmark: Any, async_client: AsyncClient) -> None:
+    def test_cc_module_endpoints_latency(self, benchmark: Any, async_client: AsyncClient) -> None:
         """Benchmark CC module API endpoints latency."""
 
         async def api_operations() -> dict[str, float]:
             """Execute standard API operations and measure latency."""
             results = {}
 
-            # Health check endpoint
+            # Health check endpoint - use enhanced which doesn't require DB
             start = time.perf_counter_ns()
-            response = await async_client.get("/cc/health")
+            response = await async_client.get("/cc/health/enhanced")
             results["health_check"] = (time.perf_counter_ns() - start) / 1_000_000
             assert response.status_code == 200
 
             # Create module endpoint
             module_data = {"name": f"bench_module_{int(time.time())}", "version": "1.0.0"}
             start = time.perf_counter_ns()
-            response = await async_client.post("/cc/modules/", json=module_data)
+            response = await async_client.post("/cc/modules", json=module_data)
             results["create_module"] = (time.perf_counter_ns() - start) / 1_000_000
             assert response.status_code == 201
 
             # List modules endpoint
             start = time.perf_counter_ns()
-            response = await async_client.get("/cc/modules/")
+            response = await async_client.get("/cc/modules")
             results["list_modules"] = (time.perf_counter_ns() - start) / 1_000_000
             assert response.status_code == 200
 
@@ -107,13 +105,13 @@ class TestAPIEndpointBenchmarks:
 
         # Warmup
         for _ in range(50):
-            await async_client.get("/cc/health")
+            await async_client.get("/cc/health/enhanced")
 
         # Measure latency distribution
         for i in range(1000):
             # Health check
             start = time.perf_counter_ns()
-            response = await async_client.get("/cc/health")
+            response = await async_client.get("/cc/health/enhanced")
             latencies["health"].append((time.perf_counter_ns() - start) / 1_000_000)
             assert response.status_code == 200
 
@@ -121,14 +119,14 @@ class TestAPIEndpointBenchmarks:
             if i % 10 == 0:
                 module_data = {"name": f"perf_module_{i}", "version": "1.0.0"}
                 start = time.perf_counter_ns()
-                response = await async_client.post("/cc/modules/", json=module_data)
+                response = await async_client.post("/cc/modules", json=module_data)
                 latencies["create"].append((time.perf_counter_ns() - start) / 1_000_000)
                 assert response.status_code == 201
 
             # List modules (every 20th request)
             if i % 20 == 0:
                 start = time.perf_counter_ns()
-                response = await async_client.get("/cc/modules/")
+                response = await async_client.get("/cc/modules")
                 latencies["list"].append((time.perf_counter_ns() - start) / 1_000_000)
                 assert response.status_code == 200
 
@@ -153,7 +151,7 @@ class TestAPIEndpointBenchmarks:
             for _ in range(50):
                 try:
                     start = time.perf_counter_ns()
-                    response = await async_client.get("/cc/health")
+                    response = await async_client.get("/cc/health/enhanced")
                     latency = (time.perf_counter_ns() - start) / 1_000_000
 
                     if response.status_code == 200:
@@ -191,9 +189,8 @@ class TestAPIEndpointBenchmarks:
 class TestDatabasePerformanceBenchmarks:
     """Database performance benchmarks."""
 
-    @pytest.mark.asyncio
     @pytest.mark.benchmark(group="db_performance", min_rounds=50)
-    async def test_database_crud_performance(self, benchmark: Any, db_session: AsyncSession) -> None:
+    def test_database_crud_performance(self, benchmark: Any, db_session: AsyncSession) -> None:
         """Benchmark database CRUD operations."""
 
         async def db_operations() -> dict[str, float]:
@@ -219,7 +216,7 @@ class TestDatabasePerformanceBenchmarks:
 
             return results
 
-        result = benchmark(lambda: asyncio.run(run_with_db_session(db_operations)))
+        result = benchmark(lambda: asyncio.run(db_operations()))
 
         # Validate database performance targets
         assert result["create"] < DB_QUERY_LATENCY_MS, f"DB create {result['create']:.1f}ms > {DB_QUERY_LATENCY_MS}ms"
@@ -693,11 +690,11 @@ class TestRecoveryValidation:
         start_time = time.perf_counter()
 
         # API operations
-        response = await async_client.get("/cc/health")
+        response = await async_client.get("/cc/health/enhanced")
         assert response.status_code == 200
 
         module_data = {"name": "e2e_recovery_test", "version": "1.0.0"}
-        response = await async_client.post("/cc/modules/", json=module_data)
+        response = await async_client.post("/cc/modules", json=module_data)
         assert response.status_code == 201
 
         # Redis operations
@@ -711,12 +708,6 @@ class TestRecoveryValidation:
 
         # System should be fully operational
         assert total_time < 5.0, f"E2E recovery validation took {total_time:.2f}s"
-
-
-# Async helper function for benchmark compatibility
-async def run_with_db_session(coro_func: Callable[[], Any]) -> Any:
-    """Run async functions with proper session handling in benchmarks."""
-    return await coro_func()
 
 
 # Performance test markers

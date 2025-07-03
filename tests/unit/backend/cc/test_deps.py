@@ -90,16 +90,16 @@ def test_dbsession_type_annotation(test_db_session: AsyncSession) -> None:
     # as a direct parameter type, we verify the type alias exists and can be used
     # for type checking, but actual endpoints should use the explicit pattern
     from src.backend.cc.deps import DBSession
-    
+
     # Verify the type alias exists and is properly formed
     assert DBSession is not None
-    
+
     # Test that endpoints work with the recommended pattern
     app = FastAPI()
 
     @app.get("/typed")
     async def typed_endpoint(
-        db: AsyncSession = Depends(get_cc_db)  # noqa: B008
+        db: AsyncSession = Depends(get_cc_db),  # noqa: B008
     ) -> dict[str, str]:  # pragma: no cover
         return {"session_type": type(db).__name__}
 

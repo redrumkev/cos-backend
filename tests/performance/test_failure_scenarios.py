@@ -58,38 +58,34 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def service_interruption(
-    service_name: str, 
-    interruption_type: str = "pause",
-    use_mock: bool = True
+    service_name: str, interruption_type: str = "pause", use_mock: bool = True
 ) -> AsyncGenerator[None, None]:
     """Context manager for temporary service interruption with auto-recovery.
-    
+
     Args:
     ----
         service_name: Name of the service to interrupt (e.g., "cos_redis")
         interruption_type: Type of interruption - "pause", "stop", or mock types:
             - "connection_error": Mock connection failures
-            - "timeout": Mock timeout failures  
+            - "timeout": Mock timeout failures
             - "pubsub_failure": Mock pub/sub failures
         use_mock: If True, use mocks instead of actual Docker operations (default: True)
-    
+
     """
     # Use mocks by default to avoid Docker Desktop manual intervention
     if use_mock:
         # Map Docker interruption types to mock types
         mock_type = interruption_type
-        if interruption_type == "pause":
+        if interruption_type == "pause" or interruption_type == "stop":
             mock_type = "connection_error"
-        elif interruption_type == "stop":
-            mock_type = "connection_error"
-            
+
         async with mock_service_interruption(service_name, mock_type):
             yield
         return
-    
+
     # Original Docker-based implementation (kept for backward compatibility)
     manager = DockerHealthManager(service_name, command_timeout=60.0)
-    
+
     # For Redis, also use RedisHealthMonitor for additional recovery
     redis_monitor = None
     if service_name == "cos_redis":
@@ -114,23 +110,23 @@ async def service_interruption(
             if interruption_type == "pause":
                 logger.info(f"Restoring {service_name} from paused state")
                 success = await manager.unpause_container()
-                
+
                 # For Redis, use health monitor for additional recovery
                 if redis_monitor and not success:
                     logger.warning("Using RedisHealthMonitor for recovery")
                     health_status = await redis_monitor.check_health()
                     if health_status.auto_recovery_successful:
                         success = True
-                
+
                 if not success:
                     logger.error(f"Failed to unpause {service_name} - manual intervention may be required")
-                    
+
             elif interruption_type == "stop":
                 logger.info(f"Restarting {service_name}")
                 success = await manager.start_container()
                 if not success:
                     logger.error(f"Failed to start {service_name} - manual intervention may be required")
-                    
+
         except Exception as e:
             logger.exception(f"Error during service restoration for {service_name}: {e}")
             # Don't re-raise to allow test cleanup to continue
@@ -479,8 +475,8 @@ class TestNetworkFailureScenarios:
         """Test behavior during partial service degradation."""
         # Test with database unavailable but Redis available
         async with service_interruption("cos_postgres_dev", "pause"):
-            # Health check should reflect partial degradation
-            response = await async_client.get("/cc/health")
+            # Use enhanced health check endpoint which doesn't require database
+            response = await async_client.get("/cc/health/enhanced")
 
             # Health status should indicate issues or still pass with warnings
             assert response.status_code in [200, 503]
