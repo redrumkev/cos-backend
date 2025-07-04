@@ -3,6 +3,12 @@
 
 This module focuses on latency, throughput, memory usage, and regression testing
 to ensure Redis operations meet the <1ms publish target and overall performance SLAs.
+
+IMPORTANT: These tests use MOCK Redis (FakeRedis) and measure mock performance,
+not real Redis performance. The thresholds are intentionally relaxed (10x) to
+account for mock implementation variability, system load, and Python overhead.
+
+For production performance validation, use integration tests with real Redis.
 """
 
 import asyncio
