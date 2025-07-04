@@ -80,7 +80,6 @@ class TestNeo4jClient:
             assert client._is_connected is False
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Complex async mocking of Neo4j driver session context manager - Sprint 2")
     async def test_verify_connectivity_success(self) -> None:
         """Test successful connectivity verification."""
         client = Neo4jClient()
@@ -88,21 +87,33 @@ class TestNeo4jClient:
         # Mock the driver and session for connectivity check
         mock_session = AsyncMock()
         mock_result = AsyncMock()
-        mock_record = MagicMock()
-        mock_record.__getitem__.side_effect = lambda key: 1 if key == "test" else None
+        mock_record = {"test": 1}  # Use a dict instead of MagicMock
         # Make single() async
         mock_result.single = AsyncMock(return_value=mock_record)
         mock_session.run.return_value = mock_result
 
-        mock_driver = AsyncMock()
-        mock_driver.session.return_value.__aenter__.return_value = mock_session
-        mock_driver.session.return_value.__aexit__.return_value = None
+        mock_driver = MagicMock()  # Use regular MagicMock for driver
+        # Create a proper async context manager for session
+
+        # Define the async context manager behavior
+        async def session_context() -> AsyncMock:
+            return mock_session
+
+        mock_session_cm = MagicMock()
+        mock_session_cm.__aenter__ = AsyncMock(side_effect=session_context)
+        mock_session_cm.__aexit__ = AsyncMock(return_value=None)
+        mock_driver.session.return_value = mock_session_cm
 
         client.driver = mock_driver
 
-        result = await client.verify_connectivity()
+        # Patch log_event to avoid database errors
+        with patch("src.graph.base.log_event"):
+            result = await client.verify_connectivity()
 
         assert result is True
+        # Verify mock was called
+        mock_session.run.assert_called_once_with("RETURN 1 as test")
+        assert mock_result.single.called
 
     @pytest.mark.asyncio
     async def test_verify_connectivity_failure(self) -> None:
@@ -146,18 +157,21 @@ class TestNeo4jClient:
         assert client._is_connected is False
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Complex async mocking of Neo4j driver session context manager - Sprint 2")
     async def test_session_context_manager(self) -> None:
         """Test session context manager functionality."""
         client = Neo4jClient()
 
         # Mock the driver and session properly
         mock_session = AsyncMock()
-        mock_driver = AsyncMock()
+        mock_driver = MagicMock()  # Use regular MagicMock for driver
+
+        # Define the async context manager behavior
+        async def session_context() -> AsyncMock:
+            return mock_session
 
         # Create a proper async context manager mock
-        mock_session_cm = AsyncMock()
-        mock_session_cm.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_cm = MagicMock()
+        mock_session_cm.__aenter__ = AsyncMock(side_effect=session_context)
         mock_session_cm.__aexit__ = AsyncMock(return_value=None)
         mock_driver.session.return_value = mock_session_cm
 

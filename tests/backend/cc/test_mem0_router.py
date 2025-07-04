@@ -46,12 +46,11 @@ class TestMem0Router:
         assert response.status_code == 422  # FastAPI validation returns 422, not 400
         assert "string_too_short" in response.json()["detail"][0]["type"]
 
-    @pytest.mark.skip(reason="Mock import path needs fixing - error handling works correctly in practice")
     async def test_create_note_server_error(self, async_client: AsyncClient) -> None:
         """Test POST /scratch/notes with server error."""
         # Test the actual service layer by simulating a database error
         # This is more realistic than trying to mock imported modules
-        with patch("src.backend.cc.mem0_crud.create_scratch_note", side_effect=Exception("Database error")):
+        with patch("src.backend.cc.mem0_service.create_note", side_effect=Exception("Database error")):
             data = {"key": "error_test", "content": "content"}
 
             response = await async_client.post("/cc/mem0/scratch/notes", json=data)

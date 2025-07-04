@@ -8,7 +8,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-import pytest  # Phase 2: Remove for skip removal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.models import HealthStatus
@@ -48,7 +47,6 @@ class TestServicesIntegration:
         page2 = await get_modules(db_session, skip=10, limit=10)
         assert len(page2) == 5
 
-    @pytest.mark.skip(reason="Greenlet spawn issue in service validation - functional validation covered by CRUD tests")
     async def test_update_module_service_integration(self, db_session: AsyncSession) -> None:
         """Test module update through service layer."""
         # Create a module

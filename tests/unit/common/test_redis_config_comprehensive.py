@@ -398,6 +398,8 @@ class TestRedisConfigComprehensive:
 
     def test_dotenv_not_available_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test fallback when python-dotenv is not available."""
+        # Clear any environment variables that might be set by xdist
+        monkeypatch.delenv("REDIS_HOST", raising=False)
         # Test that the module still works when dotenv import fails
         with patch.dict("sys.modules", {"dotenv": None}):
             # Should not raise ImportError

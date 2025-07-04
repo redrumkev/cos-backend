@@ -13,16 +13,8 @@ from src.backend.cc.cc_main import cc_app, cc_router, lifespan
 # Import the infrastructure skip marker from conftest
 
 
-@pytest.mark.skip(
-    reason="Infrastructure: PostgreSQL services not available locally. "
-    "Re-enable in Sprint 2 when docker-compose setup is complete."
-)
 class TestCCMain:
-    """Test the main CC module application and routing setup.
-
-    These tests require database connectivity and are being skipped during the infrastructure
-    setup phase. Will be re-enabled in Sprint 2 when docker-compose PostgreSQL setup is complete.
-    """
+    """Test the main CC module application and routing setup."""
 
     def test_cc_app_creation(self) -> None:
         """Test that cc_app is properly configured."""
@@ -44,13 +36,22 @@ class TestCCMain:
         app = FastAPI()
 
         async with lifespan(app):
-            # Check startup log was called
-            mock_log_event.assert_called_with(
-                source="cc",
-                data={"status": "starting"},
-                tags=["lifecycle", "startup"],
-                memo="Control Center module starting",
-            )
+            # Check startup logs were called
+            assert mock_log_event.call_count >= 2
+
+            # Check first startup log
+            first_call = mock_log_event.call_args_list[0]
+            assert first_call[1]["source"] == "cc"
+            assert first_call[1]["data"]["status"] == "starting"
+            assert "lifecycle" in first_call[1]["tags"]
+            assert "startup" in first_call[1]["tags"]
+
+            # Check second startup log with instrumentation status
+            second_call = mock_log_event.call_args_list[1]
+            assert second_call[1]["source"] == "cc"
+            assert second_call[1]["data"]["status"] == "started"
+            assert "logfire_initialized" in second_call[1]["data"]
+            assert "instrumentation_applied" in second_call[1]["data"]
 
     @patch("src.backend.cc.cc_main.log_event")
     async def test_lifespan_shutdown(self, mock_log_event: MagicMock) -> None:
@@ -60,11 +61,11 @@ class TestCCMain:
         async with lifespan(app):
             pass  # Exit the context to trigger shutdown
 
-        # Check both startup and shutdown logs were called
-        assert mock_log_event.call_count == 2
+        # Check all lifecycle logs were called (2 startup + 1 shutdown)
+        assert mock_log_event.call_count == 3
 
-        # Check shutdown log was called
-        shutdown_call = mock_log_event.call_args_list[1]
+        # Check shutdown log was called (last call)
+        shutdown_call = mock_log_event.call_args_list[2]
         assert shutdown_call[1]["source"] == "cc"
         assert shutdown_call[1]["data"] == {"status": "stopping"}
         assert shutdown_call[1]["tags"] == ["lifecycle", "shutdown"]
@@ -99,16 +100,8 @@ class TestCCMain:
         assert mock_log_event.call_count >= 2
 
 
-@pytest.mark.skip(
-    reason="Infrastructure: PostgreSQL services not available locally. "
-    "Re-enable in Sprint 2 when docker-compose setup is complete."
-)
 class TestLifespanIsolated:
-    """Test lifespan function in isolation.
-
-    These tests also require database connectivity and are being skipped during the infrastructure
-    setup phase. Will be re-enabled in Sprint 2 when docker-compose PostgreSQL setup is complete.
-    """
+    """Test lifespan function in isolation."""
 
     @patch("src.backend.cc.cc_main.log_event")
     async def test_lifespan_exception_handling(self, mock_log_event: MagicMock) -> None:

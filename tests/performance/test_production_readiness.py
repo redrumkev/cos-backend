@@ -34,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import logging
+import os
 import shutil
 import subprocess
 import time
@@ -604,6 +605,10 @@ class TestFailureScenarios:
         self, redis_client: redis.Redis, metrics: PerformanceMetrics
     ) -> None:
         """Test Redis service interruption and recovery with robust cleanup."""
+        # Skip this test in mock mode as it requires real Redis service manipulation
+        if os.getenv("RUN_INTEGRATION", "0") == "0":
+            pytest.skip("Service interruption test requires integration mode")
+
         from .docker_utils import DockerHealthManager
 
         # Check if service is available before testing

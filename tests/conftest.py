@@ -917,13 +917,13 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                         else:
                             obj.is_expired = False
                     elif hasattr(obj, "module") and hasattr(obj, "status") and hasattr(obj, "last_updated"):
-                        # This looks like a HealthStatus, handle timezone normalization
+                        # This looks like a HealthStatus, preserve timezone info
                         from datetime import datetime
 
                         last_updated = getattr(obj, "last_updated", None)
                         if last_updated is not None and isinstance(last_updated, datetime):
-                            # Strip timezone to match database behavior
-                            obj.last_updated = last_updated.replace(tzinfo=None)
+                            # Preserve timezone info as it should be
+                            obj.last_updated = last_updated
                     return obj
 
                 # Handle UPDATE queries for modules

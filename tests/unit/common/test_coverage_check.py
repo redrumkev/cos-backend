@@ -27,10 +27,20 @@ class TestCoverageCheck:
 
     def test_redis_config_basic(self) -> None:
         """Test basic Redis config functionality."""
-        config = RedisConfig()
-        assert config.redis_host == "localhost"
-        assert config.redis_port == 6379
-        assert config.redis_url.startswith("redis://")
+        # Clear any environment variables that might be set by xdist
+        import os
+
+        original_host = os.environ.get("REDIS_HOST")
+        if "REDIS_HOST" in os.environ:
+            del os.environ["REDIS_HOST"]
+        try:
+            config = RedisConfig()
+            assert config.redis_host == "localhost"
+            assert config.redis_port == 6379
+            assert config.redis_url.startswith("redis://")
+        finally:
+            if original_host is not None:
+                os.environ["REDIS_HOST"] = original_host
 
     def test_redis_config_caching(self) -> None:
         """Test Redis config caching."""

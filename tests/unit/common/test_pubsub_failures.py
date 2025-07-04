@@ -16,6 +16,7 @@ from src.common.pubsub import (
     CircuitBreakerError,
     CircuitBreakerState,
     PublishError,
+    RedisError,
     RedisPubSub,
 )
 
@@ -383,6 +384,16 @@ class TestConcurrencyFailures:
         """Test behavior when multiple concurrent operations fail simultaneously."""
         pubsub = redis_pubsub_with_mocks
 
+        # Configure circuit breaker with higher threshold for concurrent test
+        # With 100 operations and 50% failure rate, we expect ~50 failures
+        # Set threshold high enough to prevent opening during test
+        pubsub._circuit_breaker = CircuitBreaker(
+            failure_threshold=30,  # Higher threshold for concurrent failures
+            recovery_timeout=5.0,
+            success_threshold=2,
+            timeout=5.0,
+        )
+
         # Set up concurrent failure simulation
         failure_rate = 0.5
         call_count = 0
@@ -507,7 +518,7 @@ class TestConcurrencyFailures:
 
         # Phase 1: Sequential failures to open circuit breaker
         for _ in range(5):  # Exactly failure threshold
-            with pytest.raises((ValueError, CircuitBreakerError)):
+            with pytest.raises((RedisError, CircuitBreakerError)):
                 await circuit_breaker.call(failing_operation)
 
         assert circuit_breaker.state == CircuitBreakerState.OPEN

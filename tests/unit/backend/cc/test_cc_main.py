@@ -41,22 +41,20 @@ class TestCCMain:
         route_paths = [getattr(route, "path", str(route)) for route in cc_router.routes]
         assert any("/cc" in path for path in route_paths)
 
-    @pytest.mark.skip(reason="Log event format changed - needs test update")
     @patch("src.backend.cc.cc_main.log_event")
     async def test_lifespan_startup(self, mock_log_event: MagicMock) -> None:
         """Test lifespan startup event logging."""
         app = FastAPI()
 
         async with lifespan(app):
-            # Check startup log was called
-            mock_log_event.assert_called_with(
+            # Check startup log was called with keyword arguments
+            mock_log_event.assert_any_call(
                 source="cc",
                 data={"status": "starting"},
                 tags=["lifecycle", "startup"],
                 memo="Control Center module starting",
             )
 
-    @pytest.mark.skip(reason="Log event format changed - needs test update")
     @patch("src.backend.cc.cc_main.log_event")
     async def test_lifespan_shutdown(self, mock_log_event: MagicMock) -> None:
         """Test lifespan shutdown event logging."""
@@ -65,15 +63,16 @@ class TestCCMain:
         async with lifespan(app):
             pass  # Exit the context to trigger shutdown
 
-        # Check both startup and shutdown logs were called
-        assert mock_log_event.call_count == 2
+        # Check shutdown log was called (should be at least 3 calls total)
+        assert mock_log_event.call_count >= 3
 
         # Check shutdown log was called
-        shutdown_call = mock_log_event.call_args_list[1]
-        assert shutdown_call[1]["source"] == "cc"
-        assert shutdown_call[1]["data"] == {"status": "stopping"}
-        assert shutdown_call[1]["tags"] == ["lifecycle", "shutdown"]
-        assert shutdown_call[1]["memo"] == "Control Center module shutting down"
+        mock_log_event.assert_any_call(
+            source="cc",
+            data={"status": "stopping"},
+            tags=["lifecycle", "shutdown"],
+            memo="Control Center module shutting down",
+        )
 
     def test_app_includes_router(self) -> None:
         """Test that cc_app includes the router with correct configuration."""

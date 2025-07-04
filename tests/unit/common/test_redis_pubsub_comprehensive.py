@@ -38,6 +38,8 @@ class TestRedisPubSubComprehensive:
     async def pubsub(self, mock_redis_config: Any, monkeypatch: Any) -> RedisPubSub:
         """Create RedisPubSub instance with mocked dependencies."""
         monkeypatch.setattr("src.common.pubsub._REDIS_AVAILABLE", True)
+        # Disable health monitor for unit tests to avoid 2-second delay
+        monkeypatch.setattr("src.common.pubsub._HEALTH_MONITOR_AVAILABLE", False)
         monkeypatch.setattr("src.common.pubsub.get_redis_config", lambda: mock_redis_config)
         return RedisPubSub()
 
@@ -262,7 +264,7 @@ class TestRedisPubSubComprehensive:
                 if self.count == 1:
                     return {"type": "message", "channel": b"test", "data": b"test data"}
                 # After first message, wait until cancelled
-                await asyncio.sleep(10)
+                await asyncio.sleep(0.01)  # Reduced from 10s
                 return {"type": "message", "channel": b"test", "data": b"test data 2"}
 
         mock_pubsub = AsyncMock()
@@ -296,7 +298,7 @@ class TestRedisPubSubComprehensive:
                 if reconnect_attempts == 1:
                     raise RedisError("Connection lost")
                 # Second attempt succeeds but we'll cancel it
-                await asyncio.sleep(10)  # Will be cancelled
+                await asyncio.sleep(0.01)  # Will be cancelled, reduced from 10s
                 return {"type": "message", "channel": b"test", "data": b"test data"}
 
         mock_pubsub = AsyncMock()
@@ -310,7 +312,7 @@ class TestRedisPubSubComprehensive:
 
             # Start listen loop
             task = asyncio.create_task(connected_pubsub._listen_loop())
-            await asyncio.sleep(0.1)  # Let it attempt reconnection
+            await asyncio.sleep(0.02)  # Let it attempt reconnection, reduced from 0.1s
             task.cancel()
 
             with contextlib.suppress(asyncio.CancelledError):
@@ -434,7 +436,7 @@ class TestRedisPubSubComprehensive:
 
         # Measure publish performance
         times = []
-        for _ in range(100):
+        for _ in range(20):  # Reduced from 100 iterations
             start = time.perf_counter()
             await connected_pubsub.publish("benchmark", message)
             elapsed = (time.perf_counter() - start) * 1000
@@ -529,6 +531,8 @@ class TestCircuitBreakerIntegration:
     async def pubsub(self, mock_redis_config: Any, monkeypatch: Any) -> RedisPubSub:
         """Create RedisPubSub instance with mocked dependencies for circuit breaker tests."""
         monkeypatch.setattr("src.common.pubsub._REDIS_AVAILABLE", True)
+        # Disable health monitor for unit tests to avoid 2-second delay
+        monkeypatch.setattr("src.common.pubsub._HEALTH_MONITOR_AVAILABLE", False)
         monkeypatch.setattr("src.common.pubsub.get_redis_config", lambda: mock_redis_config)
         return RedisPubSub()
 

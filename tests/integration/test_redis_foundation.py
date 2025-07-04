@@ -43,15 +43,15 @@ DEFAULT_REDIS_PORT = 6379
 REDIS_MAJOR_VERSION = 7
 REDIS_MINOR_VERSION = 2
 REDIS_PATCH_VERSION = 0
-TEST_SLEEP_DURATION = 0.1
-SLEEP_RECOVERY_DURATION = 0.2
-WARMUP_SLEEP = 0.1
+TEST_SLEEP_DURATION = 0.001  # Reduced from 0.1
+SLEEP_RECOVERY_DURATION = 0.01  # Reduced from 0.2
+WARMUP_SLEEP = 0.001  # Reduced from 0.1
 TARGET_LATENCY_MS = 5.0
 CONNECTION_TIME_MS = 10.0
 BULK_OPERATION_TIME_MS = 50.0
 CIRCUIT_BREAKER_TIMEOUT = 0.1
 RECOVERY_TIMEOUT = 1.0
-SHORT_RECOVERY_TIMEOUT = 0.1
+SHORT_RECOVERY_TIMEOUT = 0.01  # Reduced from 0.1
 BULK_OPERATIONS_COUNT = 100
 TEST_ID_VALUE = 12345
 
@@ -288,8 +288,7 @@ class TestBasicPubSub:
         # Subscribe to channel
         await pubsub_client.subscribe("roundtrip_test", message_handler)
 
-        # Allow subscription to establish
-        await asyncio.sleep(0.1)
+        # No sleep needed - subscriptions are immediate with fakeredis
 
         # Publish message
         test_message = {"type": "roundtrip", "value": "test_data", "id": 12345}
@@ -298,8 +297,15 @@ class TestBasicPubSub:
         # Should have 1 subscriber (us)
         assert subscriber_count == 1
 
-        # Wait for message processing
-        await asyncio.sleep(0.1)
+        # Use event-driven wait instead of sleep
+        message_event = asyncio.Event()
+
+        async def wait_for_message() -> None:
+            while not received_messages:
+                await asyncio.sleep(0.001)
+            message_event.set()
+
+        await asyncio.wait_for(wait_for_message(), timeout=0.1)
 
         # Verify message received
         assert len(received_messages) == 1
@@ -321,15 +327,22 @@ class TestBasicPubSub:
         await pubsub_client.subscribe("multi_handler_test", handler1)
         await pubsub_client.subscribe("multi_handler_test", handler2)
 
-        # Allow subscriptions to establish
-        await asyncio.sleep(0.1)
+        # Short wait for subscription establishment
+        await asyncio.sleep(0.05)
 
         # Publish message
         test_message = {"type": "multi_handler", "data": "shared"}
         await pubsub_client.publish("multi_handler_test", test_message)
 
-        # Wait for processing
-        await asyncio.sleep(0.1)
+        # Wait for message processing with retry logic
+        max_retries = 10
+        for _ in range(max_retries):
+            if len(handler1_messages) > 0 and len(handler2_messages) > 0:
+                break
+            await asyncio.sleep(0.01)
+        else:
+            # Give one more chance with longer wait
+            await asyncio.sleep(0.1)
 
         # Both handlers should receive the message
         assert len(handler1_messages) == 1
@@ -351,16 +364,18 @@ class TestBasicPubSub:
         # Subscribe both handlers
         await pubsub_client.subscribe("unsubscribe_test", handler1)
         await pubsub_client.subscribe("unsubscribe_test", handler2)
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.02)  # Wait for subscriptions
 
         # Unsubscribe handler1 only
         await pubsub_client.unsubscribe("unsubscribe_test", handler1)
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.02)  # Wait for unsubscribe
 
         # Publish message
         test_message = {"type": "after_unsubscribe", "data": "remaining"}
         await pubsub_client.publish("unsubscribe_test", test_message)
-        await asyncio.sleep(0.1)
+
+        # Wait for processing
+        await asyncio.sleep(0.02)
 
         # Only handler2 should receive the message
         assert len(handler1_messages) == 0
@@ -483,7 +498,7 @@ class TestCircuitBreakerIntegration:
         # Create circuit breaker with short recovery timeout
         circuit_breaker = CircuitBreaker(
             failure_threshold=1,
-            recovery_timeout=0.1,  # Very short for testing
+            recovery_timeout=0.05,  # Very short for testing
             success_threshold=1,
             timeout=1.0,
             expected_exception=SimulatedRedisFailureError,
@@ -497,8 +512,9 @@ class TestCircuitBreakerIntegration:
             await circuit_breaker.call(failing_operation)
         assert circuit_breaker.state == CircuitBreakerState.OPEN
 
-        # Wait for recovery timeout
-        await asyncio.sleep(0.2)
+        # Wait for recovery timeout with exponential backoff (base timeout * 2 + jitter)
+        # 0.05 * 2 = 0.1, plus some jitter, so 0.15s should be enough
+        await asyncio.sleep(0.15)
 
         # Successful operation should transition to HALF_OPEN then CLOSED
         async def success_operation() -> str:

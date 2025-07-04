@@ -6,6 +6,7 @@ development, therefore we disable mypy and ruff checks for this file.
 # mypy: ignore-errors
 # ruff: noqa
 
+import asyncio
 import os
 import uuid
 from typing import Any
@@ -349,8 +350,7 @@ class TestLogL1Performance:
         return async_wrapper
 
     @pytest.mark.benchmark(group="log_l1_latency")
-    @pytest.mark.asyncio
-    async def test_log_l1_latency_event_only(self, benchmark, mock_db_session):
+    def test_log_l1_latency_event_only(self, benchmark, mock_db_session):
         """Benchmark log_l1 service with event-only data.
 
         Tests most common usage pattern: event logging without prompt traces.
@@ -362,22 +362,24 @@ class TestLogL1Performance:
         - Excludes database I/O via mocking
         """
 
-        # Async wrapper for benchmark compatibility
-        async def log_event_only():
-            return await log_l1(
-                db=mock_db_session,
-                event_type="benchmark_event_test",
-                payload={
-                    "action": "user_click",
-                    "user_id": "user-123",
-                    "session_id": "session-456",
-                    "metadata": {"button": "submit", "page": "checkout"},
-                },
-                request_id=str(uuid.uuid4()),
+        # Create sync wrapper for benchmark compatibility
+        def log_event_only_sync():
+            return asyncio.run(
+                log_l1(
+                    db=mock_db_session,
+                    event_type="benchmark_event_test",
+                    payload={
+                        "action": "user_click",
+                        "user_id": "user-123",
+                        "session_id": "session-456",
+                        "metadata": {"button": "submit", "page": "checkout"},
+                    },
+                    request_id=str(uuid.uuid4()),
+                )
             )
 
         # Execute benchmark with statistical rigor
-        result = await benchmark.pedantic(log_event_only, iterations=100, rounds=10, warmup_rounds=2)
+        result = benchmark.pedantic(log_event_only_sync, iterations=100, rounds=10, warmup_rounds=2)
 
         # Validate result structure
         assert "base_log_id" in result
@@ -403,8 +405,7 @@ class TestLogL1Performance:
         )
 
     @pytest.mark.benchmark(group="log_l1_latency")
-    @pytest.mark.asyncio
-    async def test_log_l1_latency_prompt_only(self, benchmark, mock_db_session):
+    def test_log_l1_latency_prompt_only(self, benchmark, mock_db_session):
         """Benchmark log_l1 service with prompt-only data.
 
         Tests LLM interaction logging pattern: prompt traces without event payloads.
@@ -416,22 +417,24 @@ class TestLogL1Performance:
         - Excludes database I/O via mocking
         """
 
-        # Async wrapper for benchmark compatibility
-        async def log_prompt_only():
-            return await log_l1(
-                db=mock_db_session,
-                event_type="benchmark_prompt_test",
-                prompt_data={
-                    "prompt_text": "Generate a comprehensive summary of the given data",
-                    "response_text": "Here is a detailed summary analyzing the key aspects...",
-                    "execution_time_ms": 150,
-                    "token_count": 45,
-                },
-                request_id=str(uuid.uuid4()),
+        # Create sync wrapper for benchmark compatibility
+        def log_prompt_only_sync():
+            return asyncio.run(
+                log_l1(
+                    db=mock_db_session,
+                    event_type="benchmark_prompt_test",
+                    prompt_data={
+                        "prompt_text": "Generate a comprehensive summary of the given data",
+                        "response_text": "Here is a detailed summary analyzing the key aspects...",
+                        "execution_time_ms": 150,
+                        "token_count": 45,
+                    },
+                    request_id=str(uuid.uuid4()),
+                )
             )
 
         # Execute benchmark with statistical rigor
-        result = await benchmark.pedantic(log_prompt_only, iterations=100, rounds=10, warmup_rounds=2)
+        result = benchmark.pedantic(log_prompt_only_sync, iterations=100, rounds=10, warmup_rounds=2)
 
         # Validate result structure
         assert "base_log_id" in result
@@ -457,8 +460,7 @@ class TestLogL1Performance:
         )
 
     @pytest.mark.benchmark(group="log_l1_latency")
-    @pytest.mark.asyncio
-    async def test_log_l1_latency_combined_scenario(self, benchmark, mock_db_session):
+    def test_log_l1_latency_combined_scenario(self, benchmark, mock_db_session):
         """Benchmark log_l1 service with both payload and prompt_data.
 
         Tests the most complex usage pattern: full logging with both event payload
@@ -471,29 +473,31 @@ class TestLogL1Performance:
         - Excludes database I/O via mocking
         """
 
-        # Async wrapper for benchmark compatibility
-        async def log_combined_scenario():
-            return await log_l1(
-                db=mock_db_session,
-                event_type="benchmark_combined_test",
-                payload={
-                    "action": "ai_completion_request",
-                    "user_id": "user-12345",
-                    "session_id": "session-abc123",
-                    "metadata": {"priority": "high", "source": "api"},
-                },
-                prompt_data={
-                    "prompt_text": "Analyze the following data and provide actionable insights",
-                    "response_text": "Based on the analysis, here are the key findings and recommendations...",
-                    "execution_time_ms": 275,
-                    "token_count": 89,
-                },
-                request_id=str(uuid.uuid4()),
-                trace_id="benchmark-trace-003",
+        # Create sync wrapper for benchmark compatibility
+        def log_combined_scenario_sync():
+            return asyncio.run(
+                log_l1(
+                    db=mock_db_session,
+                    event_type="benchmark_combined_test",
+                    payload={
+                        "action": "ai_completion_request",
+                        "user_id": "user-12345",
+                        "session_id": "session-abc123",
+                        "metadata": {"priority": "high", "source": "api"},
+                    },
+                    prompt_data={
+                        "prompt_text": "Analyze the following data and provide actionable insights",
+                        "response_text": "Based on the analysis, here are the key findings and recommendations...",
+                        "execution_time_ms": 275,
+                        "token_count": 89,
+                    },
+                    request_id=str(uuid.uuid4()),
+                    trace_id="benchmark-trace-003",
+                )
             )
 
         # Execute benchmark with statistical rigor
-        result = await benchmark.pedantic(log_combined_scenario, iterations=100, rounds=10, warmup_rounds=2)
+        result = benchmark.pedantic(log_combined_scenario_sync, iterations=100, rounds=10, warmup_rounds=2)
 
         # Validate result structure - all three record types
         assert "base_log_id" in result
@@ -520,8 +524,7 @@ class TestLogL1Performance:
         )
 
     @pytest.mark.benchmark(group="log_l1_baseline")
-    @pytest.mark.asyncio
-    async def test_log_l1_baseline_minimal(self, benchmark, mock_db_session):
+    def test_log_l1_baseline_minimal(self, benchmark, mock_db_session):
         """Benchmark minimal log_l1 service call for baseline performance.
 
         Establishes performance baseline with minimal parameters to measure
@@ -529,12 +532,12 @@ class TestLogL1Performance:
         Target: P95 latency < 1ms for minimal scenarios.
         """
 
-        # Async wrapper for benchmark compatibility
-        async def log_minimal():
-            return await log_l1(db=mock_db_session, event_type="benchmark_minimal_test")
+        # Create sync wrapper for benchmark compatibility
+        def log_minimal_sync():
+            return asyncio.run(log_l1(db=mock_db_session, event_type="benchmark_minimal_test"))
 
         # Execute benchmark with statistical rigor
-        result = await benchmark.pedantic(log_minimal, iterations=100, rounds=10, warmup_rounds=2)
+        result = benchmark.pedantic(log_minimal_sync, iterations=100, rounds=10, warmup_rounds=2)
 
         # Validate minimal result structure
         assert "base_log_id" in result
@@ -559,8 +562,7 @@ class TestLogL1Performance:
         )
 
     @pytest.mark.benchmark(group="log_l1_stress")
-    @pytest.mark.asyncio
-    async def test_log_l1_performance_consistency(self, benchmark, mock_db_session):
+    def test_log_l1_performance_consistency(self, benchmark, mock_db_session):
         """Validate performance consistency across larger payload sizes.
 
         Tests service performance with larger payloads to ensure latency
@@ -589,19 +591,21 @@ class TestLogL1Performance:
             "token_count": 156,
         }
 
-        # Async wrapper for benchmark compatibility
-        async def log_large_payload():
-            return await log_l1(
-                db=mock_db_session,
-                event_type="benchmark_stress_test",
-                payload=large_payload,
-                prompt_data=large_prompt_data,
-                request_id=str(uuid.uuid4()),
-                trace_id="benchmark-trace-stress",
+        # Create sync wrapper for benchmark compatibility
+        def log_large_payload_sync():
+            return asyncio.run(
+                log_l1(
+                    db=mock_db_session,
+                    event_type="benchmark_stress_test",
+                    payload=large_payload,
+                    prompt_data=large_prompt_data,
+                    request_id=str(uuid.uuid4()),
+                    trace_id="benchmark-trace-stress",
+                )
             )
 
         # Execute benchmark with statistical rigor
-        result = await benchmark.pedantic(log_large_payload, iterations=100, rounds=10, warmup_rounds=2)
+        result = benchmark.pedantic(log_large_payload_sync, iterations=100, rounds=10, warmup_rounds=2)
 
         # Validate result structure for stress test
         assert "base_log_id" in result

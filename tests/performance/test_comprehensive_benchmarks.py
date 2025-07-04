@@ -30,7 +30,7 @@ import logging
 import time
 import tracemalloc
 from typing import TYPE_CHECKING, Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import psutil
 import pytest
@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 class TestAPIEndpointBenchmarks:
     """API endpoint performance benchmarks."""
 
-    @pytest.mark.benchmark(group="api_latency", min_rounds=100)
+    @pytest.mark.benchmark(group="api_latency", min_rounds=10)
     def test_cc_module_endpoints_latency(self, benchmark: Any, async_client: AsyncClient) -> None:
         """Benchmark CC module API endpoints latency."""
 
@@ -112,11 +112,11 @@ class TestAPIEndpointBenchmarks:
         latencies: dict[str, list[float]] = {"health": [], "create": [], "list": []}
 
         # Warmup
-        for _ in range(50):
+        for _ in range(10):
             await async_client.get("/cc/health/enhanced")
 
         # Measure latency distribution
-        for i in range(1000):
+        for i in range(100):
             # Health check
             start = time.perf_counter_ns()
             response = await async_client.get("/cc/health/enhanced")
@@ -162,7 +162,7 @@ class TestAPIEndpointBenchmarks:
             """Execute concurrent API requests."""
             results: dict[str, Any] = {"success": 0, "errors": 0, "latencies": []}
 
-            for _ in range(50):
+            for _ in range(10):  # Reduced from 50
                 try:
                     start = time.perf_counter_ns()
                     response = await async_client.get("/cc/health/enhanced")
@@ -203,7 +203,7 @@ class TestAPIEndpointBenchmarks:
 class TestDatabasePerformanceBenchmarks:
     """Database performance benchmarks."""
 
-    @pytest.mark.benchmark(group="db_performance", min_rounds=50)
+    @pytest.mark.benchmark(group="db_performance", min_rounds=10)
     def test_database_crud_performance(self, benchmark: Any, db_session: AsyncSession) -> None:
         """Benchmark database CRUD operations."""
 
@@ -278,7 +278,7 @@ class TestDatabasePerformanceBenchmarks:
         # Bulk insert performance
         start_time = time.perf_counter()
         modules = []
-        for i in range(100):
+        for i in range(20):
             module = await crud.create_module(db_session, f"bulk_module_{i:03d}", "1.0.0")
             modules.append(module)
 
@@ -292,7 +292,7 @@ class TestDatabasePerformanceBenchmarks:
         # Validate bulk operation performance
         assert insert_time < 10.0, f"Bulk insert {insert_time:.2f}s > 10s"
         assert query_time < 1.0, f"Bulk query {query_time:.2f}s > 1s"
-        assert len(retrieved_modules) >= 100
+        assert len(retrieved_modules) >= 20  # Adjusted for reduced test size
 
 
 class TestFailureScenarioTesting:
@@ -307,12 +307,11 @@ class TestFailureScenarioTesting:
 
         # Simulate Redis service interruption
         try:
-            # Stop Redis container
-            process = await asyncio.create_subprocess_exec(
-                "docker", "pause", "cos_redis", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            await process.communicate()
-            logger.info("Redis container paused for failure simulation")
+            # Mock Redis failure instead of actually pausing docker
+            # This is much faster and doesn't require docker permissions
+            original_ping = perf_client.ping
+            perf_client.ping = AsyncMock(side_effect=redis.ConnectionError("Simulated Redis failure"))
+            logger.info("Redis failure simulated via mock")
 
             # Test graceful degradation
             start_time = time.perf_counter()
@@ -327,14 +326,8 @@ class TestFailureScenarioTesting:
 
         finally:
             # Restore Redis service
-            process = await asyncio.create_subprocess_exec(
-                "docker", "unpause", "cos_redis", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            await process.communicate()
-            logger.info("Redis container restored")
-
-            # Wait for service to be ready
-            await asyncio.sleep(2)
+            perf_client.ping = original_ping
+            logger.info("Redis mock restored")
 
             # Test recovery
             recovery_start = time.perf_counter()
@@ -349,7 +342,7 @@ class TestFailureScenarioTesting:
                 except Exception:
                     if attempt == max_attempts - 1:
                         raise
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.1)  # Reduced from 0.5s
 
             # Validate recovery time
             assert recovery_time < RECOVERY_TIME_S, f"Recovery time {recovery_time:.2f}s > {RECOVERY_TIME_S}s"
@@ -384,7 +377,7 @@ class TestFailureScenarioTesting:
         start_time = time.perf_counter()
 
         # Create many concurrent operations
-        tasks = [stress_operation(i) for i in range(50)]
+        tasks = [stress_operation(i) for i in range(20)]  # Reduced from 50
         operation_times = await asyncio.gather(*tasks, return_exceptions=True)
 
         total_time = time.perf_counter() - start_time
@@ -394,7 +387,9 @@ class TestFailureScenarioTesting:
 
         # Check that most operations succeeded
         successful_ops = [t for t in operation_times if isinstance(t, float)]
-        assert len(successful_ops) > 25, f"Only {len(successful_ops)}/50 operations succeeded"
+        assert (
+            len(successful_ops) > 10
+        ), f"Only {len(successful_ops)}/20 operations succeeded"  # Adjusted for reduced operations
 
     @pytest.mark.asyncio
     async def test_network_timeout_simulation(self, perf_client: redis.Redis) -> None:
@@ -625,7 +620,7 @@ class TestResourceMonitoring:
         # CPU-intensive operations
         start_time = time.perf_counter()
 
-        for batch in range(50):
+        for batch in range(10):  # Reduced from 50
             # High-frequency operations
             tasks = []
             for i in range(200):

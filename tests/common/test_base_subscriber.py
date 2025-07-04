@@ -76,7 +76,7 @@ DLQ_ERROR_MSG = "DLQ error"
 REDIS_ERROR_MSG = "Redis error"
 
 
-class TestSynchronizer:
+class EventSynchronizer:
     """Helper class for event-based test synchronization."""
 
     def __init__(self) -> None:
@@ -125,7 +125,7 @@ class ConcreteTestSubscriber(BaseSubscriber):
         self.processing_results: list[bool] = []
         self.should_fail = False
         self.processing_delay = 0.0
-        self.synchronizer: TestSynchronizer | None = None
+        self.synchronizer: EventSynchronizer | None = None
 
     async def process_message(self, message: MessageDict) -> bool:
         """Test implementation that records processed messages.
@@ -293,7 +293,7 @@ class TestLifecycleManagement:
     async def test_start_consuming_single_channel(self, mock_subscribe: AsyncMock) -> None:
         """Test starting consumption from a single channel."""
         # Set up synchronizer
-        sync = TestSynchronizer()
+        sync = EventSynchronizer()
         sync.target_count = 2  # Expecting 2 messages
 
         # Mock the async generator
@@ -400,7 +400,7 @@ class TestMessageProcessing:
         mock_subscribe.return_value = message_generator()
 
         # Set up synchronizer
-        sync = TestSynchronizer()
+        sync = EventSynchronizer()
         sync.target_count = 2
 
         subscriber = ConcreteTestSubscriber()
@@ -498,7 +498,7 @@ class TestBatchProcessing:
         mock_get_pubsub.return_value = mock_pubsub
 
         # Set up synchronizer
-        sync = TestSynchronizer()
+        sync = EventSynchronizer()
         sync.target_count = 1
 
         subscriber = ConcreteTestSubscriber(batch_size=10, batch_window=0.1)  # Small window
@@ -982,7 +982,7 @@ class TestIntegrationScenarios:
         single_message = messages[4]
 
         # Set up synchronizer
-        sync = TestSynchronizer()
+        sync = EventSynchronizer()
         sync.target_count = INTEGRATION_TOTAL_MESSAGES
         subscriber.synchronizer = sync
 

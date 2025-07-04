@@ -180,7 +180,7 @@ class TestRedisPubSubPerformance:
             await redis_test_utils.wait_for_message_processing()
 
         # Wait for all messages to be processed
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.1)  # Reduced from 0.5s
 
         # Verify message delivery
         assert len(received_messages) == config["test_iterations"]
@@ -381,7 +381,8 @@ class TestRedisPubSubStressTests:
 
         # Wait for subscription setup
         await redis_test_utils.wait_for_message_processing()
-        await asyncio.sleep(0.5)  # Generous setup time
+        # Small delay for subscription propagation
+        await asyncio.sleep(0.05)  # Reduced from 0.5s
 
         # Send messages to all channels
         test_message = redis_test_utils.generate_test_message(50)
@@ -395,8 +396,8 @@ class TestRedisPubSubStressTests:
 
         publish_time = time.perf_counter() - start_time
 
-        # Extended wait for message processing
-        await asyncio.sleep(3.0)
+        # Wait for message processing
+        await asyncio.sleep(0.5)  # Reduced from 3.0s
 
         # Basic functionality validation - any message delivery is success for mocks
         total_expected = num_subscribers * messages_per_channel
