@@ -489,6 +489,12 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                         table_name = "modules"
                     elif class_name == "HealthStatus":
                         table_name = "health_status"
+                    elif class_name == "BaseLog":
+                        table_name = "baselogs"
+                    elif class_name == "EventLog":
+                        table_name = "eventlogs"
+                    elif class_name == "PromptTrace":
+                        table_name = "prompttraces"
                     else:
                         table_name = class_name.lower() + "s"
 
@@ -571,6 +577,12 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                         table_name = "modules"
                     elif class_name == "HealthStatus":
                         table_name = "health_status"
+                    elif class_name == "BaseLog":
+                        table_name = "baselogs"
+                    elif class_name == "EventLog":
+                        table_name = "eventlogs"
+                    elif class_name == "PromptTrace":
+                        table_name = "prompttraces"
                     elif class_name == "MockObject":
                         # For MockObject, we need to determine the table from context
                         # Check if the object has attributes that help identify the table
@@ -678,6 +690,14 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                                 table_name = "scratch_notes"
                             elif class_name == "Module":
                                 table_name = "modules"
+                            elif class_name == "HealthStatus":
+                                table_name = "health_status"
+                            elif class_name == "BaseLog":
+                                table_name = "baselogs"
+                            elif class_name == "EventLog":
+                                table_name = "eventlogs"
+                            elif class_name == "PromptTrace":
+                                table_name = "prompttraces"
                             else:
                                 table_name = class_name.lower() + "s"
 
@@ -776,6 +796,12 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                     table_name = "modules"
                 elif class_name == "HealthStatus":
                     table_name = "health_status"
+                elif class_name == "BaseLog":
+                    table_name = "baselogs"
+                elif class_name == "EventLog":
+                    table_name = "eventlogs"
+                elif class_name == "PromptTrace":
+                    table_name = "prompttraces"
                 else:
                     table_name = class_name.lower() + "s"
 
@@ -1033,6 +1059,12 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                         target_table = "scratch_notes"
                     elif "modules" in query_str or "module" in query_str:
                         target_table = "modules"
+                    elif "base_log" in query_str or "baselog" in query_str:
+                        target_table = "baselogs"
+                    elif "event_log" in query_str or "eventlog" in query_str:
+                        target_table = "eventlogs"
+                    elif "prompt_trace" in query_str or "prompttrace" in query_str:
+                        target_table = "prompttraces"
 
                     if target_table:
                         table_data = self._storage.get(target_table, {})
@@ -1080,6 +1112,17 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
 
                 # Handle SELECT queries
                 elif "select" in query_str:
+                    # Handle simple SELECT constant queries (e.g., SELECT 1, SELECT 2)
+                    if re.search(r"select\s+(\d+)(?:\s+as\s+\w+)?(?:\s*$|\s*;)", query_str):
+                        match = re.search(r"select\s+(\d+)", query_str)
+                        if match:
+                            value = int(match.group(1))
+                            return _MockAsyncResult([value])
+
+                    # Handle SELECT version() for PostgreSQL version check
+                    if "version()" in query_str:
+                        return _MockAsyncResult(["PostgreSQL 15.0 (Mock)"])
+
                     target_table = None
                     target_name = None
                     target_id = None

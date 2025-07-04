@@ -20,7 +20,8 @@ from src.backend.cc.logging import log_l1
 from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
 
 # Skip if database integration is not enabled
-ENABLE_DB_INTEGRATION = os.environ.get("ENABLE_DB_INTEGRATION", "").lower() == "true"
+# Use fixture instead of module-level constant to allow mocking
+# ENABLE_DB_INTEGRATION = os.environ.get("ENABLE_DB_INTEGRATION", "").lower() == "true"
 
 
 class TestLogL1Basic:
@@ -632,7 +633,7 @@ class TestLogL1Performance:
         )
 
 
-@pytest.mark.skipif(not ENABLE_DB_INTEGRATION, reason="Database integration tests disabled")
+# Removed skipif - tests will use mock when RUN_INTEGRATION=0
 class TestLogL1DatabaseIntegrity:
     """Test database transaction integrity and consistency."""
 
@@ -646,6 +647,7 @@ class TestLogL1DatabaseIntegrity:
         initial_count = initial_count_result.scalar() or 0
 
         await log_l1(db=test_db_session, event_type="integrity_test")
+        await test_db_session.commit()  # Ensure data is persisted in mock
 
         final_count_result = await test_db_session.execute(select(func.count()).select_from(BaseLog))
         final_count = final_count_result.scalar() or 0
