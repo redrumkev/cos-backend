@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
@@ -30,9 +31,14 @@ async def redis_url() -> str:
 @pytest_asyncio.fixture(scope="function")
 async def perf_client(redis_url: str) -> AsyncGenerator[redis.Redis, None]:
     """High-performance Redis client optimized for benchmarking."""
+    # Get password from environment, default to None for CI
+    redis_password = os.getenv("REDIS_PASSWORD", None)
+    if redis_password == "":  # Empty string means no password
+        redis_password = None
+
     client = redis.from_url(
         redis_url,
-        password="Police9119!!Red",  # Redis auth password
+        password=redis_password,  # Use environment password
         max_connections=50,  # Higher pool for stress testing
         encoding="utf-8",
         decode_responses=True,
@@ -51,9 +57,14 @@ async def perf_client(redis_url: str) -> AsyncGenerator[redis.Redis, None]:
 @pytest_asyncio.fixture(scope="function")
 async def perf_client_pool() -> AsyncGenerator[redis.ConnectionPool, None]:
     """Dedicated connection pool for efficiency testing."""
+    # Get password from environment, default to None for CI
+    redis_password = os.getenv("REDIS_PASSWORD", None)
+    if redis_password == "":  # Empty string means no password
+        redis_password = None
+
     pool = redis.ConnectionPool.from_url(
         "redis://localhost:6379/0",
-        password="Police9119!!Red",  # Redis auth password
+        password=redis_password,  # Use environment password
         max_connections=50,
         retry_on_timeout=True,
         socket_keepalive=True,

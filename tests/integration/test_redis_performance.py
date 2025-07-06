@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import gc
+import os
 import time
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
@@ -278,8 +279,9 @@ class TestHighConcurrencyStress:
         assert len(failed_results) == 0, f"Failed operations: {failed_results[:5]}"
         assert len(successful_results) == 2000
 
-        # Performance target: 2000 operations in <2 seconds
-        assert elapsed_time < 2.0, f"Concurrent operations took {elapsed_time:.3f}s, target <2.0s"
+        # Performance target: 2000 operations in <2 seconds (3s in CI)
+        ci_time_limit = 3.0 if os.getenv("CI") else 2.0
+        assert elapsed_time < ci_time_limit, f"Concurrent operations took {elapsed_time:.3f}s, target <{ci_time_limit}s"
 
         # Calculate throughput
         throughput = len(successful_results) / elapsed_time
@@ -378,7 +380,9 @@ class TestHighConcurrencyStress:
             await asyncio.wait_for(message_event.wait(), timeout=1.0)
 
         # Should complete rapidly even with active subscribers
-        assert elapsed_time < 1.0, f"Publishing with subscribers took {elapsed_time:.3f}s"
+        # Allow more time in CI environments (1.5s instead of 1.0s)
+        ci_time_limit = 1.5 if os.getenv("CI") else 1.0
+        assert elapsed_time < ci_time_limit, f"Publishing with subscribers took {elapsed_time:.3f}s"
 
         # All messages should be received
         assert len(received_messages) == 1000

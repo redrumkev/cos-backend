@@ -137,8 +137,8 @@ class TestMem0Router:
         """Test GET /scratch/notes with expired filter."""
         current_time = datetime.now(UTC)
 
-        # Create expired note
-        expired_note = ScratchNote(key="expired_api", content="expired")
+        # Create expired note with unique key
+        expired_note = ScratchNote(key="test_router_expired_api", content="expired")
         expired_note.expires_at = current_time - timedelta(days=1)
         db_session.add(expired_note)
         await db_session.commit()
@@ -149,7 +149,7 @@ class TestMem0Router:
         assert response.status_code == 200
         result = response.json()
         keys = [note["key"] for note in result]
-        assert "expired_api" not in keys
+        assert "test_router_expired_api" not in keys
 
         # Test including expired
         response = await async_client.get("/cc/mem0/scratch/notes?include_expired=true")
@@ -157,7 +157,7 @@ class TestMem0Router:
         assert response.status_code == 200
         result = response.json()
         keys = [note["key"] for note in result]
-        assert "expired_api" in keys
+        assert "test_router_expired_api" in keys
 
     async def test_update_note_endpoint(self, async_client: AsyncClient, db_session: AsyncSession) -> None:
         """Test PUT /scratch/notes/{note_id} endpoint."""
