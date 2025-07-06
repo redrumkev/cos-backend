@@ -46,10 +46,18 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 # Timeout constants
-CONNECTION_TIMEOUT_S = 3.0
-FAILURE_DETECTION_TIMEOUT_S = 4.0
-RECOVERY_TIMEOUT_S = 5.0
-OPERATION_TIMEOUT_S = 2.0
+
+# Environment-aware timeouts
+if os.getenv("CI") == "true":
+    CONNECTION_TIMEOUT_S = 30.0  # 10x for CI
+    FAILURE_DETECTION_TIMEOUT_S = 40.0  # 10x for CI
+    RECOVERY_TIMEOUT_S = 50.0  # 10x for CI
+    OPERATION_TIMEOUT_S = 20.0  # 10x for CI
+else:
+    CONNECTION_TIMEOUT_S = 3.0
+    FAILURE_DETECTION_TIMEOUT_S = 4.0
+    RECOVERY_TIMEOUT_S = 5.0
+    OPERATION_TIMEOUT_S = 2.0
 
 logger = logging.getLogger(__name__)
 

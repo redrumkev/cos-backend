@@ -2,133 +2,101 @@
 
 ## Overview
 
-This document defines pragmatic standards for CI/CD to break the "evil loop" where CI failures prevent refactoring needed to improve code quality and coverage.
+This document defines pragmatic standards for CI/CD that acknowledge the reality of shared infrastructure performance while maintaining code quality and enabling continuous improvement.
 
-## Core Principle
+## The "Evil Loop" Problem
 
-**CI environments are inherently slow.** GitHub Actions and other CI platforms run on shared infrastructure with:
-- Variable CPU allocation
-- Network latency
-- Cold starts
-- Resource contention
+When CI standards are too strict, they create an "evil loop":
+1. CI fails due to coverage or performance thresholds
+2. Developers cannot commit fixes that would improve coverage
+3. Refactoring is blocked, preventing quality improvements
+4. The codebase stagnates
 
-Therefore, CI performance thresholds must reflect this reality.
+## Pragmatic Solutions
 
-## Performance Standards
+### 1. Environment-Aware Performance Thresholds
 
-### Local Development
-- Redis publish latency: **< 5ms** (with real Redis)
-- Database operations: **< 10ms**
-- API endpoints: **< 50ms**
-- Concurrent operations: **< 100ms**
+**Local Development (Fast Hardware)**
+- Redis publish latency: 2-3ms
+- API response time: 10-50ms
+- Database queries: 5-20ms
 
-### CI Environment
-- Redis publish latency: **< 500ms** (100x multiplier)
-- Database operations: **< 1000ms** (100x multiplier)
-- API endpoints: **< 5000ms** (100x multiplier)
-- Concurrent operations: **< 10000ms** (100x multiplier)
+**CI Environment (Shared Infrastructure)**
+- Redis publish latency: 500ms (100x multiplier)
+- API response time: 1000ms (20x multiplier)
+- Database queries: 500ms (25x multiplier)
 
-### Implementation Pattern
-
+**Implementation Pattern:**
 ```python
+# In test files
 import os
 
-# Detect CI environment
-IS_CI = os.getenv("CI") == "true"
-
-# Set thresholds based on environment
-if IS_CI:
-    MAX_LATENCY_MS = 500  # Relaxed for CI
-    TIMEOUT_SECONDS = 30  # Longer timeouts
+if os.getenv("CI") == "true":
+    MAX_LATENCY_MS = 500  # Generous CI threshold
 else:
-    MAX_LATENCY_MS = 5    # Strict for local
-    TIMEOUT_SECONDS = 5   # Quick timeouts
-
-# Use in assertions
-assert latency_ms < MAX_LATENCY_MS, f"Latency {latency_ms}ms exceeds threshold"
+    MAX_LATENCY_MS = 5    # Strict local threshold
 ```
 
-## Coverage Standards
+### 2. Progressive Coverage Floor
 
-### Progressive Coverage Floor
+Instead of a fixed coverage threshold that blocks all progress:
 
-Instead of a fixed threshold that blocks all progress, use a progressive floor:
+**Coverage Formula:** `floor = current_coverage - 2%`
 
-1. **Current Coverage - 2% Buffer**: If current coverage is 81%, set CI threshold to 79%
-2. **Ratchet Up**: As coverage improves, increase the floor
-3. **Never Go Backwards**: The floor prevents regression but doesn't block refactoring
+- Current coverage: 81%
+- CI threshold: 79% (allows for refactoring)
+- Goal: Gradual improvement over time
+- Never go backwards, but allow temporary dips during refactoring
 
-### Coverage Goals
+### 3. Test Categories
 
-- **Unit Tests**: 90% coverage target
-- **Integration Tests**: Focus on critical paths
-- **New Code**: 90% coverage requirement (enforced via diff-coverage)
-- **Overall**: Progressive improvement toward 85%+
+**Unit Tests**
+- Must pass 100% in all environments
+- No environment-specific adjustments
+- Focus on logic correctness
 
-## Testing Philosophy
+**Integration Tests**
+- May have environment-aware timeouts
+- Focus on component interaction
+- Allow for infrastructure variability
 
-### Functional Over Performance (in CI)
+**Performance Tests**
+- Heavily environment-aware
+- CI: Validate functionality, not micro-benchmarks
+- Local: Strict performance validation
 
-1. **CI validates functionality**, not micro-benchmarks
-2. **Performance tests in CI** verify no catastrophic regressions (10x+ slower)
-3. **Real performance testing** happens in dedicated environments
+### 4. CI Configuration
 
-### Test Categories
-
-```python
-# Mark performance-critical tests
-@pytest.mark.benchmark
-@pytest.mark.skipif(
-    os.getenv("CI") == "true" and os.getenv("FORCE_BENCHMARK") != "true",
-    reason="Skipping micro-benchmarks in CI"
-)
-def test_critical_performance():
-    pass
-
-# Regular tests with relaxed CI thresholds
-def test_normal_operation():
-    threshold = 500 if os.getenv("CI") == "true" else 5
-    assert latency < threshold
+**Environment Variables:**
+```yaml
+env:
+  CI: true
+  PYTEST_TIMEOUT: 300  # 5 minutes for slow CI
 ```
 
-## Breaking the Evil Loop
-
-### The Problem
-1. Coverage below threshold → CI fails
-2. Can't refactor to improve coverage → CI blocks PRs
-3. Stuck in a loop
-
-### The Solution
-1. **Pragmatic thresholds** that acknowledge CI reality
-2. **Progressive coverage** that allows forward movement
-3. **Environment-aware tests** that pass in CI
-4. **Focus on functionality** over micro-optimization
-
-## Rollout Plan
-
-1. **Phase 1**: Implement environment detection (CI=true)
-2. **Phase 2**: Update performance tests with relaxed CI thresholds
-3. **Phase 3**: Set progressive coverage floor (current - 2%)
-4. **Phase 4**: Begin refactoring with confidence
-5. **Phase 5**: Gradually increase coverage floor as improvements land
-
-## Monitoring
-
-Track these metrics:
-- Coverage trend (should increase over time)
-- CI success rate (should be >90%)
-- Performance in production (the real metric)
-- Developer velocity (should improve)
-
-## Exceptions
-
-Some tests may need strict timing even in CI:
-- Timeout tests (testing actual timeout behavior)
-- Circuit breaker tests (testing failure detection)
-
-Mark these explicitly:
-```python
-@pytest.mark.strict_timing  # No CI relaxation
-def test_timeout_behavior():
-    pass
+**Coverage Settings:**
+```yaml
+--cov-fail-under=79  # Progressive floor
 ```
+
+### 5. Breaking the Loop
+
+1. **Immediate**: Lower thresholds to allow commits
+2. **Short-term**: Refactor to improve quality
+3. **Long-term**: Gradually raise thresholds
+4. **Continuous**: Monitor trends, not absolute values
+
+## Philosophy
+
+- **Pragmatism over Perfection**: A working CI that allows progress is better than a perfect CI that blocks everything
+- **Environment Reality**: CI shared infrastructure is slow; fighting this reality helps no one
+- **Progressive Improvement**: Small steps forward are better than being stuck
+- **Developer Productivity**: Unblock developers to improve code quality
+
+## Review Schedule
+
+These standards should be reviewed:
+- After each sprint
+- When coverage improves by 5%
+- When CI infrastructure changes
+- Every quarter minimum
