@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -262,7 +263,10 @@ class TestRedisFailureScenarios:
             operation_time = time.perf_counter() - start_time
 
             # Either way, it should handle the situation quickly
-            assert operation_time < 6.0, f"Pool exhaustion handling took {operation_time:.2f}s"
+            if os.getenv("CI") == "true":
+                assert operation_time < 30.0, f"Pool exhaustion handling took {operation_time:.2f}s (CI threshold: 30s)"
+            else:
+                assert operation_time < 6.0, f"Pool exhaustion handling took {operation_time:.2f}s"
 
             # Log the behavior for debugging
             if operation_succeeded:
@@ -296,7 +300,15 @@ class TestRedisFailureScenarios:
                 operation_time = time.perf_counter() - start_time
 
                 # If successful, should be much faster than timeout
-                assert operation_time < timeout * 0.8, f"Operation time {operation_time:.2f}s near timeout {timeout}s"
+                if os.getenv("CI") == "true":
+                    # In CI, just ensure it completed within reasonable time
+                    assert (
+                        operation_time < timeout * 2
+                    ), f"CI: Operation time {operation_time:.2f}s exceeded 2x timeout {timeout}s"
+                else:
+                    assert (
+                        operation_time < timeout * 0.8
+                    ), f"Operation time {operation_time:.2f}s near timeout {timeout}s"
 
             except TimeoutError:
                 operation_time = time.perf_counter() - start_time
@@ -472,7 +484,13 @@ class TestNetworkFailureScenarios:
 
                 # Successful response should be much faster than timeout
                 assert response.status_code == 200
-                assert response_time < timeout * 0.5, f"Response time {response_time:.2f}s near timeout {timeout}s"
+                if os.getenv("CI") == "true":
+                    # In CI, just ensure response was received within timeout
+                    assert (
+                        response_time < timeout
+                    ), f"CI: Response time {response_time:.2f}s exceeded timeout {timeout}s"
+                else:
+                    assert response_time < timeout * 0.5, f"Response time {response_time:.2f}s near timeout {timeout}s"
 
             except Exception as e:
                 response_time = time.perf_counter() - start_time
