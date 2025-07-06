@@ -66,10 +66,16 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 async def redis_client() -> AsyncGenerator[redis.Redis, None]:
     """Redis client with authentication and timeout for performance testing."""
+    import os
+
+    redis_password = os.getenv("REDIS_PASSWORD", None)
+    if redis_password == "":  # Empty string means no password
+        redis_password = None
+
     client = redis.Redis(
         host="localhost",
         port=6379,
-        password="Police9119!!Red",
+        password=redis_password,  # Use environment password
         decode_responses=True,
         socket_keepalive=True,
         socket_connect_timeout=5.0,

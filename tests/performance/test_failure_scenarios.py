@@ -587,10 +587,15 @@ class TestResourceExhaustionScenarios:
         try:
             # Create many concurrent clients
             for i in range(max_concurrent):
+                import os
+
+                redis_password = os.getenv("REDIS_PASSWORD", None)
+                if redis_password == "":  # Empty string means no password
+                    redis_password = None
                 client = redis.Redis(
                     host="localhost",
                     port=6379,
-                    password="Police9119!!Red",  # Redis auth password
+                    password=redis_password,  # Use environment password
                     socket_connect_timeout=5.0,
                     socket_timeout=5.0,
                 )

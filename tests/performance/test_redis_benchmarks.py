@@ -203,7 +203,12 @@ class TestConnectionPoolBenchmarks:
         start = time.perf_counter()
         for _ in range(100):  # Significantly reduced for CI speed
             # Use same config as fixtures for consistency
-            client = redis.from_url("redis://localhost:6379/0", password="Police9119!!Red")
+            import os
+
+            redis_password = os.getenv("REDIS_PASSWORD", None)
+            if redis_password == "":  # Empty string means no password
+                redis_password = None
+            client = redis.from_url("redis://localhost:6379/0", password=redis_password)
             await client.ping()
             await client.aclose()
         individual_time = time.perf_counter() - start
