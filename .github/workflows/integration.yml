@@ -1,0 +1,136 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+    types: [ labeled, synchronize, opened ]
+  workflow_dispatch:
+
+jobs:
+  integration:
+    # Run if manually triggered, on main/develop push, or if PR has 'integration' label
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'integration'))
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      matrix:
+        python-version: ["3.13"]
+
+    services:
+      postgres_dev:
+        image: postgres:17.5-bookworm
+        env:
+          POSTGRES_USER: cos_user
+          POSTGRES_PASSWORD: cos_dev_pass
+          POSTGRES_DB: cos_db_dev
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7.2-bookworm
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      neo4j:
+        image: neo4j:5.15
+        env:
+          NEO4J_AUTH: neo4j/test_password
+          NEO4J_ACCEPT_LICENSE_AGREEMENT: yes
+          NEO4J_dbms_memory_pagecache_size: 256M
+          NEO4J_dbms_memory_heap_initial__size: 256M
+          NEO4J_dbms_memory_heap_max__size: 512M
+        ports:
+          - 7687:7687
+          - 7474:7474
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 15
+          --health-start-period 120s
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+        cache-dependency-glob: |
+          **/pyproject.toml
+          **/uv.lock
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: |
+        uv python install ${{ matrix.python-version }}
+        uv python pin ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        uv pip install -e ".[dev]"
+
+    - name: Set integration test environment
+      run: |
+        echo "RUN_INTEGRATION=1" >> $GITHUB_ENV
+        echo "POSTGRES_DEV_URL=postgresql://cos_user:cos_dev_pass@localhost:5433/cos_db_dev" >> $GITHUB_ENV
+        echo "REDIS_HOST=localhost" >> $GITHUB_ENV
+        echo "REDIS_PORT=6379" >> $GITHUB_ENV
+        echo "REDIS_PASSWORD=" >> $GITHUB_ENV
+        echo "NEO4J_URI=bolt://localhost:7687" >> $GITHUB_ENV
+        echo "NEO4J_USER=neo4j" >> $GITHUB_ENV
+        echo "NEO4J_PASSWORD=test_password" >> $GITHUB_ENV
+
+    - name: Wait for services
+      run: |
+        echo "Waiting for PostgreSQL..."
+        for i in {1..30}; do
+          if pg_isready -h localhost -p 5433 -U cos_user; then
+            echo "PostgreSQL is ready"
+            break
+          fi
+          echo "Waiting for PostgreSQL... ($i/30)"
+          sleep 2
+        done
+
+        echo "Waiting for Redis..."
+        for i in {1..30}; do
+          if redis-cli -h localhost -p 6379 ping; then
+            echo "Redis is ready"
+            break
+          fi
+          echo "Waiting for Redis... ($i/30)"
+          sleep 2
+        done
+
+    - name: Run integration tests
+      run: |
+        uv run pytest -m "integration" -v --tb=short --maxfail=5
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-test-results
+        path: |
+          .coverage
+          htmlcov/
+          test-results.xml
+        retention-days: 7

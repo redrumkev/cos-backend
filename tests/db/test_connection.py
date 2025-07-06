@@ -51,6 +51,8 @@ async def test_basic_connection(test_db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.requires_postgres
 async def test_postgres_specific_features() -> None:
     """Test PostgreSQL-specific features when integration is enabled."""
     # Skip this test in mock mode as it requires real PostgreSQL features

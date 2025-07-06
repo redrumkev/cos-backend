@@ -414,6 +414,8 @@ class TestAPIPerformance:
     """API performance benchmarks."""
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.performance
     async def test_api_endpoint_performance(self, http_client: AsyncClient, metrics: PerformanceMetrics) -> None:
         """Test API endpoint performance."""
         # Test health endpoint - reduced iterations
@@ -461,6 +463,8 @@ class TestAPIPerformance:
         logger.info(f"API List - Mean: {list_stats['mean']:.2f}ms, P95: {list_stats['p95']:.2f}ms")
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.performance
     async def test_api_concurrent_load(self, http_client: AsyncClient, metrics: PerformanceMetrics) -> None:
         """Test API performance under concurrent load."""
 
@@ -601,6 +605,8 @@ class TestFailureScenarios:
     """Failure scenario and recovery testing."""
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.requires_redis
     async def test_redis_service_interruption_recovery(
         self, redis_client: redis.Redis, metrics: PerformanceMetrics
     ) -> None:
@@ -771,6 +777,9 @@ class TestFailureScenarios:
 
 @pytest.mark.asyncio
 @pytest.mark.timeout(60)  # Hard timeout for comprehensive test
+@pytest.mark.integration
+@pytest.mark.performance
+@pytest.mark.requires_all_services
 async def test_comprehensive_performance_report(
     redis_client: redis.Redis, db_session: AsyncSession, http_client: AsyncClient, metrics: PerformanceMetrics
 ) -> dict[str, Any]:
