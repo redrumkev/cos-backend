@@ -52,3 +52,4 @@ This pattern can now be followed for migrating other modules:
 - Database utilities
 
 The core_v2 structure is ready to receive additional migrations following ADR-001.
+# Force PR sync
