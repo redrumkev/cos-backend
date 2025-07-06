@@ -103,20 +103,46 @@ jobs:
 
     - name: Set up environment variables
       run: |
+        # PostgreSQL configuration
         echo "DATABASE_URL_DEV=postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev" >> $GITHUB_ENV
         echo "POSTGRES_DEV_URL=postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev" >> $GITHUB_ENV
+        echo "POSTGRES_TEST_URL=postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev" >> $GITHUB_ENV
         echo "POSTGRES_MIGRATE_URL=postgresql+psycopg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev" >> $GITHUB_ENV
+
+        # Neo4j configuration
         echo "NEO4J_URI=bolt://localhost:7687" >> $GITHUB_ENV
         echo "NEO4J_USER=neo4j" >> $GITHUB_ENV
         echo "NEO4J_PASSWORD=test_password" >> $GITHUB_ENV
+
+        # Redis configuration (no password in CI)
         echo "REDIS_URL=redis://localhost:6379" >> $GITHUB_ENV
         echo "REDIS_HOST=localhost" >> $GITHUB_ENV
         echo "REDIS_PORT=6379" >> $GITHUB_ENV
         echo "REDIS_PASSWORD=" >> $GITHUB_ENV
+        echo "REDIS_DB=0" >> $GITHUB_ENV
+        echo "REDIS_MAX_CONNECTIONS=50" >> $GITHUB_ENV
+
+        # Test configuration
         echo "MEM0_SCHEMA=mem0_cc" >> $GITHUB_ENV
         echo "ENABLE_DB_INTEGRATION=1" >> $GITHUB_ENV
         echo "TESTING=true" >> $GITHUB_ENV
         echo "ENVIRONMENT=test" >> $GITHUB_ENV
+        echo "LOG_LEVEL=INFO" >> $GITHUB_ENV
+
+        # Performance test configuration
+        echo "REDIS_PERFORMANCE_STRICT=false" >> $GITHUB_ENV
+        echo "BENCHMARK_MIN_ROUNDS=3" >> $GITHUB_ENV
+
+    - name: Wait for PostgreSQL to be ready
+      run: |
+        for i in {1..30}; do
+          if pg_isready -h localhost -p 5433 -U cos_user; then
+            echo "PostgreSQL is ready"
+            break
+          fi
+          echo "Waiting for PostgreSQL... ($i/30)"
+          sleep 2
+        done
 
     - name: Run Alembic migrations
       run: |
@@ -124,13 +150,16 @@ jobs:
         pwd
         ls -la src/
         # Debug environment variables
-        echo "DATABASE_URL_TEST=$DATABASE_URL_TEST"
         echo "POSTGRES_MIGRATE_URL=$POSTGRES_MIGRATE_URL"
+        echo "POSTGRES_DEV_URL=$POSTGRES_DEV_URL"
         # Run migrations with explicit PYTHONPATH to fix module imports
         PYTHONPATH=. python -m alembic upgrade head
       env:
         POSTGRES_MIGRATE_URL: ${{ env.POSTGRES_MIGRATE_URL }}
-        DATABASE_URL_TEST: ${{ env.DATABASE_URL_TEST }}
+        POSTGRES_DEV_URL: ${{ env.POSTGRES_DEV_URL }}
+        DATABASE_URL_DEV: ${{ env.DATABASE_URL_DEV }}
+        MEM0_SCHEMA: ${{ env.MEM0_SCHEMA }}
+        TESTING: ${{ env.TESTING }}
 
     - name: Run MCP filename drift checker
       run: |
@@ -249,7 +278,7 @@ jobs:
 
         echo "✅ Coverage gates passed: ${COVERAGE_PERCENT}% overall (Phase 2 adjusted)"
       env:
-        DATABASE_URL: ${{ env.DATABASE_URL }}
+        DATABASE_URL_DEV: ${{ env.DATABASE_URL_DEV }}
         POSTGRES_DEV_URL: ${{ env.POSTGRES_DEV_URL }}
         POSTGRES_TEST_URL: ${{ env.POSTGRES_TEST_URL }}
         POSTGRES_MIGRATE_URL: ${{ env.POSTGRES_MIGRATE_URL }}
@@ -260,10 +289,15 @@ jobs:
         REDIS_HOST: ${{ env.REDIS_HOST }}
         REDIS_PORT: ${{ env.REDIS_PORT }}
         REDIS_PASSWORD: ${{ env.REDIS_PASSWORD }}
+        REDIS_DB: ${{ env.REDIS_DB }}
+        REDIS_MAX_CONNECTIONS: ${{ env.REDIS_MAX_CONNECTIONS }}
         MEM0_SCHEMA: ${{ env.MEM0_SCHEMA }}
         ENABLE_DB_INTEGRATION: ${{ env.ENABLE_DB_INTEGRATION }}
         TESTING: ${{ env.TESTING }}
         ENVIRONMENT: ${{ env.ENVIRONMENT }}
+        LOG_LEVEL: ${{ env.LOG_LEVEL }}
+        REDIS_PERFORMANCE_STRICT: ${{ env.REDIS_PERFORMANCE_STRICT }}
+        BENCHMARK_MIN_ROUNDS: ${{ env.BENCHMARK_MIN_ROUNDS }}
 
     - name: Upload enhanced coverage artifacts
       if: always()

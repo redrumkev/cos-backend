@@ -41,7 +41,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
@@ -61,7 +61,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync --dev
+        uv pip install --system -e ".[dev]"
         uv pip install --system pytest-benchmark[histogram]
 
     - name: Verify Redis service
@@ -71,10 +71,26 @@ jobs:
 
     - name: Configure test environment
       run: |
+        # Redis configuration
         echo "REDIS_HOST=localhost" >> $GITHUB_ENV
         echo "REDIS_PORT=6379" >> $GITHUB_ENV
         echo "REDIS_DB=0" >> $GITHUB_ENV
         echo "REDIS_MAX_CONNECTIONS=20" >> $GITHUB_ENV
+        echo "REDIS_URL=redis://localhost:6379" >> $GITHUB_ENV
+        echo "REDIS_PASSWORD=" >> $GITHUB_ENV
+
+        # Database configuration (required for imports even if not used)
+        echo "DATABASE_URL_DEV=postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5432/cos_db_dev" >> $GITHUB_ENV
+        echo "POSTGRES_DEV_URL=postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5432/cos_db_dev" >> $GITHUB_ENV
+        echo "NEO4J_URI=bolt://localhost:7687" >> $GITHUB_ENV
+        echo "NEO4J_USER=neo4j" >> $GITHUB_ENV
+        echo "NEO4J_PASSWORD=test_password" >> $GITHUB_ENV
+
+        # Test configuration
+        echo "TESTING=true" >> $GITHUB_ENV
+        echo "ENVIRONMENT=test" >> $GITHUB_ENV
+        echo "LOG_LEVEL=INFO" >> $GITHUB_ENV
+        echo "MEM0_SCHEMA=mem0_cc" >> $GITHUB_ENV
 
     - name: Run Redis foundation tests
       run: |
@@ -192,7 +208,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
@@ -202,7 +218,7 @@ jobs:
         enable-cache: true
 
     - name: Install dependencies
-      run: uv sync --dev
+      run: uv pip install --system -e ".[dev]"
 
     - name: Start Redis ${{ matrix.redis-version }}
       run: |
@@ -248,7 +264,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
@@ -258,7 +274,7 @@ jobs:
         enable-cache: true
 
     - name: Install dependencies
-      run: uv sync --dev
+      run: uv pip install --system -e ".[dev]"
 
     - name: Run full test suite with coverage
       run: |
@@ -329,7 +345,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
@@ -337,7 +353,7 @@ jobs:
       uses: astral-sh/setup-uv@v3
 
     - name: Install dependencies
-      run: uv sync --dev
+      run: uv pip install --system -e ".[dev]"
 
     - name: Run performance benchmarks (PR)
       run: |
