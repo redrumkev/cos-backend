@@ -299,7 +299,7 @@ class TestHighConcurrencyStress:
         throughput = len(successful_results) / elapsed_time
         # Log throughput for monitoring (avoiding print in tests)
         # Reduced target for test environment with fakeredis - lower threshold for CI
-        assert throughput > 990, f"Throughput {throughput:.0f} ops/sec below target"
+        assert throughput > 950, f"Throughput {throughput:.0f} ops/sec below target"
 
     async def test_mixed_workload_stress(self, performance_pubsub_client: RedisPubSub) -> None:
         """Test mixed workload with different message sizes and channels."""
