@@ -55,7 +55,7 @@ class ScratchNote(Base):
         # Optimized for TTL cleanup queries
         Index("ix_scratch_expires_created", "expires_at", "created_at"),
         # Optimized for active data queries
-        Index("ix_scratch_key_active", "key", postgresql_where=text("expires_at IS NULL OR expires_at > NOW()")),
+        Index("ix_scratch_key_active", "key"),
         get_mem0_table_args(),
     )
 

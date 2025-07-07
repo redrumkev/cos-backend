@@ -8,7 +8,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-import pytest  # Phase 2: Remove for skip removal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.models import HealthStatus
@@ -20,8 +19,7 @@ from src.backend.cc.services import (
     update_module,
 )
 
-# Phase 2: Remove this skip block for end-to-end integration testing (P2-INTEGRATION-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: End-to-end integration testing needed. Trigger: P2-INTEGRATION-001")
+# Phase 2: Integration testing enabled
 
 
 class TestServicesIntegration:
@@ -54,7 +52,7 @@ class TestServicesIntegration:
         # Create a module
         created_module = await create_module(db_session, "update_test_module", "1.0.0")
 
-        # Update it
+        # Update it in the same session context (like other integration tests)
         update_data = {"version": "2.0.0", "config": '{"updated": true}'}
         updated_module = await update_module(db_session, str(created_module.id), update_data)
 

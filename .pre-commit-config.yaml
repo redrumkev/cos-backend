@@ -20,6 +20,10 @@ repos:
             "pydantic", # Ensure pydantic types are available to mypy hook
             "pydantic-settings", # BaseSettings typing
             "sqlalchemy[mypy]", # Ensure sqlalchemy stubs/plugin are available
+            "logfire", # Ensure logfire is available for type checking graceful degradation
+            "async-timeout", # Ensure async-timeout is available for type checking graceful degradation
+            "fastapi", # Ensure FastAPI types are available for BaseHTTPMiddleware
+            "starlette", # Ensure Starlette middleware types are available
             "mypy==1.15.0"
             ]
 

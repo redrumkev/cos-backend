@@ -26,9 +26,16 @@ dependencies = [
     "uvicorn>=0.30.3",
     "watchfiles>=0.22.0",
     "websockets>=13.0",
-    "pytest-cov>=6.1.1",
-    "coverage>=7.8.0",
     "psycopg2-binary>=2.9.10",
+    "async-timeout>=5.0.1",
+    "fakeredis>=2.20.0", # Fast in-memory Redis for testing
+    "prometheus-client>=0.21.0", # Prometheus metrics client
+    "testcontainers[redis]>=3.7.0", # Real Redis containers for integration tests
+    "freezegun>=1.2.2", # Time manipulation for deterministic tests
+    "pytest-benchmark>=5.1.0",
+    "psutil>=6.1.0", # System and process monitoring for performance tests
+    "pytest-memray>=1.7.0", # Memory profiling for leak detection
+    "bandit>=1.8.3",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +53,11 @@ dev = [
     "pre-commit>=4.2.0",
     "autoflake>=2.3.1",
     "pytest-benchmark>=4.0.0",  # perf tracking
+    "fakeredis>=2.20.0",  # Fast in-memory Redis for testing
+    "testcontainers[redis]>=3.7.0",  # Real Redis containers for integration tests
+    "freezegun>=1.2.2",  # Time manipulation for deterministic tests
+    "time-machine>=2.13.0",  # Fast time travel for async tests
+    "prometheus-fastapi-instrumentator>=7.0.0",  # Prometheus metrics for FastAPI
 ]
 rust-extensions = [
     "msgspec>=0.19.0",  # Only use if you encounter no installation issues
@@ -76,27 +88,50 @@ exclude = [
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = [
-    "--cov=src",
-    "--cov-report=term-missing",
-    "--cov-report=html:htmlcov",
     "--strict-markers",
-    "--disable-warnings"
+    "--strict-config",
+    "--verbose",
+    "--tb=short"
 ]
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
+    "integration: marks tests as integration tests requiring full infrastructure",
+    "unit: marks tests as pure unit tests with no external dependencies",
+    "benchmark: marks tests as performance benchmarks (functional validation focus)",
+    "performance: marks tests as performance benchmarks",
+    "redis: marks tests requiring Redis connectivity",
+    "requires_redis: marks tests requiring Redis connectivity (alias)",
+    "database: marks tests requiring database connectivity",
+    "requires_postgres: marks tests requiring PostgreSQL service",
+    "neo4j: marks tests requiring Neo4j connectivity",
+    "requires_neo4j: marks tests requiring Neo4j service",
+    "mem0: marks tests for mem0 integration",
+    "cc: marks tests for CC module functionality",
+    "functional: marks tests for functional validation (prioritized for single-dev)",
+    "stress: marks tests for stress/load testing (optional for single-dev)",
     "infrastructure: marks tests requiring external services",
-    "phase2: marks tests for Phase 2 implementation (skip in Phase 1)",
+    "phase2: marks tests for Phase 2 implementation",
+    "requires_all_services: Tests requiring all infrastructure services",
     "timeout: marks tests with timeout requirements",
-    "benchmark: marks tests as performance benchmarks"
+    "failure_scenarios: marks tests for failure scenario validation",
+    "metrics: marks tests for metrics collection and analysis"
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::UserWarning:hypothesis.*",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore:No logs or spans will be created:UserWarning",
+    "ignore:coroutine 'AsyncMockMixin._execute_mock_call' was never awaited:RuntimeWarning"
+]
 
 [tool.coverage.run]
 source = ["src"] # Specify source directory for coverage measurement
@@ -136,8 +171,10 @@ no-cov-on-fail = false
 
 [dependency-groups]
 dev = [
+    "mypy==1.15.0",
     "pre-commit>=4.2.0",
     "pydantic-settings>=2.9.1",
     "pytest-asyncio>=0.26.0",
+    "pytest-cov>=6.2.1",
     "ruff>=0.11.10",
 ]

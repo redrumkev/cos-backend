@@ -134,18 +134,25 @@ class TestCosMainAppCreation:
 class TestCosMainLogEvent:
     """Test the log_event call in cos_main.py."""
 
-    @patch("src.cos_main.log_event")
-    def test_startup_log_event_called(self, mock_log_event: Any) -> None:
+    def test_startup_log_event_called(self, env_var: Any) -> None:
         """Test that log_event is called for startup."""
         # Re-import to trigger the log_event call
         import importlib
+        from unittest.mock import patch
 
-        import src.cos_main
+        # Use monkeypatch fixture to set RUN_INTEGRATION
+        env_var("RUN_INTEGRATION", "1")
 
-        importlib.reload(src.cos_main)
+        # Patch before reloading
+        with patch("src.common.logger.log_event") as mock_log_event:
+            import src.cos_main
 
-        # Verify log_event was called with startup event
-        mock_log_event.assert_called_with(source="cos_main", data={"event": "startup"}, memo="COS FastAPI initialized.")
+            importlib.reload(src.cos_main)
+
+            # Verify log_event was called with startup event
+            mock_log_event.assert_called_with(
+                source="cos_main", data={"event": "startup"}, memo="COS FastAPI initialized."
+            )
 
     def test_log_event_parameters(self) -> None:
         """Test that log_event is called with correct parameters."""
@@ -160,7 +167,7 @@ class TestCosMainLogEvent:
         # Test calling it with the same parameters used in cos_main
         result = log_event(source="cos_main", data={"event": "startup"}, memo="COS FastAPI initialized.")
         assert isinstance(result, dict)
-        assert result["status"] == "mem0_stub"
+        assert result["status"] == "fallback"
 
 
 class TestCosMainFileStructure:

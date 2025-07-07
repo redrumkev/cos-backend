@@ -1,0 +1,327 @@
+# PRD: COS Phase 2 Sprint 2 - Redis Pub/Sub Highway Implementation
+
+**Metadata:**
+- **Phase:** 2
+- **Sprint:** 2
+- **Title:** L1.5 Redis Event Bus - Bridging Structured Memory to Semantic Intelligence
+- **Date:** 2025-06-18
+- **Owner:** Kevin
+- **Tech Lead:** `cc-core-team` (AI Agent executing)
+- **Dual Mandate Alignment:** [Quality: "100%", Efficiency: "100%"]
+- **FORWARD Principles:** Must adhere to all FORWARD principles in implementation
+
+---
+
+## 1. Objective & Strategic Context
+
+### Mission Statement
+Implement the L1.5 Redis Pub/Sub layer that bridges structured L1 memory (PostgreSQL `mem0_cc`) with future semantic L2 intelligence (Neo4j graph). This creates a decoupled, event-driven architecture enabling real-time knowledge flow and cross-module coordination.
+
+### Constitutional Alignment
+**Dual Mandate**: This sprint achieves 100% Quality through comprehensive testing and error handling, while achieving 100% Efficiency through async operations and optimized message routing.
+
+**FORWARD Principles Applied**:
+- **Frictionless**: Standard Redis patterns reusable across all modules
+- **Orchestrated**: Event-driven architecture enables intelligent automation
+- **Real-Time**: Sub-millisecond message publishing for immediate responsiveness
+- **Wide-Angle**: Pub/Sub foundation serves multi-century evolution needs
+- **Adaptive**: Scales from single module to hundreds without refactoring
+- **Relentless**: Every message becomes fuel for L2 semantic intelligence
+- **Destiny-Driven**: Enables agent coordination for 100+ book legacy
+
+### Sprint 1 Foundation Leverage
+Building on Sprint 1's breakthrough achievements:
+- ✅ L1 Memory Layer: 1.5ms P95 performance with 13 indexes
+- ✅ Request ID Propagation: UUID tracking through all components
+- ✅ Logfire Integration: 98% span completion rate
+- ✅ DELTA/EPSILON/ZETA Methodology: Systematic quality improvement approach
+- ✅ Quality Infrastructure: 97% coverage standards established
+
+---
+
+## 2. Technical Architecture & Research Insights
+
+### Industry Best Practices Integration
+Based on 2024 Redis patterns research:
+- **Dedicated Pub/Sub Instance**: Avoid mixing with transactional operations
+- **Connection Pooling**: AsyncIO-compatible pool with graceful degradation
+- **Circuit Breaker Pattern**: Prevent cascading failures during Redis unavailability
+- **At-Least-Once Delivery**: Message acknowledgment and retry patterns
+- **Performance Optimization**: Async operations throughout, <1ms publish targets
+
+### L1.5 Event Bus Design
+```
+L1 (mem0_cc PostgreSQL) → SQLAlchemy after_commit → Redis Publish → L2 Consumer Queue
+                                                              ↓
+                                              Future: Neo4j Graph Ingestion (Sprint 3)
+```
+
+**Channel Naming Convention**: `mem0.recorded.<module>`
+- Sprint 2 Implementation: `mem0.recorded.cc`
+- Future Modules: `mem0.recorded.pem`, `mem0.recorded.aic`, etc.
+
+**Message Format Standardization**:
+```json
+{
+  "base_log_id": "550e8400-e29b-41d4-a716-446655440000",
+  "source_module": "cc",
+  "timestamp": "2025-06-18T10:30:00.123456Z",
+  "trace_id": "logfire-trace-identifier",
+  "request_id": "request-uuid-from-middleware",
+  "event_type": "prompt_trace|event_log",
+  "data": {
+    // PromptTrace or EventLog specific content
+    // Optimized for L2 graph consumer processing
+  }
+}
+```
+
+---
+
+## 3. Scope Definition
+
+### In Scope for Sprint 2
+
+#### Core Infrastructure Components
+1. **`src/common/pubsub.py`** - Universal Redis pub/sub wrapper
+   - Async Redis client with connection pooling (max 20 connections)
+   - `publish_message(channel: str, message: dict) -> bool` with <1ms latency
+   - `subscribe_to_channel(channel: str) -> AsyncIterator[dict]` for consumers
+   - Circuit breaker pattern for Redis unavailability scenarios
+   - Comprehensive error handling and logging integration
+
+2. **`src/common/redis_config.py`** - Configuration management
+   - Environment-based Redis connection settings
+   - Connection pool configuration with optimal defaults
+   - Timeout and retry policy definitions
+   - Development/production environment handling
+
+3. **Enhanced L1 Integration** - `src/backend/cc/services/logging.py`
+   - Modify existing `log_l1()` function to publish after successful DB commit
+   - Use SQLAlchemy `after_commit` event for guaranteed sequencing
+   - Error isolation: Redis failures do NOT impact main API requests
+   - Logfire span integration for publish operations
+
+4. **Generic Subscriber Foundation** - `src/common/base_subscriber.py`
+   - Abstract base class for future L2 consumer (Sprint 3)
+   - Message acknowledgment patterns and error recovery
+   - Batch processing capabilities for high-throughput scenarios
+   - Dead letter queue support for failed message handling
+
+#### Testing & Quality Assurance
+5. **Comprehensive Test Suite**
+   - Unit tests with Redis mocking (97% coverage requirement)
+   - Integration tests with live Redis instance (Docker-based)
+   - Performance benchmarks using pytest-benchmark
+   - End-to-end pipeline tests (API → L1 → Redis → Consumer simulation)
+
+6. **Performance Validation Infrastructure**
+   - Redis publish latency measurement (<1ms target)
+   - Round-trip integration timing (<5ms target)
+   - Connection pool efficiency monitoring
+   - Memory usage profiling for Redis client
+
+#### Integration & Documentation
+7. **Enhanced Debug Endpoints**
+   - Extend `/debug/test-log` to validate Redis publishing
+   - Add `/debug/redis-health` for connection pool status
+   - Message inspection capabilities for development
+
+8. **Configuration Updates**
+   - Environment variable documentation
+   - Docker Compose integration for Redis service
+   - CI/CD pipeline updates for Redis-dependent tests
+
+### Explicitly Out of Scope
+
+- **Neo4j Integration**: L2 graph consumer implementation (Sprint 3)
+- **MCP Server Development**: Agent-facing interface layer (Sprint 4)
+- **Cross-Module Communication**: PEM, AIC module integration (Future sprints)
+- **L3 Zettelkasten Integration**: Curation layer logic (Phase 3+)
+- **Production Deployment**: Kubernetes/Docker Swarm orchestration (Phase 4+)
+
+---
+
+## 4. Success Metrics & Performance Targets
+
+### Quantitative Performance Requirements
+
+| Metric | Target | Measurement Method |
+|--------|--------|-------------------|
+| **Redis Publish Latency** | p95 < 1ms | pytest-benchmark, 1000 iterations |
+| **Round-Trip Pipeline** | p95 < 5ms | Integration test: API → L1 → Redis → Mock Consumer |
+| **Connection Pool Efficiency** | Connection acquire < 5ms | Under 100 concurrent requests |
+| **Memory Usage** | Redis client < 50MB baseline | Memory profiling during load tests |
+| **Message Throughput** | ≥1000 msgs/sec sustained | Load testing with burst scenarios |
+
+### Quality Assurance Metrics
+
+| Standard | Requirement | Validation |
+|----------|------------|------------|
+| **Unit Test Coverage** | ≥97% new/modified code | pytest --cov --cov-fail-under=97 |
+| **Integration Test Coverage** | 100% Redis operations | Live Redis instance testing |
+| **Linting Compliance** | Zero warnings/errors | ruff check, mypy --strict |
+| **Type Safety** | 100% type hints | mypy strict mode validation |
+| **Security Scan** | Zero vulnerabilities | bandit security linting |
+
+### Functional Validation Criteria
+
+| Component | Success Criteria |
+|-----------|------------------|
+| **Message Publishing** | POST `/debug/test-log` → Redis message appears in `mem0.recorded.cc` |
+| **Message Format** | All required fields present and properly formatted |
+| **Error Resilience** | Failed Redis publish does NOT fail main API request |
+| **Tracing Integration** | Logfire spans show publish operation with success/failure status |
+| **Consumer Simulation** | Mock subscriber processes messages and acknowledges correctly |
+
+---
+
+## 5. Detailed Deliverables
+
+### Core Code Components
+
+#### `src/common/pubsub.py`
+```python
+# Primary functions to implement:
+async def get_redis_client() -> redis.Redis
+async def publish_message(channel: str, message: dict) -> bool
+async def subscribe_to_channel(channel: str) -> AsyncIterator[dict]
+
+class CircuitBreaker:
+    # Resilience pattern for Redis unavailability
+
+class BaseSubscriber(ABC):
+    # Abstract base for Sprint 3 L2 consumer
+    @abstractmethod
+    async def process_message(self, message: dict) -> bool
+```
+
+#### `src/common/redis_config.py`
+```python
+# Configuration constants and validation:
+REDIS_URL: str
+REDIS_MAX_CONNECTIONS: int
+REDIS_SOCKET_CONNECT_TIMEOUT: int
+REDIS_SOCKET_KEEPALIVE: bool
+REDIS_RETRY_ON_TIMEOUT: bool
+```
+
+#### Enhanced `src/backend/cc/services/logging.py`
+```python
+# Modifications to existing log_l1() function:
+async def log_l1(...) -> UUID:
+    # Existing L1 database logic...
+    await db.commit()  # Existing commit
+
+    # NEW: Publish after successful commit
+    await _publish_l1_event(base_log.id, event_data)
+    return base_log.id
+
+async def _publish_l1_event(base_log_id: UUID, event_data: dict) -> None:
+    # Redis publishing with error handling
+```
+
+#### `src/common/base_subscriber.py`
+```python
+class BaseSubscriber(ABC):
+    # Foundation for Sprint 3 L2 consumer
+    async def start_consuming(self, channel: str) -> None
+    async def stop_consuming(self) -> None
+    @abstractmethod
+    async def process_message(self, message: dict) -> bool
+```
+
+### Testing Infrastructure
+
+#### `tests/unit/common/test_pubsub.py`
+- Mock Redis operations for unit testing
+- Circuit breaker behavior validation
+- Error handling edge cases
+- Performance regression tests
+
+#### `tests/integration/test_redis_pipeline.py`
+- Live Redis instance integration
+- End-to-end message flow validation
+- Connection pool stress testing
+- Network failure simulation
+
+#### `tests/performance/test_redis_benchmarks.py`
+- Publish latency benchmarking
+- Connection pool efficiency measurement
+- Memory usage profiling
+- Throughput stress testing
+
+### Configuration & Environment
+
+#### Environment Variables Documentation
+```bash
+# Required for Sprint 2
+REDIS_URL=redis://localhost:6379/0
+REDIS_MAX_CONNECTIONS=20
+REDIS_SOCKET_CONNECT_TIMEOUT=5
+REDIS_SOCKET_KEEPALIVE=true
+REDIS_RETRY_ON_TIMEOUT=true
+
+# Development-specific
+REDIS_DECODE_RESPONSES=true
+REDIS_HEALTH_CHECK_INTERVAL=30
+```
+
+#### Docker Compose Integration
+```yaml
+# Addition to existing docker-compose.yml
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+```
+
+---
+
+## 6. Acceptance Criteria (Testable & Verifiable)
+
+### Primary Functional Criteria
+
+- [ ] **Message Publishing Success**: POST to `/debug/test-log` results in a message appearing in Redis channel `mem0.recorded.cc` within 100ms
+- [ ] **Message Format Compliance**: Published messages contain all required fields (base_log_id, source_module, timestamp, trace_id, request_id, event_type, data) with correct data types
+- [ ] **Database Sequence Integrity**: Redis publish occurs only after successful PostgreSQL commit, verified by forcing DB rollback scenarios
+- [ ] **Error Isolation Validation**: Redis connection failures do NOT cause API request failures, verified through Redis shutdown tests
+- [ ] **Logfire Tracing Integration**: Redis publish operations appear as spans in Logfire with appropriate success/failure status and timing metadata
+
+### Performance Validation Criteria
+
+- [ ] **Publish Latency Benchmark**: p95 latency for `publish_message()` < 1ms measured over 1000 iterations using pytest-benchmark
+- [ ] **Integration Pipeline Timing**: End-to-end time from API request to Redis message receipt < 5ms in 95% of cases
+- [ ] **Connection Pool Efficiency**: Connection acquisition from pool < 5ms under load (100 concurrent requests)
+- [ ] **Memory Usage Validation**: Redis client memory footprint remains < 50MB during sustained operation
+- [ ] **Throughput Capacity**: System sustains ≥1000 messages/second for 60 seconds without degradation
+
+### Quality Assurance Criteria
+
+- [ ] **Unit Test Coverage**: pytest --cov reports ≥97% coverage for all new/modified code in `src/common/pubsub.py`, `src/common/redis_config.py`, and modified `src/backend/cc/services/logging.py`
+- [ ] **Integration Test Success**: All Redis integration tests pass using live Redis instance in Docker
+- [ ] **Linting Compliance**: ruff check returns zero warnings/errors across all modified files
+- [ ] **Type Safety Validation**: mypy --strict passes with zero type errors
+- [ ] **Security Compliance**: bandit security scan shows zero high/medium vulnerabilities
+
+### Infrastructure & Configuration Criteria
+
+- [ ] **Environment Configuration**: All Redis environment variables properly documented and validated
+- [ ] **Docker Integration**: Redis service starts successfully in Docker Compose environment
+- [ ] **CI/CD Pipeline**: Updated GitHub Actions workflow includes Redis service and passes all tests
+- [ ] **Development Experience**: Local development environment starts Redis automatically and provides clear error messages for connection issues
+
+---
+
+**Sprint 2 Foundation Statement**: This implementation creates the reliable, high-performance event bus that transforms COS from a collection of isolated components into a living, learning system. Every L1 interaction becomes fuel for L2 semantic intelligence, enabling the autopoietic loops that will amplify Kevin's creative consciousness across decades.
+
+**Ready for Task Breakdown**: This PRD is comprehensive and specific enough to be broken into 10-15 discrete, executable tasks that can be completed with surgical precision while maintaining alignment with the constitutional foundation and multi-century vision.
+
+**Execute tomorrow morning with complete confidence.**

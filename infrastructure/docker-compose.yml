@@ -11,7 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - type: bind
-        source: P:/postgres_cos_prod
+        source: ${COS_POSTGRES_ROOT}_prod
         target: /var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
@@ -36,7 +36,7 @@ services:
       - "5433:5432"
     volumes:
       - type: bind
-        source: P:/postgres_cos_dev
+        source: ${COS_POSTGRES_ROOT}_dev
         target: /var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
@@ -49,34 +49,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-# postgres_test:
-#   COMMENTED OUT: Not needed until Phase 3+ when live production exists
-#   Will be re-enabled when three-tier development (prod/dev/test) is required
-#   image: postgres:17.5-bookworm
-#   container_name: cos_postgres_test
-#   restart: unless-stopped
-#   environment:
-#     POSTGRES_USER: ${POSTGRES_USER}
-#     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_TEST}
-#     POSTGRES_DB: ${POSTGRES_DB_TEST}
-#   ports:
-#     - "5434:5432"
-#   volumes:
-#     - type: volume
-#       source: pg_test_data
-#       target: /var/lib/postgresql/data
-#   tmpfs:
-#     - /tmp
-#   healthcheck:
-#     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-#     interval: 10s
-#     timeout: 5s
-#     retries: 5
-#   logging:
-#     driver: 'json-file'
-#     options:
-#       max-size: "10m"
-#       max-file: "3"
 
   redis:
     restart: always
@@ -88,7 +60,7 @@ services:
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     volumes:
       - type: bind
-        source: E:/redis_cos_data
+        source: ${COS_REDIS_ROOT}
         target: /data
       - type: bind
         source: ./redis.conf
@@ -123,7 +95,7 @@ services:
 
   elasticsearch:
     restart: unless-stopped
-    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.2
     container_name: cos_elasticsearch
     environment:
       - discovery.type=single-node
@@ -132,7 +104,7 @@ services:
       - "9200:9200"
     volumes:
       - type: bind
-        source: F:/elasticsearch_cos_data
+        source: ${COS_ELASTICSEARCH_ROOT}
         target: /usr/share/elasticsearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health || exit 1"]

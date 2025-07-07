@@ -47,6 +47,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.benchmarks/
 
 # Translations
 *.mo
@@ -237,3 +238,4 @@ dev-debug.log
 # Task files
 tasks.json
 tasks/
+pytest.out

@@ -10,12 +10,9 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest  # Phase 2: Remove for skip removal
+import pytest
 
 from src.backend.cc.schemas import ModuleCreate, ModuleUpdate
-
-# Phase 2: Remove this skip block for router implementation (P2-ROUTER-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Router implementation wiring needed. Trigger: P2-ROUTER-001")
 
 
 class TestRouterDirectCoverage:
@@ -160,11 +157,14 @@ class TestRouterDirectCoverage:
     @patch("src.backend.cc.router.log_event")
     async def test_create_module_success_covers_lines_171_173(self, mock_log: Any, mock_create: Any) -> None:
         """Test create_module function success - covers lines 171-173."""
+        # Mock the service response with correct schema
+        import uuid
+
         from src.backend.cc.router import create_module
 
-        # Mock the service response with correct schema
+        test_uuid = str(uuid.uuid4())
         mock_create.return_value = {
-            "id": "test-id",
+            "id": test_uuid,
             "name": "test_module",
             "version": "1.0.0",
             "config": '{"setting": "value"}',  # String not dict
@@ -214,11 +214,14 @@ class TestRouterDirectCoverage:
     @patch("src.backend.cc.router.log_event")
     async def test_get_module_success_covers_line_197(self, mock_log: Any, mock_get: Any) -> None:
         """Test get_module function success - covers line 197."""
+        # Mock the service response with correct schema
+        import uuid
+
         from src.backend.cc.router import get_module
 
-        # Mock the service response with correct schema
+        test_uuid = str(uuid.uuid4())
         mock_get.return_value = {
-            "id": "test-id",
+            "id": test_uuid,
             "name": "test_module",
             "version": "1.0.0",
             "config": '{"setting": "value"}',  # String not dict
@@ -229,10 +232,10 @@ class TestRouterDirectCoverage:
         mock_db = MagicMock()
 
         # Call the function directly
-        result = await get_module("test-id", mock_db)
+        result = await get_module(test_uuid, mock_db)
 
         # Assertions
-        assert result.id == "test-id"
+        assert result.id == test_uuid
         assert result.name == "test_module"
         mock_log.assert_called_once()
         mock_get.assert_called_once()
@@ -279,11 +282,14 @@ class TestRouterDirectCoverage:
     @patch("src.backend.cc.router.log_event")
     async def test_update_module_success_covers_lines_251_256(self, mock_log: Any, mock_update: Any) -> None:
         """Test update_module function success - covers lines 251-256."""
+        # Mock the service response with correct schema
+        import uuid
+
         from src.backend.cc.router import update_module
 
-        # Mock the service response with correct schema
+        test_uuid = str(uuid.uuid4())
         mock_update.return_value = {
-            "id": "test-id",
+            "id": test_uuid,
             "name": "updated_module",
             "version": "2.0.0",
             "config": '{"setting": "new_value"}',  # String not dict
@@ -296,7 +302,7 @@ class TestRouterDirectCoverage:
         mock_db = MagicMock()
 
         # Call the function directly
-        result = await update_module("test-id", module_data, mock_db)
+        result = await update_module(test_uuid, module_data, mock_db)
 
         # Assertions
         assert result.version == "2.0.0"
@@ -338,8 +344,11 @@ class TestRouterDirectCoverage:
         module_data = ModuleUpdate(version="invalid")
 
         # Call the function and expect exception
+        import uuid
+
+        test_uuid = str(uuid.uuid4())
         with pytest.raises(HTTPException) as exc_info:
-            await update_module("test-id", module_data, mock_db)
+            await update_module(test_uuid, module_data, mock_db)
 
         # Assertions
         assert exc_info.value.status_code == 409
@@ -350,11 +359,14 @@ class TestRouterDirectCoverage:
     @patch("src.backend.cc.router.log_event")
     async def test_delete_module_success_covers_lines_279_282(self, mock_log: Any, mock_delete: Any) -> None:
         """Test delete_module function success - covers lines 279-282."""
+        # Mock the service response with correct schema
+        import uuid
+
         from src.backend.cc.router import delete_module
 
-        # Mock the service response with correct schema
+        test_uuid = str(uuid.uuid4())
         mock_delete.return_value = {
-            "id": "test-id",
+            "id": test_uuid,
             "name": "deleted_module",
             "version": "1.0.0",
             "config": '{"setting": "value"}',  # String not dict
@@ -365,10 +377,10 @@ class TestRouterDirectCoverage:
         mock_db = MagicMock()
 
         # Call the function directly
-        result = await delete_module("test-id", mock_db)
+        result = await delete_module(test_uuid, mock_db)
 
         # Assertions
-        assert result.id == "test-id"
+        assert result.id == test_uuid
         assert result.name == "deleted_module"
         mock_log.assert_called_once()
         mock_delete.assert_called_once()

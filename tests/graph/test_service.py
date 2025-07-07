@@ -10,8 +10,7 @@ from src.graph.base import Neo4jClient
 from src.graph.registry import ModuleLabel, NodeType, RelationshipType
 from src.graph.service import GraphService
 
-# Phase 2: Remove this skip block for Neo4j client implementation (P2-GRAPH-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Graph client implementation needed. Trigger: P2-GRAPH-001")
+# Phase 2: Skip block removed for Neo4j client implementation (P2-GRAPH-001 completed)
 
 
 class TestGraphService:

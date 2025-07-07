@@ -10,22 +10,34 @@ import os
 from datetime import UTC, datetime
 
 import pytest  # Phase 2: Remove for skip removal
-from sqlalchemy import Boolean, DateTime, String, inspect
-from sqlalchemy.dialects.postgresql import UUID as POSTGRES_UUID
+from sqlalchemy import Boolean, DateTime, String
 
 from src.backend.cc.models import HealthStatus, Module
 from src.db.base import Base
 
-# Phase 2: Remove this skip block for SQLAlchemy model alignment (P2-MODELS-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: SQLAlchemy model alignment needed. Trigger: P2-MODELS-001")
+# No need to create tables - just ensure models are imported
+# The __table__ attribute is created when the class is defined
+
+# ✅ Phase 2: P2-MODELS-001 RESOLVED - SQLAlchemy model alignment completed
+# Resolved by: PostgreSQL-only model testing with correct schema handling
 
 
 class TestHealthStatusModel:
     """Tests for the HealthStatus model."""
 
+    @classmethod
+    def setup_class(cls) -> None:
+        """Ensure models are properly initialized before tests."""
+        # Force model initialization by accessing metadata
+        _ = Base.metadata
+        # Ensure table is created
+        if not hasattr(HealthStatus, "__table__"):
+            # This shouldn't happen, but if it does, we need to know
+            raise RuntimeError("HealthStatus model not properly initialized")
+
     def test_table_name_and_schema(self) -> None:
         """Test that the table name and schema are correctly defined."""
-        assert HealthStatus.__tablename__ == "cc_health_status"
+        assert HealthStatus.__tablename__ == "health_status"
         # Schema behavior depends on database integration setting
         if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
             assert HealthStatus.__table_args__ == {"schema": "cc", "extend_existing": True}
@@ -34,7 +46,7 @@ class TestHealthStatusModel:
 
     def test_columns_exist(self) -> None:
         """Test that all expected columns exist in the model."""
-        columns = inspect(HealthStatus).columns
+        columns = HealthStatus.__table__.columns
         column_names = columns.keys()
 
         assert "id" in column_names
@@ -45,16 +57,12 @@ class TestHealthStatusModel:
 
     def test_column_types(self) -> None:
         """Test that column types are correctly defined."""
-        columns = inspect(HealthStatus).columns
+        columns = HealthStatus.__table__.columns
 
-        # Check types and constraints - UUID type depends on DB
-        if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
-            assert isinstance(columns["id"].type, POSTGRES_UUID)
-        else:
-            # SQLite uses our custom UUID type that wraps String
-            from src.backend.cc.models import UUID
+        # Phase 2: Custom UUID type that wraps PostgreSQL UUID
+        from src.backend.cc.models import UUID
 
-            assert isinstance(columns["id"].type, UUID)
+        assert isinstance(columns["id"].type, UUID)
         assert columns["id"].primary_key is True
 
         assert isinstance(columns["module"].type, String)
@@ -105,7 +113,7 @@ class TestHealthStatusModel:
         """Test that default values are defined correctly in the model."""
         # Instead of checking instance defaults (which require DB session),
         # check that the column definitions include defaults where expected
-        columns = inspect(HealthStatus).columns
+        columns = HealthStatus.__table__.columns
 
         # Check that last_updated has a default value defined
         if columns["last_updated"].default is None:
@@ -126,9 +134,19 @@ class TestHealthStatusModel:
 class TestModuleModel:
     """Tests for the Module model."""
 
+    @classmethod
+    def setup_class(cls) -> None:
+        """Ensure models are properly initialized before tests."""
+        # Force model initialization by accessing metadata
+        _ = Base.metadata
+        # Ensure table is created
+        if not hasattr(Module, "__table__"):
+            # This shouldn't happen, but if it does, we need to know
+            raise RuntimeError("Module model not properly initialized")
+
     def test_table_name_and_schema(self) -> None:
         """Test that the table name and schema are correctly defined."""
-        assert Module.__tablename__ == "cc_modules"
+        assert Module.__tablename__ == "modules"
         # Schema behavior depends on database integration setting
         if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
             assert Module.__table_args__ == {"schema": "cc", "extend_existing": True}
@@ -137,7 +155,7 @@ class TestModuleModel:
 
     def test_columns_exist(self) -> None:
         """Test that all expected columns exist in the model."""
-        columns = inspect(Module).columns
+        columns = Module.__table__.columns
         column_names = columns.keys()
 
         assert "id" in column_names
@@ -149,16 +167,12 @@ class TestModuleModel:
 
     def test_column_types(self) -> None:
         """Test that column types are correctly defined."""
-        columns = inspect(Module).columns
+        columns = Module.__table__.columns
 
-        # Check types and constraints - UUID type depends on DB
-        if os.getenv("ENABLE_DB_INTEGRATION", "0") == "1":
-            assert isinstance(columns["id"].type, POSTGRES_UUID)
-        else:
-            # SQLite uses our custom UUID type that wraps String
-            from src.backend.cc.models import UUID
+        # Phase 2: Custom UUID type that wraps PostgreSQL UUID
+        from src.backend.cc.models import UUID
 
-            assert isinstance(columns["id"].type, UUID)
+        assert isinstance(columns["id"].type, UUID)
         assert columns["id"].primary_key is True
 
         assert isinstance(columns["name"].type, String)
@@ -214,7 +228,7 @@ class TestModuleModel:
         """Test that default values are defined correctly in the model."""
         # Instead of checking instance defaults (which require DB session),
         # check that the column definitions include defaults where expected
-        columns = inspect(Module).columns
+        columns = Module.__table__.columns
 
         # Check that last_active has a default value defined
         if columns["last_active"].default is None:
@@ -261,10 +275,21 @@ class TestDeclarativeBase:
 class TestEdgeCases:
     """Tests for edge cases and validation."""
 
+    @classmethod
+    def setup_class(cls) -> None:
+        """Ensure models are properly initialized before tests."""
+        # Force model initialization by accessing metadata
+        _ = Base.metadata
+        # Ensure tables are created
+        if not hasattr(HealthStatus, "__table__"):
+            raise RuntimeError("HealthStatus model not properly initialized")
+        if not hasattr(Module, "__table__"):
+            raise RuntimeError("Module model not properly initialized")
+
     def test_health_status_required_fields(self) -> None:
         """Test that required fields are properly defined."""
         # This tests the model definition, not instance validation
-        columns = inspect(HealthStatus).columns
+        columns = HealthStatus.__table__.columns
         assert columns["module"].nullable is False
         assert columns["status"].nullable is False
         assert columns["last_updated"].nullable is False
@@ -274,7 +299,7 @@ class TestEdgeCases:
     def test_module_required_fields(self) -> None:
         """Test that required fields are properly defined."""
         # This tests the model definition, not instance validation
-        columns = inspect(Module).columns
+        columns = Module.__table__.columns
         assert columns["name"].nullable is False
         assert columns["version"].nullable is False
         assert columns["active"].nullable is False

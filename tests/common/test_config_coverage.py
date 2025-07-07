@@ -7,6 +7,7 @@ focusing on environment file loading and URL conversion paths.
 from __future__ import annotations
 
 import os
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest  # Phase 2: Remove for skip removal
@@ -19,40 +20,45 @@ from src.common.config import Settings, get_settings, get_settings_dep
 class TestSettingsEnvironmentLoading:
     """Test environment file loading behavior."""
 
-    @pytest.mark.xfail(reason="config loading behavior changed - env loading is now optional")
-    @patch("src.common.config.Path.exists")
-    @patch("src.common.config.load_dotenv")
-    def test_env_file_explicit_exists(self, mock_load_dotenv: MagicMock, mock_exists: MagicMock) -> None:
+    def test_env_file_explicit_exists(self) -> None:
         """Test loading when ENV_FILE is explicitly set and exists."""
-        mock_exists.return_value = True
+        # Remove module from cache to force reload
+        if "src.common.config" in sys.modules:
+            del sys.modules["src.common.config"]
 
-        with patch.dict(os.environ, {"ENV_FILE": "/custom/.env"}):
-            # Need to reload module to trigger the env loading logic
-            import importlib
+        with (
+            patch.dict(os.environ, {"ENV_FILE": "/custom/.env"}),
+            patch("pathlib.Path.exists", return_value=True),
+            patch("dotenv.load_dotenv") as mock_load_dotenv,
+        ):
+            # Import module with mocks in place
+            import src.common.config  # noqa: F401
 
-            import src.common.config
+            mock_load_dotenv.assert_called_once_with("/custom/.env")
 
-            importlib.reload(src.common.config)
-
-        mock_load_dotenv.assert_called()
-
-    @pytest.mark.xfail(reason="config loading behavior changed - env loading is now optional")
-    @patch("src.common.config.Path.exists")
-    @patch("src.common.config.load_dotenv")
-    def test_env_file_infrastructure_path(self, mock_load_dotenv: MagicMock, mock_exists: MagicMock) -> None:
+    def test_env_file_infrastructure_path(self) -> None:
         """Test loading infrastructure/.env when no ENV_FILE set."""
-        mock_exists.return_value = True
+        # Remove module from cache to force reload
+        if "src.common.config" in sys.modules:
+            del sys.modules["src.common.config"]
 
-        with patch.dict(os.environ, {}, clear=True):
-            # Need to reload module to trigger the env loading logic
-            import importlib
+        # Clear ENV_FILE from environment
+        env_copy = os.environ.copy()
+        if "ENV_FILE" in env_copy:
+            del env_copy["ENV_FILE"]
 
-            import src.common.config
+        with (
+            patch.dict(os.environ, env_copy, clear=True),
+            patch("pathlib.Path.exists", return_value=True),
+            patch("dotenv.load_dotenv") as mock_load_dotenv,
+        ):
+            # Import module with mocks in place
+            import src.common.config  # noqa: F401
 
-            importlib.reload(src.common.config)
-
-        # Should try to load from infrastructure/.env
-        mock_load_dotenv.assert_called()
+            # Should try to load from infrastructure/.env
+            assert mock_load_dotenv.called
+            call_args = mock_load_dotenv.call_args[0][0]
+            assert call_args.endswith("infrastructure/.env")
 
     @patch("src.common.config.Path.exists")
     @patch("src.common.config.load_dotenv")
@@ -117,7 +123,7 @@ class TestSettingsDefaults:
             assert settings.POSTGRES_TEST_URL == "postgresql://test:test@localhost/test_test_db"
             assert settings.REDIS_HOST == "localhost"
             assert settings.REDIS_PORT == 6379
-            assert settings.REDIS_PASSWORD == "test_password"  # noqa: S105
+            assert settings.REDIS_PASSWORD == "test_password"
             assert settings.MEM0_SCHEMA == "mem0_cc"
 
     def test_settings_with_custom_values(self) -> None:
@@ -159,15 +165,11 @@ class TestSettingsFunctions:
     @pytest.mark.asyncio
     async def test_get_settings_dep(self) -> None:
         """Test get_settings_dep async function."""
-        # Import fresh functions from the same module to avoid reload issues
-        from src.common.config import Settings as CurrentSettings
-        from src.common.config import get_settings as current_get_settings
-
         settings = await get_settings_dep()
 
-        assert isinstance(settings, CurrentSettings)
+        assert isinstance(settings, Settings)
         # Should return a settings instance with the same values
-        current_settings = current_get_settings()
+        current_settings = get_settings()
         assert settings.POSTGRES_DEV_URL == current_settings.POSTGRES_DEV_URL
         assert settings.REDIS_HOST == current_settings.REDIS_HOST
 

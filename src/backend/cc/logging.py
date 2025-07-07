@@ -13,14 +13,144 @@ Features:
 
 import asyncio
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import logfire
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
+from src.common.logger import get_logger
+from src.common.pubsub import get_pubsub
 from src.common.request_id_middleware import get_request_id
 
 _flush_lock = asyncio.Lock()
+logger = get_logger(__name__)
+
+
+async def _publish_l1_event(log_id: uuid.UUID, event_data: dict[str, Any]) -> None:
+    """Publish L1 event to Redis after successful database commit with enhanced error handling.
+
+    This function implements fire-and-forget publishing with comprehensive error isolation,
+    Logfire integration, and graceful degradation. All exceptions are caught and logged
+    but never re-raised to prevent interfering with the main database transaction flow.
+
+    Args:
+    ----
+        log_id: UUID of the event log record
+        event_data: Event data dictionary to publish
+
+    """
+    correlation_id = event_data.get("event", {}).get("request_id") or str(uuid.uuid4())
+
+    try:
+        with logfire.span(
+            "publish_l1_event", kind="producer", log_id=str(log_id), correlation_id=correlation_id
+        ) as span:
+            # Get Redis pubsub instance with circuit breaker protection
+            pubsub = await get_pubsub()
+
+            # Publish to the L1 Redis channel with correlation ID
+            subscriber_count = await pubsub.publish("mem0.recorded.cc", event_data, correlation_id=correlation_id)
+
+            # Set comprehensive span attributes for observability
+            span.set_attribute("log_id", str(log_id))
+            span.set_attribute("correlation_id", correlation_id)
+            span.set_attribute("event_type", event_data.get("event", {}).get("event_type", "unknown"))
+            span.set_attribute("subscriber_count", subscriber_count)
+            span.set_attribute("success", True)
+
+            # Log successful publish with detailed context
+            logfire.info(
+                "L1 event published successfully to Redis",
+                log_id=str(log_id),
+                correlation_id=correlation_id,
+                channel="mem0.recorded.cc",
+                subscriber_count=subscriber_count,
+                event_type=event_data.get("event", {}).get("event_type", "unknown"),
+            )
+
+    except Exception as e:
+        # Enhanced error isolation with comprehensive logging context
+        error_context = {
+            "log_id": str(log_id),
+            "correlation_id": correlation_id,
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "channel": "mem0.recorded.cc",
+            "event_type": event_data.get("event", {}).get("event_type", "unknown"),
+            "event_data_size": len(str(event_data)),
+            "success": False,
+        }
+
+        # Log detailed error information
+        logfire.error("Failed to publish L1 event to Redis - implementing graceful degradation", **error_context)
+
+        # Additional logging for debugging in development
+        logger.error(
+            f"Redis publish failed for log_id {log_id}: {e}",
+            extra={
+                "correlation_id": correlation_id,
+                "error_type": type(e).__name__,
+                "event_data_keys": list(event_data.get("event", {}).keys()) if "event" in event_data else [],
+            },
+        )
+
+        # Attempt graceful degradation - try fallback publish
+        try:
+            if hasattr(pubsub, "publish_with_fallback"):
+                fallback_result = await pubsub.publish_with_fallback(
+                    "mem0.recorded.cc", event_data, correlation_id=correlation_id, fallback_strategy="log_only"
+                )
+
+                logfire.info(
+                    "L1 event fallback strategy applied",
+                    log_id=str(log_id),
+                    correlation_id=correlation_id,
+                    fallback_result=fallback_result,
+                )
+
+        except Exception as fallback_error:
+            # Even fallback failed - log but continue
+            logfire.error(
+                "L1 event fallback strategy also failed",
+                log_id=str(log_id),
+                correlation_id=correlation_id,
+                fallback_error=str(fallback_error),
+            )
+
+
+@event.listens_for(Session, "after_commit", named=True)
+def _after_commit_publish_events(session: Session, **kw: Any) -> None:
+    """SQLAlchemy after_commit event listener for Redis publishing.
+
+    This listener is triggered after a successful database commit and
+    schedules Redis publishing tasks for any events in the session outbox.
+    Uses asyncio.create_task for fire-and-forget execution.
+
+    Args:
+    ----
+        session: The Session that was committed
+        **kw: Additional event arguments (ignored)
+
+    """
+    # Retrieve and clear outbox events from session info
+    outbox_events = session.info.pop("l1_outbox", None)
+    if not outbox_events:
+        return
+
+    # Schedule publishing tasks asynchronously (fire-and-forget)
+    try:
+        loop = asyncio.get_running_loop()
+        tasks = []
+        for log_id, event_data in outbox_events:
+            task = loop.create_task(_publish_l1_event(log_id, event_data))
+            tasks.append(task)
+    except RuntimeError:
+        # No running event loop - this can happen in some test scenarios
+        # Log the situation but don't fail
+        logfire.warn("No running event loop for Redis publishing", event_count=len(outbox_events))
 
 
 async def log_l1(
@@ -53,22 +183,11 @@ async def log_l1(
 
     """
     # Import models directly to avoid registry conflicts
-    try:
-        from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
+    from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
 
-        base_log_cls = BaseLog
-        event_log_cls = EventLog
-        prompt_trace_cls = PromptTrace
-    except ImportError as err:
-        # Fallback if import fails during testing - direct import preferred
-        try:
-            from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
-
-            base_log_cls = BaseLog
-            event_log_cls = EventLog
-            prompt_trace_cls = PromptTrace
-        except ImportError:
-            raise ImportError("Failed to load mem0 models") from err
+    base_log_cls = BaseLog
+    event_log_cls = EventLog
+    prompt_trace_cls = PromptTrace
 
     # Get request_id from context if not provided
     if not request_id:
@@ -98,10 +217,28 @@ async def log_l1(
 
     # Create event log if payload provided
     if payload is not None:
+        # Handle request_id conversion with validation
+        try:
+            if isinstance(request_id, str):
+                # Try to parse as UUID, but fall back to generating new UUID if invalid
+                try:
+                    parsed_request_id = uuid.UUID(request_id)
+                except ValueError:
+                    # If request_id is not a valid UUID, generate a new one and log the original
+                    parsed_request_id = uuid.uuid4()
+                    logger.debug(
+                        f"Invalid UUID format for request_id '{request_id}', generated new UUID: {parsed_request_id}"
+                    )
+            else:
+                parsed_request_id = request_id
+        except Exception:
+            # Ultimate fallback - generate new UUID
+            parsed_request_id = uuid.uuid4()
+
         event_log = event_log_cls(
             event_type=event_type,
             event_data=payload,
-            request_id=uuid.UUID(request_id) if isinstance(request_id, str) else request_id,
+            request_id=parsed_request_id,
             trace_id=trace_id,
             base_log_id=base_log.id,
         )
@@ -109,6 +246,23 @@ async def log_l1(
         async with _flush_lock:
             await db.flush()
         result_ids["event_log_id"] = event_log.id
+
+        # Queue event for Redis publishing after commit
+        event_publish_data = {
+            "log_id": str(event_log.id),
+            "created_at": datetime.now(UTC).isoformat(),
+            "event": {
+                "event_type": event_type,
+                "event_data": payload,
+                "request_id": request_id,
+                "trace_id": trace_id,
+            },
+        }
+
+        # Add to session outbox for after_commit publishing
+        if "l1_outbox" not in db.info:
+            db.info["l1_outbox"] = []
+        db.info["l1_outbox"].append((event_log.id, event_publish_data))
 
     # Create prompt trace if prompt_data provided
     if prompt_data is not None:

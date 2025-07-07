@@ -6,7 +6,6 @@ established in src/db/connection.py.
 """
 
 import os
-import warnings
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import lru_cache
@@ -24,39 +23,61 @@ __all__ = [
     "get_neo4j_client",
 ]
 
-# Attempt to import the Rust-enhanced Neo4j driver, fallback to standard driver
+# Import Neo4j driver (neo4j-rust-ext provides transparent performance boost when installed)
 try:
-    from neo4j_rust_ext import AsyncDriver, AsyncSession, GraphDatabase
+    from neo4j import AsyncDriver, AsyncSession, GraphDatabase
+except ImportError as e:
+    raise ImportError(
+        "Neo4j package not available. Please install it: 'pip install neo4j' or 'pip install neo4j-rust-ext'"
+    ) from e
 
-    USING_RUST_DRIVER = True
-    log_event(
-        source="graph",
-        data={"driver_type": "rust"},
-        tags=["initialization", "performance"],
-        memo="Using Neo4j Rust-enhanced driver for optimized performance",
-    )
-except ImportError:
-    try:
-        from neo4j import AsyncDriver, AsyncSession, GraphDatabase
+# Detect if neo4j-rust-ext is installed and active
+try:
+    import sys
 
-        USING_RUST_DRIVER = False
-        warnings.warn(
-            "Neo4j Rust driver not available, falling back to standard driver. "
-            "Install neo4j-rust-ext for better performance.",
-            UserWarning,
-            stacklevel=2,
-        )
+    # Check for rust extension modules loaded by neo4j-rust-ext package
+    rust_modules = [name for name in sys.modules if name.startswith("neo4j._codec.packstream._rust")]
+    USING_RUST_DRIVER = len(rust_modules) > 0
+
+    if not USING_RUST_DRIVER:
+        # Fallback: check if neo4j-rust-ext package is installed
+        try:
+            import importlib.metadata
+
+            importlib.metadata.distribution("neo4j-rust-ext")
+            USING_RUST_DRIVER = True
+        except (importlib.metadata.PackageNotFoundError, ImportError):
+            pass
+
+    if USING_RUST_DRIVER:
+        # Skip logging during test imports to avoid event loop issues
+        if os.getenv("RUN_INTEGRATION", "1") == "1":
+            log_event(
+                source="graph",
+                data={"driver_type": "rust", "rust_modules": len(rust_modules)},
+                tags=["initialization", "performance"],
+                memo="Neo4j Rust-enhanced driver active for optimized performance",
+            )
+    else:
+        # Skip logging during test imports to avoid event loop issues
+        if os.getenv("RUN_INTEGRATION", "1") == "1":
+            log_event(
+                source="graph",
+                data={"driver_type": "standard"},
+                tags=["initialization"],
+                memo="Using standard Neo4j driver (install neo4j-rust-ext for 3-10x performance boost)",
+            )
+except Exception:
+    # Fallback to standard if detection fails
+    USING_RUST_DRIVER = False
+    # Skip logging during test imports to avoid event loop issues
+    if os.getenv("RUN_INTEGRATION", "1") == "1":
         log_event(
             source="graph",
-            data={"driver_type": "standard", "reason": "rust_driver_unavailable"},
+            data={"driver_type": "standard", "reason": "detection_failed"},
             tags=["initialization", "fallback"],
-            memo="Falling back to standard Neo4j driver",
+            memo="Using standard Neo4j driver",
         )
-    except ImportError as e:
-        raise ImportError(
-            "Neither neo4j-rust-ext nor neo4j packages are available. "
-            "Please install one of them: 'pip install neo4j-rust-ext' or 'pip install neo4j'"
-        ) from e
 
 
 class Neo4jClient:
@@ -189,7 +210,7 @@ class Neo4jClient:
                     tags=["query", "error"],
                     memo="Failed to execute Cypher query",
                 )
-                raise
+                raise Exception(f"Query failed: {e!s}") from e
 
     @property
     def is_connected(self) -> bool:

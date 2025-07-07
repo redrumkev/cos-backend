@@ -8,12 +8,9 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import patch
 
-import pytest  # Phase 2: Remove for skip removal
-
 from src.backend.cc.deps import get_module_config
 
-# Phase 2: Remove this skip block for dependency injection wiring (P2-DEPS-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Dependency injection wiring needed. Trigger: P2-DEPS-001")
+# Phase 2: Skip block removed - dependency injection wiring completed (P2-DEPS-001)
 
 
 class TestGetModuleConfigFunction:

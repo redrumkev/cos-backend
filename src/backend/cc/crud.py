@@ -6,8 +6,9 @@ using SQLAlchemy's async API for optimal performance.
 
 # MDC: cc_module
 from typing import Any
+from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.logger import log_event
@@ -143,6 +144,8 @@ async def create_module(db: AsyncSession, name: str, version: str, config: str |
         ```
 
     """
+    from datetime import UTC, datetime
+
     log_event(
         source="cc",
         data={"name": name, "version": version},
@@ -150,7 +153,14 @@ async def create_module(db: AsyncSession, name: str, version: str, config: str |
         memo=f"Creating new module {name} version {version}",
     )
 
-    module = Module(name=name, version=version, config=config)
+    # Explicitly set default values to ensure they're present in test environment
+    module = Module(
+        name=name,
+        version=version,
+        config=config,
+        active=True,  # Explicit default
+        last_active=datetime.now(UTC),  # Explicit default
+    )
     db.add(module)
     await db.commit()
     await db.refresh(module)
@@ -183,7 +193,7 @@ async def get_module(db: AsyncSession, module_id: str) -> Module | None:
         memo=f"Retrieving module {module_id}",
     )
 
-    stmt = select(Module).where(Module.id == module_id)
+    stmt = select(Module).where(Module.id == UUID(module_id))
     result = await db.execute(stmt)
     return result.scalars().first()
 
@@ -278,18 +288,27 @@ async def update_module(db: AsyncSession, module_id: str, data: dict[str, Any]) 
         memo=f"Updating module {module_id}",
     )
 
-    stmt = select(Module).where(Module.id == module_id)
-    result = await db.execute(stmt)
-    module = result.scalars().first()
+    # Filter data to only include valid column names to avoid SQLAlchemy CompileError
+    valid_columns = {"name", "version", "active", "config", "last_active"}
+    filtered_data = {k: v for k, v in data.items() if k in valid_columns}
 
-    if module:
-        for key, value in data.items():
-            if hasattr(module, key):
-                setattr(module, key, value)
+    # Only proceed if there's actually data to update
+    if not filtered_data:
+        # No valid fields to update, return the current module
+        stmt = select(Module).where(Module.id == UUID(module_id))
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    # Try a direct UPDATE statement approach to avoid session issues
+    update_stmt = update(Module).where(Module.id == UUID(module_id)).values(**filtered_data).returning(Module)
+    result = await db.execute(update_stmt)
+    updated_module = result.scalars().first()
+
+    if updated_module:
         await db.commit()
-        await db.refresh(module)
-
-    return module
+        return updated_module
+    else:
+        return None
 
 
 async def delete_module(db: AsyncSession, module_id: str) -> Module | None:
@@ -318,7 +337,7 @@ async def delete_module(db: AsyncSession, module_id: str) -> Module | None:
         memo=f"Deleting module {module_id}",
     )
 
-    stmt = select(Module).where(Module.id == module_id)
+    stmt = select(Module).where(Module.id == UUID(module_id))
     result = await db.execute(stmt)
     module = result.scalars().first()
 

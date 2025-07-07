@@ -153,13 +153,13 @@ async def test_async_session_can_execute_simple_query() -> None:
 
 
 @pytest.mark.usefixtures("mock_env_settings")
-def test_async_engine_configured_with_pooling_and_timeouts() -> None:
+def test_async_engine_configured_with_pooling_and_timeouts(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verifies async engine is created with agent-specific pool settings."""
     with patch("sqlalchemy.ext.asyncio.create_async_engine") as mock_create:
         # Simulate agent config with edge values
-        os.environ["AGENT_POOL_SIZE"] = "1"
-        os.environ["AGENT_POOL_TIMEOUT"] = "2"
-        os.environ["AGENT_POOL_MAX_OVERFLOW"] = "0"
+        monkeypatch.setenv("AGENT_POOL_SIZE", "1")
+        monkeypatch.setenv("AGENT_POOL_TIMEOUT", "2")
+        monkeypatch.setenv("AGENT_POOL_MAX_OVERFLOW", "0")
 
         # Clear the LRU cache first
         database.get_async_engine.cache_clear()
@@ -215,9 +215,13 @@ def test_async_engine_configured_with_pooling_and_timeouts() -> None:
 @pytest.mark.usefixtures("mock_env_settings")
 async def test_async_engine_connection_failure_logs_rich_error() -> None:
     """Simulates connection failure and asserts rich error log (color + emoji)."""
-    # Patch engine to raise error
+    # Clear the LRU cache to ensure fresh execution
+    database.get_async_engine.cache_clear()
+
+    # Patch create_async_engine to raise error and disable test mode to trigger error path
     with (
         patch("src.common.database.create_async_engine", side_effect=Exception("fail")),
+        patch("src.common.database._is_test_mode", return_value=False),
         patch.object(Console, "print") as mock_print,
     ):
         import contextlib
@@ -228,7 +232,12 @@ async def test_async_engine_connection_failure_logs_rich_error() -> None:
         found = False
         for call in mock_print.call_args_list:
             text_arg = call[0][0]
-            if isinstance(text_arg, Text) and "❌" in text_arg.plain and text_arg.style and "red" in text_arg.style:
+            if (
+                isinstance(text_arg, Text)
+                and "❌" in text_arg.plain
+                and text_arg.style
+                and "red" in str(text_arg.style)
+            ):
                 found = True
         assert found, "No rich error log with emoji/color found."
 
@@ -269,7 +278,7 @@ async def test_async_session_pool_exhaustion_logs_rich_error() -> None:
                         isinstance(text_arg, Text)
                         and "❌" in text_arg.plain
                         and text_arg.style
-                        and "red" in text_arg.style
+                        and "red" in str(text_arg.style)
                     ):
                         found = True
                 assert found, "No rich error log with emoji/color found."
@@ -293,7 +302,12 @@ async def test_async_session_pool_exhaustion_logs_rich_error() -> None:
             found = False
             for call in mock_print.call_args_list:
                 text_arg = call[0][0]
-                if isinstance(text_arg, Text) and "❌" in text_arg.plain and text_arg.style and "red" in text_arg.style:
+                if (
+                    isinstance(text_arg, Text)
+                    and "❌" in text_arg.plain
+                    and text_arg.style
+                    and "red" in str(text_arg.style)
+                ):
                     found = True
             assert found, "No rich error log with emoji/color found."
 
@@ -307,7 +321,9 @@ def test_rich_log_output_includes_color_and_emoji() -> None:
         found = False
         for call in mock_print.call_args_list:
             text_arg = call[0][0]
-            if isinstance(text_arg, Text) and ("✅" in text_arg.plain and text_arg.style and "green" in text_arg.style):
+            if isinstance(text_arg, Text) and (
+                "✅" in text_arg.plain and text_arg.style and "green" in str(text_arg.style)
+            ):
                 found = True
         assert found, "No rich log with green color and emoji found."
 

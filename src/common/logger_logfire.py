@@ -23,7 +23,7 @@ try:
 except ImportError:
     # Graceful degradation when logfire is not available
     logger.warning("Logfire package not available. Tracing will be disabled.")
-    logfire = None
+    logfire = None  # type: ignore[assignment]
 
 
 def initialize_logfire() -> bool:

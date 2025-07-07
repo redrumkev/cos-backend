@@ -2,11 +2,16 @@
 
 """Alembic environment setup for COS migrations."""
 
-# --- Standard library imports ---
+from __future__ import annotations
+
+import logging
 import os
 import sys
 from logging.config import fileConfig
 from pathlib import Path
+
+from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # --- More robust sys.path patching ---
 # Get the absolute path to the project root (4 levels up from this file)
@@ -14,49 +19,53 @@ current_file = Path(__file__).resolve()
 project_root = current_file.parent.parent.parent.parent
 src_path = project_root / "src"
 
+# Setup logging for migration environment
+logger = logging.getLogger("alembic.env")
+
 # Debug path resolution
-print(f"Current file: {current_file}")  # noqa: T201
-print(f"Project root: {project_root}")  # noqa: T201
-print(f"Src path: {src_path}")  # noqa: T201
-print(f"Src exists: {src_path.exists()}")  # noqa: T201
+logger.debug("Current file: %s", current_file)
+logger.debug("Project root: %s", project_root)
+logger.debug("Src path: %s", src_path)
+logger.debug("Src exists: %s", src_path.exists())
 
 # Add both project root and src to path
 for path_to_add in [str(project_root), str(src_path)]:
     if path_to_add not in sys.path:
         sys.path.insert(0, path_to_add)
-        print(f"Added to sys.path: {path_to_add}")  # noqa: T201
+        logger.debug("Added to sys.path: %s", path_to_add)
 
 # --- Third-party imports ---
 try:
     from dotenv import load_dotenv
 
-    # Try multiple .env locations
-    env_candidates = [project_root / ".env", project_root / "infrastructure" / ".env", src_path / ".env"]
+    # Try multiple .env locations (prioritize infrastructure/.env)
+    env_candidates = [project_root / "infrastructure" / ".env", project_root / ".env", src_path / ".env"]
 
     for env_file in env_candidates:
         if env_file.exists():
             load_dotenv(str(env_file), override=False)
-            print(f"Loaded .env from: {env_file}")  # noqa: T201
+            logger.info("Loaded .env from: %s", env_file)
             break
     else:
-        print("No .env file found in candidate locations")  # noqa: T201
+        logger.warning("No .env file found in candidate locations")
 
 except ImportError:
-    print("dotenv not available, skipping .env loading")  # noqa: T201
-
-from alembic import context
-from sqlalchemy import engine_from_config, pool
+    logger.warning("dotenv not available, skipping .env loading")
 
 # --- Local application imports (after sys.path patch) ---
 try:
-    from src.backend.cc import mem0_models as mem0_models
-    from src.backend.cc import models as cc_models  # noqa: F401
+    # Import model modules to ensure metadata is registered with Base
+    from src.backend.cc import mem0_models
+    from src.backend.cc import models as cc_models
     from src.db.base import Base
 
-    print("Successfully imported COS modules")  # noqa: T201
+    # Explicitly reference imports to ensure they're loaded into metadata
+    _ = mem0_models, cc_models
+
+    logger.info("Successfully imported COS modules")
 except ImportError as e:
-    print(f"Import error: {e}")  # noqa: T201
-    print(f"Current sys.path: {sys.path}")  # noqa: T201
+    logger.error("Import error: %s", e)
+    logger.debug("Current sys.path: %s", sys.path)
     raise
 
 # --- Alembic config and logging ---
@@ -82,7 +91,7 @@ if not migrate_url:
         "Checked: POSTGRES_MIGRATE_URL, DATABASE_URL_TEST, POSTGRES_DEV_URL"
     )
 
-print(f"Using migration URL: {migrate_url}")  # noqa: T201
+logger.info("Using migration URL: %s", migrate_url.replace(migrate_url.split("@")[0].split("//")[1], "***"))
 config.set_main_option("sqlalchemy.url", migrate_url)
 
 # --- Target metadata for autogenerate ---
@@ -93,8 +102,16 @@ WATCH_SCHEMAS = {"cc", "mem0_cc"}
 
 
 def include_object(obj: object, name: str, type_: str, reflected: bool, compare_to: object) -> bool:
+    """Determine if an object should be included in the migration.
+
+    Only include tables from watched schemas to avoid generating migrations
+    for external/system tables.
+    """
     if type_ == "table":
-        return obj.schema in WATCH_SCHEMAS  # type: ignore[attr-defined]
+        # Safe type check for table objects without using assert
+        if hasattr(obj, "schema"):
+            return obj.schema in WATCH_SCHEMAS
+        return False
     return True
 
 
@@ -130,5 +147,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-
-# ruff: noqa: E402

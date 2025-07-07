@@ -62,17 +62,18 @@ class HealthStatus(Base):
     with a timestamp for the last update and the current operational status.
     """
 
-    __tablename__ = "cc_health_status"  # Prefix with cc_ for SQLite
+    __tablename__ = "health_status"  # Use schema instead of prefix
     __table_args__ = get_table_args()
 
     id = Column(UUID, primary_key=True, default=lambda: str(uuid4()))
     module = Column(String, nullable=False, unique=True, index=True)
     status = Column(String, nullable=False)
-    last_updated = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    last_updated = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
     details = Column(String, nullable=True)
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize HealthStatus with defaults."""
+        # Apply defaults if not provided
         if "id" not in kwargs:
             kwargs["id"] = str(uuid4())
         if "last_updated" not in kwargs:
@@ -91,18 +92,19 @@ class Module(Base):
     including their configuration, version, and activation status.
     """
 
-    __tablename__ = "cc_modules"  # Prefix with cc_ for SQLite
+    __tablename__ = "modules"  # Use schema instead of prefix
     __table_args__ = get_table_args()
 
     id = Column(UUID, primary_key=True, default=lambda: str(uuid4()))
     name = Column(String, nullable=False, unique=True, index=True)
     version = Column(String, nullable=False)
     active = Column(Boolean, nullable=False, default=True)
-    last_active = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    last_active = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
     config = Column(String, nullable=True)  # JSON string
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize Module with defaults."""
+        # Apply defaults if not provided
         if "id" not in kwargs:
             kwargs["id"] = str(uuid4())
         if "active" not in kwargs:

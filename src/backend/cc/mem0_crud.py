@@ -60,22 +60,34 @@ async def list_scratch_notes(
 async def update_scratch_note(
     db: AsyncSession, note_id: int, content: str | None = None, ttl_days: int | None = None
 ) -> ScratchNote | None:
-    """Update a scratch note's content and/or TTL."""
-    note = await get_scratch_note(db, note_id)
-    if not note:
-        return None
+    """Update a scratch note's content and/or TTL using UPDATE...RETURNING for PostgreSQL compatibility."""
+    from sqlalchemy import update
 
+    # Build update values dict
+    update_values: dict[str, str | datetime] = {}
     if content is not None:
-        note.content = content
+        update_values["content"] = content
 
     if ttl_days is not None:
         from datetime import timedelta
 
-        note.expires_at = datetime.now(UTC) + timedelta(days=ttl_days)
+        update_values["expires_at"] = datetime.now(UTC) + timedelta(days=ttl_days)
 
-    await db.commit()
-    await db.refresh(note)
-    return note
+    # If no updates, just return existing note
+    if not update_values:
+        return await get_scratch_note(db, note_id)
+
+    # Update with RETURNING clause for PostgreSQL compatibility
+    stmt = update(ScratchNote).where(ScratchNote.id == note_id).values(**update_values).returning(ScratchNote)
+
+    result = await db.execute(stmt)
+    updated_note = result.scalar_one_or_none()
+
+    if updated_note:
+        await db.commit()
+        await db.refresh(updated_note)
+
+    return updated_note
 
 
 async def delete_scratch_note(db: AsyncSession, note_id: int) -> bool:
@@ -89,7 +101,7 @@ async def delete_scratch_note(db: AsyncSession, note_id: int) -> bool:
     return True
 
 
-async def cleanup_expired_notes(db: AsyncSession, batch_size: int = 1000) -> int:
+async def cleanup_expired_notes(db: AsyncSession, batch_size: int = 1000, auto_commit: bool = True) -> int:
     """Clean up expired notes in batches. Returns count of deleted records."""
     now = datetime.now(UTC)
 
@@ -112,16 +124,23 @@ async def cleanup_expired_notes(db: AsyncSession, batch_size: int = 1000) -> int
         if not ids_to_delete:
             return 0
 
-        # Delete by IDs
-        delete_stmt = delete(ScratchNote).where(ScratchNote.id.in_(ids_to_delete))
-        result = await db.execute(delete_stmt)
-        deleted_count = result.rowcount
+        # Use ORM delete instead of bulk delete for better savepoint compatibility
+        # Query the objects to delete using ORM
+        objects_to_delete = await db.execute(select(ScratchNote).where(ScratchNote.id.in_(ids_to_delete)))
+        notes_to_delete = objects_to_delete.scalars().all()
+
+        # Delete using ORM (this works better with savepoints)
+        for note in notes_to_delete:
+            await db.delete(note)
+
+        deleted_count = len(notes_to_delete)
     else:
         # Delete all expired (no batch limit)
         result = await db.execute(stmt)
         deleted_count = result.rowcount
 
-    await db.commit()
+    if auto_commit:
+        await db.commit()
     return deleted_count
 
 

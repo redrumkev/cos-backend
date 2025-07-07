@@ -20,8 +20,7 @@ from src.backend.cc.services import (
     update_module,
 )
 
-# Phase 2: Remove this skip block for service layer implementation (P2-SERVICE-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Service layer implementation needed. Trigger: P2-SERVICE-001")
+# Phase 2: P2-SERVICE-001 - Service layer tests re-enabled
 
 
 class TestModuleServices:

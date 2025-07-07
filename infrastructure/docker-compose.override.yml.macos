@@ -1,0 +1,48 @@
+# Docker Compose Override - macOS
+# Flat directory structure under ~/cos-data/
+
+services:
+  postgres_prod:
+    volumes:
+      - type: bind
+        source: ~/cos-data/postgres/prod
+        target: /var/lib/postgresql/data
+
+  postgres_dev:
+    volumes:
+      - type: bind
+        source: ~/cos-data/postgres/dev
+        target: /var/lib/postgresql/data
+
+  redis:
+    volumes:
+      - type: bind
+        source: ~/cos-data/redis/prod
+        target: /data
+      - type: bind
+        source: ./redis.conf
+        target: /usr/local/etc/redis/redis.conf
+
+  elasticsearch:
+    volumes:
+      - type: bind
+        source: ~/cos-data/elasticsearch/prod
+        target: /usr/share/elasticsearch/data
+
+  neo4j:
+    volumes:
+      - type: bind
+        source: ~/cos-data/neo4j/prod
+        target: /data
+      - type: bind
+        source: ~/cos-data/neo4j/logs
+        target: /logs
+      - type: bind
+        source: ~/cos-data/neo4j/prod
+        target: /var/lib/neo4j/transactions
+
+# Networks inherit from main compose file
+networks:
+  cos_network:
+    external: false
+    name: cos_network

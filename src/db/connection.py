@@ -2,9 +2,11 @@
 
 import os
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Any
 
 import orjson
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -13,6 +15,11 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.common.logger import get_logger
+
+# Load environment from infrastructure/.env
+_infrastructure_env = Path(__file__).parent.parent.parent / "infrastructure" / ".env"
+if _infrastructure_env.exists():
+    load_dotenv(_infrastructure_env, override=False)
 
 logger = get_logger(__name__)
 
@@ -28,7 +35,7 @@ def get_db_url(testing: bool = False, dev: bool = True) -> str:
         db_url = os.getenv("DATABASE_URL_DEV")
         if not db_url:
             logger.warning("DATABASE_URL_DEV not set, using default dev URL")
-            return "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
+            return "postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev"
         return db_url
 
     # Production URL (not used in Phase 2)
@@ -51,7 +58,7 @@ def _database_url_for_tests() -> str:
 
     # Fallback to dev database URL - NO port 5434 EVER
     logger.warning("DATABASE_URL_DEV not set, using default dev URL for tests")
-    return "postgresql+asyncpg://cos_user:Police9119!!Sql_dev@localhost:5433/cos_db_dev"
+    return "postgresql+asyncpg://cos_user:cos_dev_pass@localhost:5433/cos_db_dev"
 
 
 def _create_engine_impl(db_url: str) -> AsyncEngine:

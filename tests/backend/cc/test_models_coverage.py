@@ -11,13 +11,8 @@ from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest  # Phase 2: Remove for skip removal
-
 from src.backend.cc.models import UUID, HealthStatus, Module, get_table_args
 from src.db.base import Base
-
-# Phase 2: Remove this skip block for SQLAlchemy model alignment (P2-MODELS-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: SQLAlchemy model alignment needed. Trigger: P2-MODELS-001")
 
 
 class TestUUIDType:
@@ -145,7 +140,9 @@ class TestModuleModelInit:
 
     def test_module_init_with_id_keeps_provided_id(self) -> None:
         """Test Module __init__ keeps provided id."""
-        custom_id = "custom-test-id"
+        import uuid
+
+        custom_id = str(uuid.uuid4())
         module = Module(id=custom_id, name="test_module", version="1.0.0")
 
         # Should keep the provided id
@@ -168,9 +165,12 @@ class TestModuleModelInit:
 
     def test_module_init_full_kwargs_coverage(self) -> None:
         """Test Module __init__ with all possible kwargs combinations."""
+        import uuid
+
         # Test with id provided, active not provided
-        module1 = Module(id="test-id", name="test1", version="1.0.0")
-        assert module1.id == "test-id"
+        test_uuid1 = str(uuid.uuid4())
+        module1 = Module(id=test_uuid1, name="test1", version="1.0.0")
+        assert module1.id == test_uuid1
         assert module1.active is True
 
         # Test with active provided, id not provided
@@ -179,8 +179,9 @@ class TestModuleModelInit:
         assert module2.active is False
 
         # Test with both provided
-        module3 = Module(id="test-id-3", name="test3", version="1.0.0", active=True)
-        assert module3.id == "test-id-3"
+        test_uuid3 = str(uuid.uuid4())
+        module3 = Module(id=test_uuid3, name="test3", version="1.0.0", active=True)
+        assert module3.id == test_uuid3
         assert module3.active is True
 
 
@@ -278,11 +279,11 @@ class TestModelTableConfiguration:
 
     def test_health_status_table_name(self) -> None:
         """Test HealthStatus table name."""
-        assert HealthStatus.__tablename__ == "cc_health_status"
+        assert HealthStatus.__tablename__ == "health_status"
 
     def test_module_table_name(self) -> None:
         """Test Module table name."""
-        assert Module.__tablename__ == "cc_modules"
+        assert Module.__tablename__ == "modules"
 
     def test_models_extend_base(self) -> None:
         """Test that models extend the Base class."""

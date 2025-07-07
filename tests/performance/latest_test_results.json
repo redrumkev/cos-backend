@@ -1,0 +1,26 @@
+{
+  "infrastructure": {
+    "success": true,
+    "services": [],
+    "required_count": 6,
+    "running_count": 0
+  },
+  "redis_latency": {
+    "success": true,
+    "duration": 1.6864502429962158,
+    "test_count": 1,
+    "passed": 1,
+    "failed": 0,
+    "output": "",
+    "errors": ""
+  },
+  "redis_throughput": {
+    "success": true,
+    "duration": 1.4424269199371338,
+    "test_count": 1,
+    "passed": 1,
+    "failed": 0,
+    "output": "",
+    "errors": ""
+  }
+}

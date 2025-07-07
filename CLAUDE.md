@@ -1,333 +1,280 @@
+# CLAUDE.md
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## AUTO-LOAD PROTOCOL - Execute Automatically on Every COS Interaction
-
-### MUST-READ Files (100% Auto-Load)
-**Read these immediately when starting any COS conversation:**
-1. `/mnt/g/dev_tools/claude_cos/critical_memories.md` - Base operating principles, role hierarchy, dual mandate
-2. `/mnt/g/dev_tools/claude_cos/cold_start_state.md` - Current sprint context, proven patterns, efficiency gains
-3. `/mnt/g/dev_tools/claude_cos/workflow_intelligence.md` - Smart context triggers, document hierarchy, learning patterns
-
-### Conditional Read Files (Context-Driven Auto-Load)
-**Executive Summaries - Read full file when context matches:**
-
-**`supercharged_prompt_v1.md`** - READ WHEN: Creating cursor prompts, task execution planning
-*Contains: Step 0 MCP sequences, TDD scan automation, commit patterns, quality gates*
-
-**`learning_iterations.md`** - READ WHEN: Analyzing task execution, improving prompts, capturing friction
-*Contains: Task execution analysis, friction patterns, template evolution metrics, success predictions*
-
-**`cursor_prompting/*.md`** - READ WHEN: Working on similar tasks, referencing execution patterns
-*Contains: Task-specific prompts with learnings, execution issues, pattern improvements*
-
-### Automatic Workflow Triggers
-**Execute without asking when user mentions:**
-- "cursor prompt for task_X" → Auto-create prompt with Step 0 MCP sequence
-- "task_X feedback" → Auto-analyze, capture learnings, update templates
-- "next task" → Auto-check taskmaster, prepare context, create prompt
-- Task execution issues → Auto-capture in learning_iterations.md
-
-### Agentic Behaviors - Execute Proactively
-1. **Task Learning**: After any cursor task discussion, automatically capture patterns
-2. **Prompt Evolution**: Auto-improve templates based on execution feedback
-3. **Context Loading**: Auto-read relevant files based on conversation context
-4. **Quality Assurance**: Auto-include pytest fixes, UV-only policies, PostgreSQL strategies
-5. **Scope Protection**: Auto-enforce boundaries, prevent scope creep
-6. **MCP Integration**: Auto-include taskmaster calls, Context7 research, documentation loading
-
-### Cold Start Recovery
-**If you ever need to "catch up" in a conversation:**
-1. Read MUST-READ files immediately
-2. Scan conversation for task numbers, execution patterns, issues
-3. Check `/mnt/g/dev_tools/claude_cos/cursor_prompting/` for relevant task context
-4. Auto-apply learned patterns from `learning_iterations.md`
-5. Proceed with full context without asking for guidance
-
-**Mama Bear Principle**: Just enough auto-loading to be effective, not so much as to flood context. Smart conditional reading based on conversation signals.
-
-  Project Overview
-
-  COS (Creative Operating System) is a modular FastAPI-based backend system designed for building and managing creative intelligence applications. The
-  system follows a hybrid vertical slice architecture with atomic composition principles.
-
-  Architecture
-
-  Core Structure
-
-  - Backend Modules: Located in src/backend/, each module is self-contained with its own API, database schemas, and business logic
-  - Common Infrastructure: Shared utilities in src/common/, database layer in src/db/, graph layer in src/graph/
-  - Gold Standard: The cc module serves as the canonical template for all new modules
-
-  Module Structure
-
-  Each module follows this standard structure:
-  backend/module_name/
-  ├── module_name_main.py  # FastAPI app initialization
-  ├── router.py            # API endpoints
-  ├── schemas.py           # Pydantic models
-  ├── services.py          # Business logic
-  ├── crud.py              # Database operations
-  ├── models.py            # SQLAlchemy models (primary schema)
-  ├── mem0_models.py       # SQLAlchemy models (mem0 schema)
-  ├── deps.py              # FastAPI dependencies
-  └── module_name_map.yaml # AI-readable manifest
-
-  Database Strategy
-
-  - PostgreSQL: Each module has two schemas: <module_name> (primary) and mem0_<module_name> (ephemeral memory)
-  - Redis: Used for caching, pub/sub, and session management
-  - Neo4j: Graph data with dual-label pattern :<Type>:<domain_module>
-
-  Database Environment Strategy (Phase 2)
-
-  **PostgreSQL-Only Policy**: Use PostgreSQL exclusively for all environments
-  - Production database: PostgreSQL 17.5 with native schemas, UUID, timezone support
-  - Development/testing: Same PostgreSQL version for production parity
-  - NO SQLite: Eliminates dialect differences, simplifies code, ensures compatibility
-
-  **Current Development**: Use cos_postgres_dev (port 5433) as single source of truth
-  - _dev environment serves as "future _prod" while building toward v1.0
-  - _test environment (port 5434) is IGNORED until Phase 3+ when live production exists
-  - No three-tier complexity until there's something production-worthy to protect
-
-  **Future Migration** (Post-Backend Completion):
-  - Promote stable _dev → _prod v1.0
-  - Reset _dev to v1.01+ for continued iteration
-  - Introduce _test for granular testing when tic/tock development begins
-
-  Development Commands
-
-  Setup and Installation
-
-  # Install dependencies using uv
-  uv sync
-
-  # Install pre-commit hooks
-  pre-commit install
-
-  Testing
-
-  # Run all tests with coverage
-  pytest
-
-  # Run specific test markers
-  pytest -m "not slow"           # Skip slow tests
-  pytest -m "integration"        # Run only integration tests
-  pytest -m "unit"              # Run only unit tests
-
-  # Run tests in parallel
-  pytest -n auto
-
-  Code Quality
-
-  # Format code
-  ruff format .
-
-  # Lint code
-  ruff check .
-
-  # Type checking
-  mypy src/
-
-  # Security scanning
-  bandit -r src/
-
-  # Pre-commit checks (runs all quality tools)
-  pre-commit run --all-files
-
-  Infrastructure
-
-  # Start all infrastructure services
-  cd infrastructure/
-  docker-compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
-  docker-compose -f docker-compose.mem0g.yml up -d
-
-  # Stop all services
-  docker-compose -f docker-compose.yml -f docker-compose.traefik.yml down
-  docker-compose -f docker-compose.mem0g.yml down
-
-  # View service status
-  docker ps
-
-  Database Operations
-
-  # Run migrations
-  alembic upgrade head
-
-  # Create new migration
-  alembic revision --autogenerate -m "description"
-
-  # Downgrade migration
-  alembic downgrade -1
-
-  Module Generation
-
-  # Generate new module from template
-  python scripts/generate_module.py --domain <domain> --module <module_name>
-
-  Development Standards
-
-  Code Quality Requirements
-
-  - Coverage: Maintain 97%+ test coverage
-  - Type Safety: Full type hints with strict mypy configuration
-  - Linting: Zero ruff warnings/errors
-  - Testing: TDD workflow (RED → GREEN → REFACTOR)
-
-  Module Communication
-
-  - Synchronous: Only via REST API calls between modules using httpx
-  - Asynchronous: Only via Redis Pub/Sub for events
-  - Prohibition: No direct Python imports between functional modules
-
-  Logging
-
-  - Use common/logger.py with log_event() function
-  - All logs stored in module's mem0_<module> schema
-  - Include structured data for debugging and monitoring
-
-  Error Handling
-
-  - Custom exceptions with consistent JSON error format
-  - Proper HTTP status codes
-  - Sanitized error messages (no sensitive data)
-
-  Key Configuration Files
-
-  - pyproject.toml: Project dependencies, testing, and tool configuration
-  - ruff.toml: Linting and formatting rules (line length: 120)
-  - alembic.ini: Database migration configuration
-  - .env: Environment variables (not in repo, see infrastructure/preflight_checklist.md)
-
-  Service Access
-
-  With infrastructure running, services are available at:
-  - Traefik Dashboard: http://localhost:8080
-  - Neo4j Browser: http://neo4j.cos.local
-  - mem0g API: http://mem0g.cos.local
-  - Redis: localhost:6379 (direct access)
-  - PostgreSQL Dev: localhost:5433 (direct access)
-
-  Performance Standards
-
-  - API P95 response time < 300ms
-  - Async-first for all I/O operations
-  - Efficient database queries (no N+1 problems)
-  - Connection pooling for external services
-
-  Important Notes
-
-  - Each module must include a <module_name>_map.yaml file for AI-assisted development
-  - Follow the FORWARD principles: Frictionless, Orchestrated, Real-time, Wide-angle, Adaptive, Relentless, Destiny-driven
-  - The system is designed for multi-century endurance and adaptability
-  - Quality and efficiency are never compromised for each other (dual mandate: 100% quality, 100% efficiency)
-
-  Phase 2 Development
-
-  For systematic test re-enablement during Phase 2 implementation, see: docs/PHASE_2_TECHNICAL_DEBT.md
-  This document provides sprint-based guidance for removing test skips and achieving 97% coverage.
-
-  Phase 2 MCP Architecture Foundation
-
-  When you're ready for Phase 2, here's the structure to implement:
-
-  src/backend/cc/mcp/
-  ├── __init__.py
-  ├── server.py              # MCP server implementation
-  ├── client.py              # MCP client for inter-module communication
-  ├── tools/                 # Agentic tool implementations
-  │   ├── __init__.py
-  │   ├── health_tools.py    # Advanced health management
-  │   ├── module_tools.py    # Module lifecycle operations
-  │   └── coordination_tools.py  # Cross-module coordination
-  ├── resources/             # Exposed resources for other agents
-  │   ├── __init__.py
-  │   ├── system_state.py    # Current system state resource
-  │   └── config_resource.py # Live configuration resource
-  └── prompts/              # System prompts for LLM agents
-      ├── __init__.py
-      ├── system_prompts.py  # Core system interaction prompts
-      └── diagnostic_prompts.py  # System diagnostic prompts
-
-  ---
-
-  ## Tactical Cursor Prompting Protocol
-
-  **When User Requests:** "prompt cursor for the next task", "create cursor prompt", "lets do task_007", etc.
-
-  **Claude's Response Pattern:**
-  1. **Load Bell Curve Context** - Access G:\dev_tools\claude_cos\ for:
-     - Current task (XX): Full context and learnings
-     - Adjacent tasks (x, xx): Compressed patterns and decisions
-     - Critical templates: Pydantic v2, API patterns, architectural decisions
-
-  2. **Auto-Execute TDD Scan** - Mandatory for every task:
-     - Skip Analysis: grep -r "P2-.*-001" tests/ → identify removable skips
-     - Test Coverage: examine existing tests → identify gaps
-     - New Test Requirements: for any new code → write RED tests first
-     - Edge Cases: scan cc module patterns → replicate thoroughness
-
-  3. **Apply Template** - Use supercharged_prompt_v1.md structure:
-     - Step 0: MCP sequence + TDD scan (automatic)
-     - TDD Flow: RED→GREEN→REFACTOR (default operating mode)
-     - Boundaries: Explicit scope protection
-     - Success criteria: Measurable outcomes + TDD completion
-     - Quality gates: Copy-paste validation commands
-     - Report template: Learning capture + TDD insights for next iteration
-
-  4. **Commit Message Format:**
-     ```
-     Phase 2 Sprint X.Y: Task_NNN [Brief Description]
-     - Main deliverable/change 1
-     - Main deliverable/change 2
-     - Main deliverable/change 3
-     ```
-
-  5. **Learning Accumulation:**
-     - Preserve critical patterns across tasks
-     - Compress old contexts while maintaining templates
-     - Evolve prompts based on Cursor success/failure feedback
-     - Target: Nearly 100% prompt success rate by task 30-35
-
-  **Key Variables:**
-  - LOGFIRE_API_KEY: Available in /infrastructure/.env
-  - Task Context: Via .taskmaster/ MCP calls
-  - Project Docs: COS /docs folder access only
-  - Quality Standards: 97%+ coverage, zero ruff/mypy errors
-
-  ## Cursor Prompt File Format Standard
-
-  **CRITICAL**: All cursor prompts must follow this exact format to prevent context pollution and ensure clean copy-paste operations.
-
-  **File Structure:**
-  ```
-  --- CURSOR PROMPT RANGE START ---
-  [All content that goes to Cursor - clean, focused, no cross-task references]
-  --- CURSOR PROMPT RANGE END ---
-
-  ## Claude/User Strategic Context
-  [Bell curve context, template evolution, task progression, critical variables]
-  ```
-
-  **Cursor Range Content (Above separator):**
-  - Task title and sprint info
-  - MCP sequence and TDD scan commands
-  - TDD flow (RED→GREEN→REFACTOR)
-  - Boundaries and scope protection
-  - Success criteria and quality gates
-  - Dual mandate statement
-  - NO references to other tasks (task_001, task_003, etc.)
-  - NO Bell curve context or template evolution notes
-
-  **Strategic Context (Below separator):**
-  - Critical context variables and file paths
-  - Template evolution notes and pattern learnings
-  - Bell curve context (current XX, adjacent x/xx)
-  - Task progression (previous/current/next)
-  - Generation metadata and protocol version
-
-  **Auto-Application**: Claude must automatically apply this format to all cursor prompts saved to `/mnt/g/dev_tools/claude_cos/cursor_prompting/` without discussion.
-
-  ---
-
-# Test access line - confirming filesystem access
+## Project Context & Vision
+
+**COS (Creative Operating System)** is a toolkit built to serve a 100+ book legacy vision by an aspiring NYT bestselling author who began coding less than a year ago. This system represents the translation of life-student insights into a technical foundation for creating classic non-fiction works.
+
+**Roles & Orchestration:**
+- **Strategist/Visionary**: Human author driving the legacy vision
+- **Tactical Orchestrator**: Claude Code (you) handling NLP and coordination
+- **Operational Agents**: Sub-agents executing specific coding tasks
+
+## Constitutional Principles & Philosophy
+
+### Dual Mandate (Never Compromise)
+**100% Quality + 100% Efficiency** - Every decision must honor both. If forced to choose, we've designed wrong.
+
+### FORWARD Principles (Technical DNA)
+- **Frictionless**: Standard structures, rapid scaffolding, zero manual deployment
+- **Orchestrated**: Intelligent automation with human-in-the-loop oversight
+- **Real-Time**: New capabilities in <1 day, zero downtime expansion
+- **Wide-Angle**: Decisions for centuries, not sprints
+- **Adaptive**: 10x growth without performance degradation
+- **Relentless**: Every failure is fuel, every success is seed
+- **Destiny-Driven**: All code serves the 100+ book legacy vision
+
+### Testing Philosophy & True TDD
+**Current Reality**: Sprint 2 technically "done" but NOT at "all green" state
+**Goal**: Achieve true TDD workflow where we can step forward, refactor without fear
+**Method**: Write minimal test (red) → minimal code (green) → iterate until ALL green and ALL repo REMAINS green
+
+**Test Modes:**
+- **Mock Mode** (default): Fast CI/CD with mocked dependencies
+- **Integration Mode**: `RUN_INTEGRATION=1` for real infrastructure testing
+- **Coverage Requirement**: 97% minimum
+
+### Pre-Commit Workflow (Zero-Surprise Commits)
+Always run exact pre-commit environment before commit:
+```bash
+# Match exact commit environment
+uv run pre-commit run --files [file1] [file2] [file3]
+# Or all files
+uv run pre-commit run --all-files
+```
+
+### Advanced Tools Integration
+**Multi-Tool Problem Solving:**
+- **Sequential Thinking MCP**: For systematic analysis outside of zen
+- **Zen MCP**: Extension with o3/o4-mini reasoning for complex workflows
+- **Context7 + Tavily**: Research-backed solutions
+
+**Orchestration Pattern:**
+1. Zen MCP processes complex problems with high reasoning
+2. Sequential Thinking MCP contextualizes results into coherent solutions
+3. Sub-agents execute operational coding tasks
+4. Claude Code orchestrates at tactical level
+
+## Essential Commands
+
+### Testing & Quality
+```bash
+# Run all tests with coverage
+uv run pytest --cov=src --cov-report=html --cov-report=term
+
+# Run specific test types
+uv run pytest -m "unit"                    # Unit tests only
+uv run pytest -m "integration"             # Integration tests
+uv run pytest -m "not slow"                # Skip slow tests
+uv run pytest tests/backend/cc/            # CC module tests
+uv run pytest tests/common/                # Common module tests
+
+# Run single test file
+uv run pytest tests/backend/cc/test_router.py -v
+
+# Performance tests
+uv run pytest -m "benchmark" --benchmark-only
+
+# Code quality checks
+uv run ruff check .                        # Linting
+uv run ruff format .                       # Formatting
+uv run mypy src/                           # Type checking
+uv run bandit -r src/                      # Security scanning
+
+# Pre-commit validation (REQUIRED before commits)
+uv run pre-commit run --all-files
+```
+
+### Development Server
+```bash
+# Start FastAPI server
+uv run uvicorn src.cos_main:app --reload --host 0.0.0.0 --port 8000
+
+# Infrastructure services (Docker required)
+cd infrastructure/
+docker-compose -f docker-compose.yml -f docker-compose.traefik.yml -f docker-compose.mem0g.yml up -d
+```
+
+### Database Operations
+```bash
+# Run Alembic migrations
+uv run alembic upgrade head
+
+# Create new migration
+uv run alembic revision --autogenerate -m "description"
+
+# Connect to dev database
+docker exec -it cos_postgres_dev psql -U cos_user -d cos_db_dev
+
+# Connect to Redis
+docker exec -e REDISCLI_AUTH="Police9119!!Red" cos_redis redis-cli ping
+```
+
+## Architecture Overview
+
+### Multi-Layer Memory System
+COS implements a sophisticated memory hierarchy:
+- **L1 (PostgreSQL)**: Immediate storage with mem0 integration
+- **L1.5 (Redis)**: Real-time pub/sub event highway
+- **L2 (Neo4j)**: Graph relationships and semantic connections
+- **L3 (ZK)**: Curated knowledge layer (planned)
+- **L4 (Canonical)**: Immutable archival storage
+
+### Core Modules
+
+**Control Center (CC)** - `src/backend/cc/`
+- Main coordination module with FastAPI router
+- Mem0 integration for scratch data management
+- Health monitoring and system diagnostics
+- Logfire distributed tracing integration
+
+**Graph Module** - `src/graph/`
+- Neo4j operations for L2 memory layer
+- Node and relationship CRUD operations
+- Graph search and analytics
+
+**Common Module** - `src/common/`
+- Shared infrastructure components
+- Database connection management with pooling
+- Redis configuration with circuit breaker pattern
+- Logging, middleware, and configuration utilities
+
+### Database Patterns
+
+**PostgreSQL Configuration**:
+- SQLAlchemy 2.0 async with connection pooling
+- Schema-based organization (cc, mem0_cc)
+- Agent-based connections for multi-tenant support
+- Alembic migrations in `src/db/migrations/`
+
+**Redis Configuration**:
+- Circuit breaker for fault tolerance
+- PubSub wrapper for event-driven architecture
+- Health monitoring with auto-recovery
+- Configuration in `src/common/redis_config.py`
+
+**Neo4j Integration**:
+- Async client with connection management
+- Registry pattern for node/relationship types
+- Graph operations in `src/graph/`
+
+## Development Standards
+
+### Testing Requirements
+- **Coverage Target**: 79%+ progressive floor (current coverage - 2%)
+- **Test Organization**: Unit, integration, performance markers
+- **Infrastructure Tests**: Use testcontainers for Redis/PostgreSQL
+- **Performance Targets**: <5ms round-trip, <1ms publish latency
+
+### Code Quality
+- **Python Version**: 3.13+
+- **Type Checking**: MyPy strict mode enabled
+- **Linting**: Ruff with comprehensive rule set
+- **Security**: Bandit security scanning
+- **Formatting**: Ruff formatter (120 char line length)
+
+### Configuration Management
+- Use Pydantic Settings for type-safe configuration
+- Environment variables with `.env` support
+- Cached settings with dependency injection pattern
+- Never commit secrets (use environment variables)
+
+## Key Design Patterns
+
+### Error Handling
+- Circuit breaker pattern for external services
+- Graceful degradation for optional components
+- Structured error responses with correlation IDs
+
+### Observability
+- Logfire integration for distributed tracing
+- Request ID middleware for correlation
+- Rich console logging for development
+- Health check endpoints at multiple levels
+
+### Production Readiness
+- Connection pooling for all database connections
+- Health monitoring with auto-recovery mechanisms
+- Comprehensive test coverage including failure scenarios
+- Docker-based infrastructure with service discovery
+
+## Current Working Status
+
+### ✅ "All Green" State Achieved!
+**Current Reality**: Sprint 2 complete with ALL tests passing (86% coverage, 6 legitimate skips)
+**Achievement**: Rich terminal output with all green checkmarks - fearless iteration enabled
+**Workflow**: True TDD-only development - write ~10 lines of failing test → minimal code to pass → refactor
+
+### Current Sprint Context
+- **Phase 2 Sprint 2**: Redis Pub/Sub Highway implementation
+- **Technical Status**: Features implemented but iterative loop to achieve true TDD state
+- **Next**: Phase 2 Sprint 3 with true TDD workflow established
+
+### TDD-Only Development Process
+1. **Red**: Write ~10 lines of failing test for new functionality
+2. **Green**: Write minimal code to make test pass (following patterns/best practices)
+3. **Refactor**: Improve code while keeping ALL tests green
+4. **Verify**: Run full test suite including linting before commit
+5. **CI Check**: Push to release branch to verify GitHub Actions pass
+
+### TDD Philosophy - "Clean Agile: Back to Basics"
+- **Small Steps**: ~10 lines of test represents iterative approach, not a hard rule
+- **Immediate Feedback**: Write test → see it fail → make it pass → refactor
+- **Living Documentation**: Tests serve as executable documentation
+- **Refactor Confidence**: Comprehensive test suite enables fearless changes
+- **Catch Regressions**: Automated tests prevent breaking existing functionality
+- **Design Emergence**: TDD naturally leads to better, more modular design
+
+### Development Constraints (Maintain Green)
+- **TDD Discipline**: ALWAYS write failing test first, then code
+- **Performance Targets**: <1ms publish latency, <5ms round-trip
+- **Coverage Maintenance**: 79% progressive floor (allows refactoring)
+- **CI Must Pass**: Every commit must maintain green status locally AND in CI
+
+## Troubleshooting
+
+### Common Issues
+**Import Errors**: Ensure using `uv run` commands for proper environment
+**Database Connection**: Check PostgreSQL on port 5433: `docker-compose up postgres_dev`
+**Redis Connection**: Verify Redis accessibility: `docker exec -e REDISCLI_AUTH="Police9119!!Red" cos_redis redis-cli ping`
+**Test Failures**: Run verbose: `uv run pytest -v --tb=long tests/path/to/failing_test.py`
+
+### Performance Issues
+**Slow Tests**: Ensure mock mode: `uv run pytest` (not integration mode)
+**Redis Latency**: Check circuit breaker:
+```python
+from common.pubsub import RedisPubSub
+pubsub = RedisPubSub()
+await pubsub.health_check()  # View detailed status
+```
+
+### Development Tools
+- **Logs**: `docker-compose logs -f cos_backend`
+- **Redis Monitor**: `redis-cli monitor`
+- **DB Query Log**: Set `SQLALCHEMY_LOG_LEVEL=debug`
+- **Memory Profile**: `uv run pytest --memray tests/performance/`
+
+## Service Access Points
+- **Main API**: http://localhost:8000
+- **Traefik Dashboard**: http://localhost:8080
+- **Neo4j Browser**: http://localhost:7474
+- **PostgreSQL Dev**: localhost:5433
+- **Redis**: Via docker exec with authentication
+
+## Development Context
+- **Infrastructure**: All services containerized and health-monitored
+- **Test Coverage**: 86% overall coverage with ALL tests passing (1451 passed, 6 skipped)
+- **Architecture**: Multi-layer memory system (L1-L4) with Redis pub/sub highway
+
+## Future Multi-Module Architecture (Post-CC Gold Standard)
+**COS System**: Operates collectively as true Anthropic agent definition
+**CC Module**: Control Center/Dashboard (health checks, settings, permissions, kanban, homepage functionality)
+**PEM Module**: Prompt Engineering specialist (writes prompts for other modules, self-improves)
+**AIC Module**: AI Coach (ingests research papers/best practices → system improvements via A/B testing)
+**Creative Modules**: Focus on creative output while PEM/AIC handle technical optimization
+**Module Pattern**: `/cc`, `/pem`, `/aic` routers with schema-per-module (cc.tables, pem.tables)
+**Interconnection**: Redis pub/sub messaging, future Slack integration, agentic communication
+**Testing Strategy**: CC gold standard first, then multi-module isolation patterns
+**Design Philosophy**: Specialized modules enhance each other rather than competing for resources
+**Note**: Review common/ architecture for multi-module readiness before duplication script

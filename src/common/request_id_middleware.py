@@ -38,7 +38,7 @@ except ModuleNotFoundError:
 request_id_var: ContextVar[str | None] = ContextVar("request_id")
 
 
-class RequestIDMiddleware(BaseHTTPMiddleware):  # type: ignore[misc]
+class RequestIDMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for request ID generation and management.
 
     This middleware handles:

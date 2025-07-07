@@ -9,7 +9,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-import pytest  # Phase 2: Remove for skip removal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.crud import (
@@ -23,8 +22,8 @@ from src.backend.cc.crud import (
 )
 from src.backend.cc.models import HealthStatus
 
-# Phase 2: Remove this skip block for Async/SQLAlchemy configuration (P2-ASYNC-001)
-pytestmark = pytest.mark.skip(reason="Phase 2: Async/SQLAlchemy event loop configuration needed. Trigger: P2-ASYNC-001")
+# ✅ Phase 2: P2-ASYNC-001 RESOLVED - Async/SQLAlchemy configuration completed
+# Resolved by: RUN_INTEGRATION=1 ENABLE_DB_INTEGRATION=1 environment variables + schema model fixes
 
 
 class TestGetSystemHealth:
@@ -89,7 +88,8 @@ class TestGetSystemHealth:
         assert result is not None
         assert result.status == "healthy"
         assert result.details == "Issues resolved"
-        assert result.last_updated == newer_time.replace(tzinfo=None)
+        # Compare timezone-aware datetimes directly
+        assert result.last_updated == newer_time
 
     async def test_get_system_health_multiple_records_order(
         self, test_db_session: AsyncSession, unique_test_id: str
@@ -137,7 +137,8 @@ class TestGetSystemHealth:
         assert result is not None
         assert result.status == "healthy"
         assert result.details == "Fully operational"
-        assert result.last_updated == time3.replace(tzinfo=None)
+        # Compare timezone-aware datetimes directly
+        assert result.last_updated == time3
 
 
 class TestModuleCRUD:
