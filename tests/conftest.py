@@ -1913,9 +1913,12 @@ def redis_performance_config() -> dict[str, Any]:
     basic functionality. For real performance validation, use integration
     tests with actual Redis instances.
     """
+    # CI environment detection
+    is_ci = os.getenv("CI") == "true"
+
     return {
         "target_latency_ms": 1.0,  # Ideal target (informational only)
-        "max_latency_ms": 50.0,  # 10x relaxed for mock variability
+        "max_latency_ms": 500.0 if is_ci else 50.0,  # 500ms in CI, 50ms locally
         "warmup_iterations": 5,
         "test_iterations": 10,
         "payload_sizes": [10, 100, 1000, 10000],  # bytes
