@@ -244,7 +244,7 @@ jobs:
           echo "📊 Analyzing new code coverage..."
 
           # Install diff-cover for new code analysis
-          pip install diff-cover
+          uv pip install --system diff-cover
 
           # Derive the base branch dynamically so the pipeline works for any
           # target branch (release/*, develop, etc.)

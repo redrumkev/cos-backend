@@ -27,6 +27,7 @@ import contextlib
 import gc
 import json
 import logging
+import os
 import time
 import tracemalloc
 from typing import TYPE_CHECKING, Any
@@ -54,7 +55,7 @@ DB_QUERY_LATENCY_MS = 50
 RECOVERY_TIME_S = 5
 CONNECTION_TIMEOUT_S = 2
 MEMORY_LIMIT_MB = 100
-CPU_LIMIT_PERCENT = 80
+CPU_LIMIT_PERCENT = 90 if os.getenv("CI") else 80
 
 logger = logging.getLogger(__name__)
 

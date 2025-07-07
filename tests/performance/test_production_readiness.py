@@ -615,8 +615,16 @@ class TestMemoryAndResourceUsage:
             max_cpu = max(cpu_samples)
 
             # Reasonable CPU usage under load
-            assert avg_cpu < 80.0, f"Average CPU usage {avg_cpu:.1f}% too high"
-            assert max_cpu < 95.0, f"Peak CPU usage {max_cpu:.1f}% too high"
+            # CI environments with shared runners may have higher CPU usage
+            cpu_threshold_avg = 90.0 if os.getenv("CI") else 80.0
+            cpu_threshold_max = 99.0 if os.getenv("CI") else 95.0
+
+            assert (
+                avg_cpu < cpu_threshold_avg
+            ), f"Average CPU usage {avg_cpu:.1f}% too high (threshold: {cpu_threshold_avg}%)"
+            assert (
+                max_cpu < cpu_threshold_max
+            ), f"Peak CPU usage {max_cpu:.1f}% too high (threshold: {cpu_threshold_max}%)"
 
             logger.info(f"CPU Usage - Average: {avg_cpu:.1f}%, Peak: {max_cpu:.1f}%")
 

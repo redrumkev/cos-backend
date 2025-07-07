@@ -86,7 +86,7 @@ jobs:
     - name: Install dependencies
       run: |
         uv pip install --system -e ".[dev]"
-        uv pip install --system pytest-memray memory-profiler
+        uv pip install --system pytest-memray memory-profiler pygal
 
     - name: Verify Redis service
       run: |
