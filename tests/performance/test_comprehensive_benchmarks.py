@@ -611,6 +611,9 @@ class TestResourceMonitoring:
             pass
 
     @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        os.getenv("CI") == "true", reason="CPU tests unreliable in CI - shared runners cause high variability"
+    )
     async def test_cpu_utilization_monitoring(self, perf_client: redis.Redis) -> None:
         """Monitor CPU utilization during intensive operations."""
         process = psutil.Process()

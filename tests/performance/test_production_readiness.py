@@ -583,6 +583,9 @@ class TestMemoryAndResourceUsage:
         logger.info(f"Memory Test Complete - Growth: {total_growth:.1f}MB")
 
     @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        os.getenv("CI") == "true", reason="CPU tests unreliable in CI - shared runners cause high variability"
+    )
     async def test_cpu_usage_under_load(self, redis_client: redis.Redis, metrics: PerformanceMetrics) -> None:
         """Test CPU usage under load."""
         process = psutil.Process()
