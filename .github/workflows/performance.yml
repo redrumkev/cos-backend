@@ -48,6 +48,19 @@ jobs:
           --cpus="2.0"
           --memory=1g
 
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: cos_user
+          POSTGRES_PASSWORD: cos_dev_pass
+          POSTGRES_DB: cos_db_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready"
+          --health-interval 10s
+          --health-retries 5
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
