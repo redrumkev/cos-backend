@@ -31,6 +31,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Relentless**: Every failure is fuel, every success is seed
 - **Destiny-Driven**: All code serves the 100+ book legacy vision
 
+### Pattern-First Development (MANDATORY)
+**🚨 CRITICAL**: Before writing ANY code, you MUST:
+1. **Check `/src/core_v2/patterns/`** for relevant patterns
+2. **Follow patterns EXACTLY** unless proposing improvements via ADR
+3. **Reference pattern version** in code comments when implementing
+
+**Pattern System Overview:**
+- **Living Blueprints**: Patterns evolve based on research, not opinion
+- **Single Source of Truth**: `/src/core_v2/patterns/` contains canonical implementations
+- **Research-Driven**: Updates require Context7/Tavily/Perplexity validation
+- **ADR-Documented**: Major pattern changes tracked in `.cursor/adr/`
+
+**When Patterns Don't Exist:**
+1. Research best practices (Context7, leading open source)
+2. Create pattern file with full documentation
+3. Get approval before implementation
+4. Update existing code to match new pattern
+
+See: [Pattern Philosophy](/src/core_v2/patterns/COS_PATTERNS_PHILOSOPHY.md) | [ADR-002](/cursor/adr/ADR-002-living-patterns-system.md)
+
 ### Testing Philosophy & True TDD
 **Current Reality**: Sprint 2 technically "done" but NOT at "all green" state
 **Goal**: Achieve true TDD workflow where we can step forward, refactor without fear
@@ -218,11 +238,12 @@ COS implements a sophisticated memory hierarchy:
 - **Next**: Phase 2 Sprint 3 with true TDD workflow established
 
 ### TDD-Only Development Process
-1. **Red**: Write ~10 lines of failing test for new functionality
-2. **Green**: Write minimal code to make test pass (following patterns/best practices)
-3. **Refactor**: Improve code while keeping ALL tests green
-4. **Verify**: Run full test suite including linting before commit
-5. **CI Check**: Push to release branch to verify GitHub Actions pass
+1. **Pattern Check**: Review `/src/core_v2/patterns/` for relevant patterns
+2. **Red**: Write ~10 lines of failing test for new functionality
+3. **Green**: Write minimal code to make test pass (following established patterns)
+4. **Refactor**: Improve code while keeping ALL tests green
+5. **Verify**: Run full test suite including linting before commit
+6. **CI Check**: Push to release branch to verify GitHub Actions pass
 
 ### TDD Philosophy - "Clean Agile: Back to Basics"
 - **Small Steps**: ~10 lines of test represents iterative approach, not a hard rule

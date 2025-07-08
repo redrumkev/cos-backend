@@ -19,6 +19,9 @@ ignore = [
 "**/router.py" = ["B008"]
 "**/routers/*.py" = ["B008"]
 
+# Pattern files are examples with specific formatting requirements
+"src/core_v2/patterns/*.py" = ["D205", "D400", "D401", "D415", "W293", "B904"]
+
 # Test files need more relaxed rules for common test patterns
 "tests/**/*.py" = [
     "S101",     # Allow assert statements in tests
