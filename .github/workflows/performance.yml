@@ -85,8 +85,10 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv pip install --system -e ".[dev]"
-        uv pip install --system pytest-memray memory-profiler pygal
+        uv venv
+        source .venv/bin/activate
+        uv pip install -e ".[dev]"
+        uv pip install pytest-memray memory-profiler pygal
 
     - name: Verify Redis service
       run: |
@@ -143,6 +145,7 @@ jobs:
         echo "Target: <1ms latency, ≥1000 msg/s throughput, efficient connection pooling"
 
         # Run performance tests with detailed output
+        source .venv/bin/activate
         PYTHONPATH=. pytest tests/performance/ \
           -v \
           -m "performance" \
@@ -160,6 +163,7 @@ jobs:
         echo "🧠 Running Memory Profiling"
 
         # Run memory leak detection tests
+        source .venv/bin/activate
         PYTHONPATH=. pytest tests/performance/test_redis_benchmarks.py::TestMemoryLeakDetection \
           -v \
           --memray \
@@ -178,6 +182,7 @@ jobs:
             echo "Comparing with previous benchmark results..."
 
             # Use pytest-benchmark compare functionality
+            source .venv/bin/activate
             PYTHONPATH=. pytest-benchmark compare \
               .benchmarks/previous.json \
               .benchmarks/current.json \

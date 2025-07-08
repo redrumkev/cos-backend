@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚨 CURRENT WORK IN PROGRESS 🚨
+**Active Task Tracker**: [CI_FIX_PROGRESS.md](./CI_FIX_PROGRESS.md)
+- Fixing 3 failing GitHub Actions workflows
+- Standardizing Redis to NO PASSWORD across all environments
+- Check the progress tracker FIRST when resuming work
+
 ## Project Context & Vision
 
 **COS (Creative Operating System)** is a toolkit built to serve a 100+ book legacy vision by an aspiring NYT bestselling author who began coding less than a year ago. This system represents the translation of life-student insights into a technical foundation for creating classic non-fiction works.
