@@ -53,7 +53,7 @@ def check_redis_availability() -> bool:
         # Try both localhost (for local development) and redis (for docker)
         redis_hosts = [os.getenv("REDIS_HOST", "localhost"), "localhost"]
         redis_port = int(os.getenv("REDIS_PORT", "6379"))
-        redis_password = os.getenv("REDIS_PASSWORD", "Police9119!!Red")  # fallback to known password
+        redis_password = os.getenv("REDIS_PASSWORD", "")
 
         for host in redis_hosts:
             try:
