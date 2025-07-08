@@ -19,6 +19,7 @@ dependencies = [
     "python-dotenv",
     "psycopg[binary]",
     "rich",
+    "structlog", # Structured logging
     "logfire", # Observability and structured logging
     # Rust-powered high-performance dependencies
     "orjson>=3.10.16", # Fast JSON processing with Python 3.13 support

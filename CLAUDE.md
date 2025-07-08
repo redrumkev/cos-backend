@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🎯 MANDATORY INITIALIZATION
+**Always execute on session start**: `pwd && echo " | Date:" && date`
+This ensures you know the current working directory and date/time for all operations.
+
 ## 🚨 CURRENT WORK IN PROGRESS 🚨
 **Active Task Tracker**: [CI_FIX_PROGRESS.md](./CI_FIX_PROGRESS.md)
 - Fixing 3 failing GitHub Actions workflows
