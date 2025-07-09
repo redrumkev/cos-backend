@@ -50,6 +50,28 @@ class TestMem0Router:
     @pytest.mark.skipif(
         os.getenv("CI") == "true", reason="Mock patching unreliable in CI - module import timing issues"
     )
+    async def test_create_note_service_value_error(self, async_client: AsyncClient) -> None:
+        """Test POST /scratch/notes when service layer raises ValueError.
+
+        This is a characterization test that verifies the error handling path
+        when the service layer encounters business rule violations that aren't
+        caught by schema validation, simulating edge cases in production.
+        """
+        # Mock the service to raise ValueError for a specific business rule violation
+        # This simulates scenarios where the service layer has additional validation
+        # beyond what the schema can express
+        with patch("src.backend.cc.mem0_service.create_note", side_effect=ValueError("Custom business rule violation")):
+            data = {"key": "test_key", "content": "test content"}
+
+            response = await async_client.post("/cc/mem0/scratch/notes", json=data)
+
+            # The ValueError is caught and converted to HTTPException 400
+            assert response.status_code == 400
+            assert "Custom business rule violation" in response.json()["detail"]
+
+    @pytest.mark.skipif(
+        os.getenv("CI") == "true", reason="Mock patching unreliable in CI - module import timing issues"
+    )
     async def test_create_note_server_error(self, async_client: AsyncClient) -> None:
         """Test POST /scratch/notes with server error."""
         # Test the actual service layer by simulating a database error
