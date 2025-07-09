@@ -10,10 +10,12 @@ This module provides the foundation for L2 consumers with:
 - Pure asyncio implementation with bounded parallelism
 - Observability via structured logging
 
-Pattern Reference: async_handler.py v2.1.0 (Living Patterns System)
+Pattern Reference: async_handler.py v2.1.0, error_handling.py v2.1.0 (Living Patterns System)
 Applied: ExecutionContext for resource management and lifecycle control
 Applied: Event-driven architecture patterns for message processing
 Applied: Background task handling with proper resource cleanup
+Applied: COSError for structured error handling where appropriate
+Applied: Service lifecycle patterns for start/stop behavior
 """
 
 from __future__ import annotations
