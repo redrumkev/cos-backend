@@ -3,6 +3,9 @@
 This module provides a lightweight, high-performance Redis Pub/Sub wrapper designed for
 <1ms publish latency with comprehensive error handling, Logfire integration, and
 correlation ID tracking for distributed observability.
+
+Living Pattern: ADR-002 v2.1.0
+Pattern: High-performance Redis Pub/Sub with circuit breaker resilience
 """
 
 from __future__ import annotations
@@ -21,6 +24,14 @@ from enum import Enum
 from typing import Any
 
 from .redis_config import get_redis_config
+
+# Living Pattern: Import COSError for structured error handling
+try:
+    from ..core_v2.patterns.error_handling import COSError, ErrorCategory
+
+    _COS_ERROR_AVAILABLE = True
+except ImportError:
+    _COS_ERROR_AVAILABLE = False
 
 # Import Redis with graceful degradation - use Any for type hints to avoid linter issues
 
@@ -346,50 +357,66 @@ class CircuitBreaker:
             msg = "Circuit breaker blocked: event loop not running"
             raise CircuitBreakerError(msg) from err
 
+        # PERFORMANCE FIX: Use single lock acquisition to reduce contention
         async with self._lock:
             # Check if request can be attempted
             if not await self._can_attempt_request():
                 msg = f"Circuit breaker is {self._state.value}. Next attempt at {self._next_attempt_time}"
                 raise CircuitBreakerError(msg)
 
-        try:
-            # Execute the function with timeout
-            result = await asyncio.wait_for(func(*args, **kwargs), timeout=self.timeout)
+            # Execute the function with timeout (still holding the lock to prevent state changes)
+            try:
+                result = await asyncio.wait_for(func(*args, **kwargs), timeout=self.timeout)
 
-            # Record success
-            async with self._lock:
+                # Record success immediately (still in lock)
                 await self._record_success()
+                return result
 
-        except self.expected_exception:
-            # Record failure for expected exceptions
-            async with self._lock:
+            except self.expected_exception:
+                # Record failure for expected exceptions
                 await self._record_failure()
-            raise
-        except TimeoutError:
-            # Treat timeouts as failures
-            async with self._lock:
+                raise
+            except TimeoutError:
+                # Treat timeouts as failures
                 await self._record_failure()
-            raise
-        except Exception:
-            # For unexpected exceptions, don't count as circuit breaker failure
-            # but still track in metrics
-            async with self._lock:
+                raise
+            except Exception:
+                # For unexpected exceptions, don't count as circuit breaker failure
+                # but still track in metrics
                 self._total_requests += 1
-            raise
-        else:
-            return result
+                raise
 
 
 class PubSubError(Exception):
-    """Base exception for Pub/Sub operations."""
+    """Base exception for Pub/Sub operations.
+
+    Living Pattern: ADR-002 v2.1.0 - Structured error handling
+    """
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.details = details or {}
+
+    def to_cos_error(self) -> COSError:
+        """Convert to COSError when available."""
+        if _COS_ERROR_AVAILABLE:
+            return COSError(message=str(self), category=ErrorCategory.EXTERNAL_SERVICE, details=self.details)
+        # Fallback to regular exception
+        return self  # type: ignore[return-value]
 
 
 class PublishError(PubSubError):
-    """Exception raised when message publishing fails."""
+    """Exception raised when message publishing fails.
+
+    Living Pattern: ADR-002 v2.1.0 - Structured error handling
+    """
 
 
 class SubscribeError(PubSubError):
-    """Exception raised when subscription operations fail."""
+    """Exception raised when subscription operations fail.
+
+    Living Pattern: ADR-002 v2.1.0 - Structured error handling
+    """
 
 
 class RedisPubSub:
@@ -397,6 +424,8 @@ class RedisPubSub:
 
     Designed for <1ms publish latency with automatic connection management,
     error handling, circuit breaker resilience, and JSON serialization/deserialization.
+
+    Living Pattern: ADR-002 v2.1.0 - Service pattern with health checks and structured errors
     """
 
     def __init__(self) -> None:
