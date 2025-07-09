@@ -1,3 +1,14 @@
+"""Memory ledger viewer service for COS system.
+
+This module provides a service-based approach to viewing memory ledger data
+with rich table formatting and filtering capabilities.
+
+Pattern Reference: service.py v2.1.0 (Living Patterns System)
+Applied: BaseService pattern for lifecycle management
+Applied: ExecutionContext for resource management
+Applied: Health checks and service initialization
+"""
+
 import argparse
 import json
 from pathlib import Path
@@ -6,11 +17,75 @@ from typing import Any, TypeAlias
 from rich.console import Console
 from rich.table import Table
 
+from src.common.database import DatabaseExecutionContext, get_execution_context
+from src.core_v2.patterns.service import BaseService
+
 MemoryItem: TypeAlias = tuple[str, dict[str, Any]]  # noqa: UP040
 MemoryList: TypeAlias = list[MemoryItem]  # noqa: UP040
 
 MEMORY_PATH = Path("E:/mem0_data")
 console = Console()
+
+
+class LedgerViewService(BaseService):
+    """Service for viewing memory ledger data with rich formatting.
+
+    Implements the BaseService pattern with ExecutionContext integration
+    for resource management and health monitoring.
+    """
+
+    def __init__(
+        self, db_session: Any = None, cache: Any = None, execution_context: DatabaseExecutionContext | None = None
+    ):
+        """Initialize ledger view service.
+
+        Args:
+        ----
+            db_session: Database session (not used for file-based operations)
+            cache: Cache instance (not used for file-based operations)
+            execution_context: Optional ExecutionContext for resource management
+
+        """
+        super().__init__(db_session, cache)
+        self._execution_context = execution_context or get_execution_context()
+
+    async def _setup(self) -> None:
+        """Initialize service-specific resources."""
+        # Verify memory path exists or log warning
+        if not MEMORY_PATH.exists():
+            console.print(f"[yellow]Warning: Memory path not found: {MEMORY_PATH}[/]")
+
+    async def health_check(self) -> dict[str, Any]:
+        """Return health check with memory path status."""
+        base_health = await super().health_check()
+        base_health.update(
+            {
+                "memory_path": str(MEMORY_PATH),
+                "path_exists": MEMORY_PATH.exists(),
+                "memory_files": len(list(MEMORY_PATH.glob("*.json"))) if MEMORY_PATH.exists() else 0,
+            }
+        )
+        return base_health
+
+    def load_memories(self) -> MemoryList:
+        """Load memories from the configured path."""
+        return load_memories()
+
+    def filter_memories(self, memories: MemoryList, source: str | None = None, tag: str | None = None) -> MemoryList:
+        """Filter memories by source and tag."""
+        return filter_memories(memories, source, tag)
+
+    def render_rich_table(self, memories: MemoryList) -> None:
+        """Render memories as a rich table."""
+        render_rich_table(memories)
+
+    def render_plain(self, memories: MemoryList) -> None:
+        """Render memories in plain text format."""
+        render_plain(memories)
+
+    def run_cli(self) -> None:
+        """Run the CLI interface."""
+        main()
 
 
 def load_memories() -> MemoryList:
@@ -72,6 +147,7 @@ def render_plain(memories: MemoryList) -> None:
 
 
 def main() -> None:
+    """Run the CLI entry point using the service pattern."""
     parser = argparse.ArgumentParser(description="COS Memory Ledger Viewer")
     parser.add_argument("--plain", action="store_true", help="Plain text output")
     parser.add_argument("--limit", type=int, default=50, help="Number of recent entries to show")
@@ -79,19 +155,24 @@ def main() -> None:
     parser.add_argument("--tag", type=str, help="Filter by tag (e.g. prompt, log, summary)")
     args = parser.parse_args()
 
-    memories = load_memories()
+    # Create service instance
+    service = LedgerViewService()
+
+    # Load and process memories
+    memories = service.load_memories()
     memories = sorted(
         memories,
         key=lambda x: x[1].get("timestamp", "") if isinstance(x[1], dict) else "",
         reverse=True,
     )
-    memories = filter_memories(memories, source=args.source, tag=args.tag)
+    memories = service.filter_memories(memories, source=args.source, tag=args.tag)
     memories = memories[: args.limit]
 
+    # Render output
     if args.plain:
-        render_plain(memories)
+        service.render_plain(memories)
     else:
-        render_rich_table(memories)
+        service.render_rich_table(memories)
 
 
 if __name__ == "__main__":

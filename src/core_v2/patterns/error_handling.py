@@ -1,7 +1,7 @@
 """Pattern: Error Handling.
 
-Version: 2025-07-08 (Initial - Pending Research)
-ADR: ADR-002 (Pending)
+Version: 2025-07-08 v2.1.0 (Redis Error Mapping Enhancement)
+ADR: ADR-002 (Living Patterns System)
 
 Purpose: Standardize error handling across the COS system
 When to use: All error scenarios in services, handlers, and utilities
@@ -142,6 +142,74 @@ To migrate existing error handling:
 4. Map errors to HTTP status codes in handlers
 5. Include structured details for debugging
 """
+
+
+# REDIS ERROR MAPPING HELPER
+def map_redis_error(error: Exception) -> "COSError":
+    """Map Redis-specific errors to COSError categories.
+
+    Args:
+    ----
+        error: Redis exception to map
+
+    Returns:
+    -------
+        COSError with appropriate category
+
+    """
+    # Import here to avoid circular imports
+    try:
+        from redis.exceptions import (
+            AuthenticationError,
+            BusyLoadingError,
+            ResponseError,
+        )
+        from redis.exceptions import (
+            ConnectionError as RedisConnectionError,
+        )
+        from redis.exceptions import (
+            TimeoutError as RedisTimeoutError,
+        )
+    except ImportError:
+        # Fallback if redis not available
+        return COSError(
+            message=str(error),
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"original_error": type(error).__name__},
+        )
+
+    # Redis error mapping
+    if isinstance(error, AuthenticationError):
+        return COSError(
+            message=f"Redis authentication failed: {error}",
+            category=ErrorCategory.PERMISSION,
+            details={"original_error": "AuthenticationError"},
+        )
+    elif isinstance(error, RedisTimeoutError):
+        return COSError(
+            message=f"Redis operation timeout: {error}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"original_error": "TimeoutError", "timeout": True},
+        )
+    elif isinstance(error, ResponseError):
+        return COSError(
+            message=f"Redis response error: {error}",
+            category=ErrorCategory.VALIDATION,
+            details={"original_error": "ResponseError"},
+        )
+    elif isinstance(error, RedisConnectionError | BusyLoadingError):
+        return COSError(
+            message=f"Redis connection error: {error}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"original_error": type(error).__name__},
+        )
+    else:
+        return COSError(
+            message=str(error),
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"original_error": type(error).__name__},
+        )
+
 
 # TODO: Research and enhance with:
 # - Error aggregation for bulk operations

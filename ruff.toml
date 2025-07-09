@@ -28,6 +28,7 @@ ignore = [
     "PLR2004",  # Allow magic values in tests
     "S105",     # Allow hardcoded passwords in tests
     "S106",     # Allow hardcoded passwords in tests
+    "S603",     # Allow subprocess calls in tests
     "ARG001",   # Allow unused function arguments (fixtures)
     "ARG002",   # Allow unused method arguments
     "FBT001",   # Allow boolean positional args in tests

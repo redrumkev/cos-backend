@@ -201,7 +201,7 @@ class TestMainFunction:
         main()
 
         # Verify filter_memories was called with the right arguments
-        mock_filter_memories.assert_called_once_with(mock_memories, source="filtered_source", tag="filtered_tag")
+        mock_filter_memories.assert_called_once_with(mock_memories, "filtered_source", "filtered_tag")
 
 
 class TestMainExecutionBlock:

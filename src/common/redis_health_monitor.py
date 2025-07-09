@@ -3,6 +3,9 @@
 This module provides Redis health monitoring and auto-recovery mechanisms to prevent
 manual intervention requirements in production. Addresses the critical issue where
 Redis gets paused during circuit breaker tests and requires manual unpause.
+
+Pattern Applied: error_handling.py v2.1.0, async_handler.py v2.1.0
+Version: 2025-07-08 v2.1.0 (Living Patterns Enhancement)
 """
 
 from __future__ import annotations
@@ -15,6 +18,9 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+# Pattern v2.1.0: Enhanced error handling with structured categories
+from ..core_v2.patterns.error_handling import error_handler, map_redis_error
 
 logger = logging.getLogger(__name__)
 
@@ -199,39 +205,44 @@ class RedisHealthMonitor:
         return health_status
 
     async def _get_container_state(self) -> RedisContainerState:
-        """Get Redis container state using Docker API."""
+        """Get Redis container state using Docker API.
+
+        Pattern Applied: error_handling.py v2.1.0 (Structured error handling)
+        """
         if not _DOCKER_AVAILABLE:
             logger.debug("Docker not available - skipping container state check")
             return RedisContainerState.UNKNOWN
 
-        try:
-            # Initialize Docker client if needed
-            if not self._docker_client:
-                self._docker_client = docker.from_env()
+        async with error_handler("get_container_state", logger, reraise=False):
+            try:
+                # Initialize Docker client if needed
+                if not self._docker_client:
+                    self._docker_client = docker.from_env()
 
-            container = self._docker_client.containers.get(self.container_name)
-            status = container.status.lower()
+                container = self._docker_client.containers.get(self.container_name)
+                status = container.status.lower()
 
-            if status == "running":
-                return RedisContainerState.RUNNING
-            elif status == "paused":
-                return RedisContainerState.PAUSED
-            elif status in ("stopped", "exited"):
-                return RedisContainerState.STOPPED
-            else:
-                logger.warning("Unknown container status: %s", status)
-                return RedisContainerState.UNKNOWN
+                if status == "running":
+                    return RedisContainerState.RUNNING
+                elif status == "paused":
+                    return RedisContainerState.PAUSED
+                elif status in ("stopped", "exited"):
+                    return RedisContainerState.STOPPED
+                else:
+                    logger.warning("Unknown container status: %s", status)
+                    return RedisContainerState.UNKNOWN
 
-        except Exception as e:
-            if docker and isinstance(e, docker.errors.NotFound):
-                logger.warning("Redis container '%s' not found", self.container_name)
-                return RedisContainerState.NOT_FOUND
-            elif isinstance(e, DockerException):
-                logger.exception("Error accessing Docker for container state check")
-                return RedisContainerState.UNKNOWN
-            else:
-                logger.exception("Unexpected error checking container state")
-                return RedisContainerState.UNKNOWN
+            except Exception as e:
+                # Pattern v2.1.0: Structured error handling with appropriate categories
+                if docker and isinstance(e, docker.errors.NotFound):
+                    logger.warning("Redis container '%s' not found", self.container_name)
+                    return RedisContainerState.NOT_FOUND
+                elif isinstance(e, DockerException):
+                    logger.exception("Error accessing Docker for container state check")
+                    return RedisContainerState.UNKNOWN
+                else:
+                    logger.exception("Unexpected error checking container state")
+                    return RedisContainerState.UNKNOWN
 
     async def _unpause_container(self) -> bool:
         """Unpause Redis container.
@@ -240,35 +251,39 @@ class RedisHealthMonitor:
         -------
             True if unpause was successful, False otherwise
 
+        Pattern Applied: error_handling.py v2.1.0 (Structured error handling)
+
         """
         if not _DOCKER_AVAILABLE:
             logger.error("Docker not available - cannot unpause container")
             return False
 
-        try:
-            if not self._docker_client:
-                self._docker_client = docker.from_env()
+        async with error_handler("unpause_container", logger, reraise=False):
+            try:
+                if not self._docker_client:
+                    self._docker_client = docker.from_env()
 
-            container = self._docker_client.containers.get(self.container_name)
-            container.unpause()
+                container = self._docker_client.containers.get(self.container_name)
+                container.unpause()
 
-            # Wait a moment for unpause to take effect
-            await asyncio.sleep(1.0)
+                # Wait a moment for unpause to take effect
+                await asyncio.sleep(1.0)
 
-            # Verify unpause was successful
-            container.reload()
-            return bool(container.status.lower() == "running")
+                # Verify unpause was successful
+                container.reload()
+                return bool(container.status.lower() == "running")
 
-        except Exception as e:
-            if docker and isinstance(e, docker.errors.NotFound):
-                logger.error("Redis container '%s' not found for unpause", self.container_name)
-                return False
-            elif isinstance(e, DockerException):
-                logger.exception("Docker error during container unpause")
-                return False
-            else:
-                logger.exception("Unexpected error during container unpause")
-                return False
+            except Exception as e:
+                # Pattern v2.1.0: Structured error handling with appropriate categories
+                if docker and isinstance(e, docker.errors.NotFound):
+                    logger.error("Redis container '%s' not found for unpause", self.container_name)
+                    return False
+                elif isinstance(e, DockerException):
+                    logger.exception("Docker error during container unpause")
+                    return False
+                else:
+                    logger.exception("Unexpected error during container unpause")
+                    return False
 
     async def _test_redis_connection(self) -> tuple[bool, float | None, str | None]:
         """Test Redis connection with ping.
@@ -277,40 +292,48 @@ class RedisHealthMonitor:
         -------
             Tuple of (success, latency_ms, error_message)
 
+        Pattern Applied: error_handling.py v2.1.0 (Redis error mapping)
+
         """
-        try:
-            # Import Redis client lazily
+        async with error_handler("redis_connection_test", logger, reraise=False):
             try:
-                import redis.asyncio as redis
-            except ImportError:
-                return False, None, "Redis package not available"
+                # Import Redis client lazily
+                try:
+                    import redis.asyncio as redis
+                except ImportError:
+                    return False, None, "Redis package not available"
 
-            try:
-                from .redis_config import get_redis_config
-            except ImportError:
-                return False, None, "Redis config not available"
+                try:
+                    from .redis_config import get_redis_config
+                except ImportError:
+                    return False, None, "Redis config not available"
 
-            # Create Redis client if needed
-            if not self._redis_client:
-                config = get_redis_config()
-                self._redis_client = redis.Redis.from_url(
-                    config.redis_url,
-                    decode_responses=False,
-                    socket_connect_timeout=5,
-                    socket_timeout=5,
-                )
+                # Create Redis client if needed
+                if not self._redis_client:
+                    config = get_redis_config()
+                    self._redis_client = redis.Redis.from_url(
+                        config.redis_url,
+                        decode_responses=False,
+                        socket_connect_timeout=5,
+                        socket_timeout=5,
+                    )
 
-            # Perform ping with timing
-            start_time = time.perf_counter()
-            await self._redis_client.ping()
-            latency_ms = (time.perf_counter() - start_time) * 1000
+                # Perform ping with timing
+                start_time = time.perf_counter()
+                await self._redis_client.ping()
+                latency_ms = (time.perf_counter() - start_time) * 1000
 
-            return True, latency_ms, None
+                return True, latency_ms, None
 
-        except Exception as e:
-            error_msg = f"Redis ping failed: {e}"
-            logger.debug(error_msg)
-            return False, None, error_msg
+            except Exception as e:
+                # Pattern v2.1.0: Use Redis error mapping for structured error handling
+                cos_error = map_redis_error(e)
+                error_msg = f"Redis ping failed: {cos_error!s}"
+                logger.debug(error_msg, extra={"error_category": cos_error.category.value})
+                return False, None, error_msg
+
+        # If error_handler swallows an exception, return failure
+        return False, None, "Unexpected error in Redis connection test"
 
     async def detect_security_alerts(self) -> list[str]:
         """Detect Redis security alerts in container logs.
@@ -319,38 +342,42 @@ class RedisHealthMonitor:
         -------
             List of security alert messages found in logs
 
+        Pattern Applied: error_handling.py v2.1.0 (Structured error handling)
+
         """
         if not _DOCKER_AVAILABLE:
             return []
 
         security_alerts = []
 
-        try:
-            if not self._docker_client:
-                self._docker_client = docker.from_env()
+        async with error_handler("detect_security_alerts", logger, reraise=False):
+            try:
+                if not self._docker_client:
+                    self._docker_client = docker.from_env()
 
-            container = self._docker_client.containers.get(self.container_name)
+                container = self._docker_client.containers.get(self.container_name)
 
-            # Get recent logs
-            logs = container.logs(tail=50, timestamps=True).decode("utf-8", errors="ignore")
+                # Get recent logs
+                logs = container.logs(tail=50, timestamps=True).decode("utf-8", errors="ignore")
 
-            # Look for security alert patterns (using regex for flexible matching)
-            security_patterns = [
-                r"Possible SECURITY ATTACK detected",
-                r"POST or Host: commands to Redis",
-                r"Cross Protocol Scripting",
-                r"Connection.*aborted",
-                r"SIGTERM scheduling shutdown",
-            ]
+                # Look for security alert patterns (using regex for flexible matching)
+                security_patterns = [
+                    r"Possible SECURITY ATTACK detected",
+                    r"POST or Host: commands to Redis",
+                    r"Cross Protocol Scripting",
+                    r"Connection.*aborted",
+                    r"SIGTERM scheduling shutdown",
+                ]
 
-            for line in logs.split("\n"):
-                for pattern in security_patterns:
-                    if re.search(pattern, line, re.IGNORECASE):
-                        security_alerts.append(line.strip())
-                        break  # Avoid duplicate matches for same line
+                for line in logs.split("\n"):
+                    for pattern in security_patterns:
+                        if re.search(pattern, line, re.IGNORECASE):
+                            security_alerts.append(line.strip())
+                            break  # Avoid duplicate matches for same line
 
-        except Exception:
-            logger.exception("Error checking Redis container logs for security alerts")
+            except Exception:
+                # Pattern v2.1.0: Structured error handling with context
+                logger.exception("Error checking Redis container logs for security alerts")
 
         return security_alerts
 
@@ -365,34 +392,37 @@ class RedisHealthMonitor:
         -------
             True if Redis is available and ready, False if manual intervention required
 
+        Pattern Applied: error_handling.py v2.1.0 (Structured error handling)
+
         """
-        logger.info("Ensuring Redis availability for testing")
+        async with error_handler("ensure_redis_available", logger, reraise=False):
+            logger.info("Ensuring Redis availability for testing")
 
-        health_status = await self.check_health()
+            health_status = await self.check_health()
 
-        if health_status.connection_successful:
-            logger.info("Redis is available and healthy")
-            return True
+            if health_status.connection_successful:
+                logger.info("Redis is available and healthy")
+                return True
 
-        if health_status.requires_manual_intervention:
-            logger.error("Redis requires manual intervention (state: %s)", health_status.container_state.value)
+            if health_status.requires_manual_intervention:
+                logger.error("Redis requires manual intervention (state: %s)", health_status.container_state.value)
+                return False
+
+            if health_status.auto_recovery_attempted and not health_status.auto_recovery_successful:
+                logger.error("Redis auto-recovery failed - manual intervention required")
+                return False
+
+            # If we got here, there might be a transient issue - retry once
+            logger.info("Retrying Redis health check after initial failure")
+            await asyncio.sleep(2.0)
+            retry_status = await self.check_health()
+
+            if retry_status.connection_successful:
+                logger.info("Redis available after retry")
+                return True
+
+            logger.error("Redis still unavailable after retry - manual intervention may be required")
             return False
-
-        if health_status.auto_recovery_attempted and not health_status.auto_recovery_successful:
-            logger.error("Redis auto-recovery failed - manual intervention required")
-            return False
-
-        # If we got here, there might be a transient issue - retry once
-        logger.info("Retrying Redis health check after initial failure")
-        await asyncio.sleep(2.0)
-        retry_status = await self.check_health()
-
-        if retry_status.connection_successful:
-            logger.info("Redis available after retry")
-            return True
-
-        logger.error("Redis still unavailable after retry - manual intervention may be required")
-        return False
 
 
 # Global singleton instance
@@ -406,11 +436,14 @@ async def get_redis_health_monitor() -> RedisHealthMonitor:
     -------
         Configured RedisHealthMonitor instance
 
+    Pattern Applied: error_handling.py v2.1.0 (Structured error handling)
+
     """
-    global _health_monitor
-    if _health_monitor is None:
-        _health_monitor = RedisHealthMonitor()
-    return _health_monitor
+    async with error_handler("get_redis_health_monitor", logger, reraise=False):
+        global _health_monitor
+        if _health_monitor is None:
+            _health_monitor = RedisHealthMonitor()
+        return _health_monitor
 
 
 async def ensure_redis_available_for_tests() -> bool:
@@ -424,14 +457,21 @@ async def ensure_redis_available_for_tests() -> bool:
     -------
         True if Redis is available, False if manual intervention required
 
+    Pattern Applied: error_handling.py v2.1.0 (Structured error handling)
+
     """
-    monitor = await get_redis_health_monitor()
-    return await monitor.ensure_redis_available()
+    async with error_handler("ensure_redis_available_for_tests", logger, reraise=False):
+        monitor = await get_redis_health_monitor()
+        return await monitor.ensure_redis_available()
 
 
 async def cleanup_redis_monitor() -> None:
-    """Clean up Redis health monitor singleton."""
-    global _health_monitor
-    if _health_monitor:
-        await _health_monitor.stop_monitoring()
-        _health_monitor = None
+    """Clean up Redis health monitor singleton.
+
+    Pattern Applied: error_handling.py v2.1.0 (Structured error handling)
+    """
+    async with error_handler("cleanup_redis_monitor", logger, reraise=False):
+        global _health_monitor
+        if _health_monitor:
+            await _health_monitor.stop_monitoring()
+            _health_monitor = None

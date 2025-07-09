@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     SCRATCH_CLEANUP_BATCH_SIZE: int = Field(default=1000, ge=100, le=10000)
     SCRATCH_ENABLE_AUTO_CLEANUP: bool = Field(default=True)
 
+    # Multi-Schema Support (Living Patterns - service.py v2.1.0)
+    # Future modules: cc.*, pem.*, aic.* schemas
+    POSTGRES_CC_URL: str | None = Field(default=None, validation_alias="POSTGRES_CC_URL")
+    POSTGRES_PEM_URL: str | None = Field(default=None, validation_alias="POSTGRES_PEM_URL")
+    POSTGRES_AIC_URL: str | None = Field(default=None, validation_alias="POSTGRES_AIC_URL")
+
     model_config = SettingsConfigDict(env_file=None)  # dotenv loaded manually
 
     @property

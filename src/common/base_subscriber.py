@@ -9,6 +9,11 @@ This module provides the foundation for L2 consumers with:
 - Dead-letter queue (DLQ) for permanently failed messages
 - Pure asyncio implementation with bounded parallelism
 - Observability via structured logging
+
+Pattern Reference: async_handler.py v2.1.0 (Living Patterns System)
+Applied: ExecutionContext for resource management and lifecycle control
+Applied: Event-driven architecture patterns for message processing
+Applied: Background task handling with proper resource cleanup
 """
 
 from __future__ import annotations
@@ -51,6 +56,7 @@ except ImportError:
 
     async_timeout = DummyAsyncTimeout()  # type: ignore[assignment]
 
+from .database import DatabaseExecutionContext, get_execution_context
 from .pubsub import CircuitBreaker, get_pubsub
 
 logger = logging.getLogger(__name__)
@@ -91,6 +97,7 @@ class BaseSubscriber(ABC):
         batch_size: int = DEFAULT_BATCH_SIZE,
         batch_window: float = DEFAULT_BATCH_WINDOW,
         message_ttl: int = DEFAULT_MESSAGE_TTL,
+        execution_context: DatabaseExecutionContext | None = None,
     ) -> None:
         """Initialize BaseSubscriber with configuration parameters.
 
@@ -103,6 +110,7 @@ class BaseSubscriber(ABC):
             batch_size: Number of messages to collect before processing batch
             batch_window: Time window in seconds to wait for batch completion
             message_ttl: Time-to-live in seconds for message acknowledgement tracking
+            execution_context: Optional ExecutionContext for resource management
 
         """
         self._concurrency = concurrency
@@ -113,6 +121,7 @@ class BaseSubscriber(ABC):
         self._batch_size = batch_size
         self._batch_window = batch_window
         self._message_ttl = message_ttl
+        self._execution_context = execution_context or get_execution_context()
 
         # Runtime state
         self._consuming_tasks: set[asyncio.Task[None]] = set()
@@ -250,6 +259,10 @@ class BaseSubscriber(ABC):
         self._consuming_tasks.clear()
         self._channels.clear()
         self._batch_task = None
+
+        # Clean up ExecutionContext resources
+        if self._execution_context:
+            self._execution_context.close()
 
         logger.info("Stopped consuming from all channels")
 

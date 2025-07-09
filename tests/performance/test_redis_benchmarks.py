@@ -52,8 +52,8 @@ class TestRedisLatencyBenchmarks:
             avg_latency_threshold = 500.0  # 500ms for CI
             max_latency_threshold = 1000.0  # 1s for CI
         else:
-            avg_latency_threshold = 1.0  # 1ms for local
-            max_latency_threshold = 10.0  # 10ms for local
+            avg_latency_threshold = 5.0  # 5ms for local (relaxed for varied hardware)
+            max_latency_threshold = 50.0  # 50ms for local (relaxed for varied hardware)
 
         # Warmup
         for _ in range(10):

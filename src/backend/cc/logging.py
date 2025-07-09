@@ -44,6 +44,14 @@ async def _publish_l1_event(log_id: uuid.UUID, event_data: dict[str, Any]) -> No
     """
     correlation_id = event_data.get("event", {}).get("request_id") or str(uuid.uuid4())
 
+    # Check if event loop is running before attempting async operations
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # Event loop is not running (e.g., during teardown)
+        logger.warning("Event loop not running, skipping Redis publish for log_id %s", log_id)
+        return
+
     try:
         with logfire.span(
             "publish_l1_event", kind="producer", log_id=str(log_id), correlation_id=correlation_id

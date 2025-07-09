@@ -65,8 +65,8 @@ assert s.NEO4J_URI == "bolt://localhost:7687", f"Got: {s.NEO4J_URI}"
 print("SUCCESS: Settings created with all defaults")
 """
 
-    result = subprocess.run(
-        [sys.executable, "-c", code],  # noqa: S603
+    result = subprocess.run(  # nosec B603
+        [sys.executable, "-c", code],
         capture_output=True,
         text=True,
         cwd=str(Path(__file__).parent.parent.parent),

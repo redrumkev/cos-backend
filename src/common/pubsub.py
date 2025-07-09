@@ -337,6 +337,15 @@ class CircuitBreaker:
             Exception: Any exception raised by the wrapped function
 
         """
+        # Check if event loop is running before attempting async operations
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError as err:
+            # Event loop is not running (e.g., during teardown)
+            logger.warning("Event loop not running, circuit breaker cannot execute function")
+            msg = "Circuit breaker blocked: event loop not running"
+            raise CircuitBreakerError(msg) from err
+
         async with self._lock:
             # Check if request can be attempted
             if not await self._can_attempt_request():
@@ -423,6 +432,14 @@ class RedisPubSub:
             msg = "Redis package is required for connection"
             raise PubSubError(msg)
 
+        # Check if event loop is running before attempting async operations
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # Event loop is not running (e.g., during teardown)
+            logger.warning("Event loop not running, skipping Redis connection")
+            return
+
         # Check Redis health and auto-recover if needed
         if _HEALTH_MONITOR_AVAILABLE:
             try:
@@ -433,6 +450,13 @@ class RedisPubSub:
                 logger.warning("Redis health check error: %s - proceeding with connection attempt", e)
 
         async def _connect_operation() -> None:
+            # Additional event loop check inside the coroutine
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                logger.warning("Event loop not running inside _connect_operation, aborting")
+                return
+
             # Create optimized connection pool
             assert ConnectionPool is not None, "Redis ConnectionPool not available"  # nosec B101
             redis_url_str = self._config.redis_url
@@ -537,6 +561,14 @@ class RedisPubSub:
             CircuitBreakerError: If circuit breaker is open
 
         """
+        # Check if event loop is running before attempting async operations
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # Event loop is not running (e.g., during teardown)
+            logger.warning("Event loop not running, skipping Redis publish")
+            return 0
+
         # Get or generate correlation ID
         if not correlation_id:
             correlation_id = correlation_id or str(uuid.uuid4())
@@ -1048,6 +1080,22 @@ class RedisPubSub:
             Dictionary with operation result and fallback information
 
         """
+        # Check if event loop is running before attempting async operations
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # Event loop is not running (e.g., during teardown)
+            logger.warning("Event loop not running, using fallback strategy immediately")
+            return {
+                "success": True,
+                "primary_attempted": False,
+                "fallback_used": True,
+                "fallback_strategy": fallback_strategy,
+                "correlation_id": correlation_id or str(uuid.uuid4()),
+                "subscriber_count": 0,
+                "error": "Event loop not running",
+            }
+
         result = {
             "success": False,
             "primary_attempted": True,
@@ -1154,7 +1202,16 @@ async def get_pubsub() -> RedisPubSub:
     global _pubsub_instance
     if _pubsub_instance is None:
         _pubsub_instance = RedisPubSub()
-        await _pubsub_instance.connect()
+
+        # Check if event loop is running before attempting async operations
+        try:
+            asyncio.get_running_loop()
+            await _pubsub_instance.connect()
+        except RuntimeError:
+            # Event loop is not running (e.g., during teardown)
+            # Don't attempt to connect - just return the instance
+            logger.warning("Event loop not running, skipping Redis connection")
+
     return _pubsub_instance
 
 
@@ -1163,7 +1220,13 @@ async def cleanup_pubsub() -> None:
     global _pubsub_instance
     if _pubsub_instance:
         try:
-            await _pubsub_instance.disconnect()
+            # Check if event loop is running before attempting async operations
+            try:
+                asyncio.get_running_loop()
+                await _pubsub_instance.disconnect()
+            except RuntimeError:
+                # Event loop is not running (e.g., during teardown)
+                logger.warning("Event loop not running, skipping async cleanup")
         except Exception:
             # Log but don't raise - cleanup should be graceful
             logger.exception("Error during pubsub cleanup")

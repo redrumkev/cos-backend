@@ -27,6 +27,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from src.common.config import get_settings
 
+# Pattern Reference: service.py v2.1.0 (Living Patterns System)
+# Applied: ResourceFactory pattern for database connections
+# Applied: ExecutionContext for request-scoped operations
+# Applied: Multi-schema support (cc.*, pem.*, aic.*)
+# Applied: Dependency injection patterns
+
 
 # Check if we're in a test environment
 # IN_TEST_MODE = "PYTEST_CURRENT_TEST" in os.environ
@@ -140,3 +146,187 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
     async_session_factory = get_async_session_maker()
     async with async_session_factory() as session:
         yield session
+
+
+# === LIVING PATTERNS IMPLEMENTATION ===
+# Pattern Reference: service.py v2.1.0 (Living Patterns System)
+
+
+class DatabaseResourceFactory:
+    """Resource factory for database connections with multi-schema support.
+
+    Implements the ResourceFactory pattern from service.py v2.1.0.
+    Provides centralized management of database connections with schema-aware routing.
+    """
+
+    def __init__(self, settings: Any = None):
+        """Initialize with injected settings dependency."""
+        self.settings = settings or get_settings()
+        self._engines: dict[str, Engine | AsyncEngine] = {}
+        self._session_makers: dict[str, Any] = {}
+
+    def get_engine(self, schema: str = "default", async_mode: bool = False) -> Engine | AsyncEngine:
+        """Get engine for specified schema.
+
+        Args:
+        ----
+            schema: Schema name (e.g., "cc", "pem", "aic")
+            async_mode: Whether to return async engine
+
+        Returns:
+        -------
+            SQLAlchemy engine instance
+
+        """
+        cache_key = f"{schema}_{async_mode}"
+
+        if cache_key not in self._engines:
+            if async_mode:
+                self._engines[cache_key] = self._create_async_engine(schema)
+            else:
+                self._engines[cache_key] = self._create_sync_engine(schema)
+
+        return self._engines[cache_key]
+
+    def get_session_maker(self, schema: str = "default", async_mode: bool = False) -> Any:
+        """Get session maker for specified schema.
+
+        Args:
+        ----
+            schema: Schema name (e.g., "cc", "pem", "aic")
+            async_mode: Whether to return async session maker
+
+        Returns:
+        -------
+            SQLAlchemy session maker
+
+        """
+        cache_key = f"{schema}_{async_mode}"
+
+        if cache_key not in self._session_makers:
+            engine = self.get_engine(schema, async_mode)
+            if async_mode:
+                from sqlalchemy.ext.asyncio import async_sessionmaker
+
+                self._session_makers[cache_key] = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)  # type: ignore[arg-type]
+            else:
+                self._session_makers[cache_key] = sessionmaker(bind=engine, autoflush=False, autocommit=False)  # type: ignore[arg-type]
+
+        return self._session_makers[cache_key]
+
+    def _create_sync_engine(self, schema: str) -> Engine:
+        """Create sync engine for schema."""
+        if _is_test_mode():
+            return MagicMock(spec=Engine)
+
+        db_url = self._get_db_url(schema, async_mode=False)
+        return create_engine(db_url, future=True)
+
+    def _create_async_engine(self, schema: str) -> AsyncEngine:
+        """Create async engine for schema."""
+        if _is_test_mode():
+            return AsyncMock(spec=AsyncEngine)
+
+        db_url = self._get_db_url(schema, async_mode=True)
+
+        # Configure pool settings from agent environment variables
+        engine_options: dict[str, Any] = {
+            "future": True,
+            "pool_pre_ping": True,
+        }
+
+        # Add agent-specific pool configuration if available
+        if pool_size := os.environ.get("AGENT_POOL_SIZE"):
+            engine_options["pool_size"] = int(pool_size)
+        if pool_timeout := os.environ.get("AGENT_POOL_TIMEOUT"):
+            engine_options["pool_timeout"] = int(pool_timeout)
+        if max_overflow := os.environ.get("AGENT_POOL_MAX_OVERFLOW"):
+            engine_options["max_overflow"] = int(max_overflow)
+
+        return create_async_engine(db_url, **engine_options)
+
+    def _get_db_url(self, schema: str, async_mode: bool = False) -> str:
+        """Get database URL for schema.
+
+        Supports schema-specific URLs when available, falls back to default.
+        Schema-specific URLs: POSTGRES_CC_URL, POSTGRES_PEM_URL, POSTGRES_AIC_URL
+        """
+        # Check for schema-specific URL first
+        schema_url = None
+        if schema == "cc" and hasattr(self.settings, "POSTGRES_CC_URL"):
+            schema_url = self.settings.POSTGRES_CC_URL
+        elif schema == "pem" and hasattr(self.settings, "POSTGRES_PEM_URL"):
+            schema_url = self.settings.POSTGRES_PEM_URL
+        elif schema == "aic" and hasattr(self.settings, "POSTGRES_AIC_URL"):
+            schema_url = self.settings.POSTGRES_AIC_URL
+
+        # Use schema-specific URL if available, otherwise fall back to default
+        base_url = schema_url or (self.settings.async_db_url if async_mode else self.settings.sync_db_url)
+
+        # Convert to async format if needed
+        if async_mode and base_url.startswith("postgresql://"):
+            base_url = base_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+        return base_url
+
+    async def health_check(self) -> dict[str, Any]:
+        """Health check for database factory."""
+        return {
+            "factory": self.__class__.__name__,
+            "engines": len(self._engines),
+            "session_makers": len(self._session_makers),
+            "status": "healthy",
+        }
+
+
+class DatabaseExecutionContext:
+    """Request-scoped database execution context.
+
+    Implements the ExecutionContext pattern from service.py v2.1.0.
+    Provides resource management for database operations within a request scope.
+    """
+
+    def __init__(self, factory: DatabaseResourceFactory, schema: str = "default"):
+        """Initialize with factory and schema."""
+        self.factory = factory
+        self.schema = schema
+        self._sessions: dict[str, Any] = {}
+
+    def get_session(self, async_mode: bool = False) -> Any:
+        """Get session for current context."""
+        cache_key = f"{self.schema}_{async_mode}"
+
+        if cache_key not in self._sessions:
+            session_maker = self.factory.get_session_maker(self.schema, async_mode)
+            self._sessions[cache_key] = session_maker()
+
+        return self._sessions[cache_key]
+
+    async def get_async_session(self) -> AsyncSession:
+        """Get async session for current context."""
+        return self.get_session(async_mode=True)  # type: ignore[no-any-return]
+
+    def get_sync_session(self) -> Session:
+        """Get sync session for current context."""
+        return self.get_session(async_mode=False)  # type: ignore[no-any-return]
+
+    def close(self) -> None:
+        """Close all sessions in context."""
+        for session in self._sessions.values():
+            if hasattr(session, "close"):
+                session.close()
+        self._sessions.clear()
+
+
+# Global factory instance for backward compatibility
+_database_factory = DatabaseResourceFactory()
+
+
+def get_database_factory() -> DatabaseResourceFactory:
+    """Get global database factory instance."""
+    return _database_factory
+
+
+def get_execution_context(schema: str = "default") -> DatabaseExecutionContext:
+    """Get execution context for schema."""
+    return DatabaseExecutionContext(_database_factory, schema)

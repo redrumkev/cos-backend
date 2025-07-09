@@ -24,10 +24,10 @@ from core_v2.utils.logger import (
 
 # Re-export all symbols for backwards compatibility
 __all__ = [
+    "_demo",  # Also export _demo for test compatibility
     "get_logger",
     "log_event",
     "log_event_async",
     "logger",
     "mem",
-    "_demo",  # Also export _demo for test compatibility
 ]

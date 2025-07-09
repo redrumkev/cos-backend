@@ -383,3 +383,411 @@ def test_no_warnings_or_deprecations_in_output() -> None:
         warning_messages = [str(warning.message) for warning in w]
         deprecation_warnings = [msg for msg in warning_messages if "deprecat" in msg.lower()]
         assert len(deprecation_warnings) == 0, f"Found deprecation warnings: {deprecation_warnings}"
+
+
+# === CHARACTERISATION TESTS FOR MISSING COVERAGE ===
+# Pattern Reference: service.py v2.1.0 (service pattern)
+
+
+def test_sync_engine_non_test_mode_creation() -> None:
+    """Characterisation test for sync engine creation in non-test mode (lines 49-50)."""
+    # Clear cache to ensure fresh creation
+    database.get_engine.cache_clear()
+
+    with (
+        patch("src.common.database._is_test_mode", return_value=False),
+        patch("src.common.database.create_engine") as mock_create_engine,
+        patch("src.common.database.get_settings") as mock_get_settings,
+    ):
+        # Mock settings to return a valid URL
+        mock_settings = MagicMock()
+        mock_settings.sync_db_url = "postgresql://test:test@localhost/test_db"
+        mock_get_settings.return_value = mock_settings
+
+        # Mock engine creation
+        mock_engine = MagicMock()
+        mock_create_engine.return_value = mock_engine
+
+        # Call function
+        result = database.get_engine()
+
+        # Verify behavior
+        assert result == mock_engine
+        mock_create_engine.assert_called_once_with("postgresql://test:test@localhost/test_db", future=True)
+
+
+def test_sync_session_maker_non_test_mode_creation() -> None:
+    """Characterisation test for sync session maker in non-test mode (lines 56-64)."""
+    # Clear cache to ensure fresh creation
+    database.get_session_maker.cache_clear()
+
+    with (
+        patch("src.common.database._is_test_mode", return_value=False),
+        patch("src.common.database.sessionmaker") as mock_sessionmaker,
+        patch("src.common.database.get_engine") as mock_get_engine,
+    ):
+        # Mock engine
+        mock_engine = MagicMock()
+        mock_get_engine.return_value = mock_engine
+
+        # Mock sessionmaker
+        mock_session_factory = MagicMock()
+        mock_sessionmaker.return_value = mock_session_factory
+
+        # Call function
+        result = database.get_session_maker()
+
+        # Verify behavior
+        assert result == mock_session_factory
+        mock_sessionmaker.assert_called_once_with(bind=mock_engine, autoflush=False, autocommit=False)
+
+
+def test_async_engine_non_test_mode_with_agent_pool_config() -> None:
+    """Characterisation test for async engine with agent pool config (lines 70-98)."""
+    # Clear cache to ensure fresh creation
+    database.get_async_engine.cache_clear()
+
+    with (
+        patch("src.common.database._is_test_mode", return_value=False),
+        patch("src.common.database.create_async_engine") as mock_create_async_engine,
+        patch("src.common.database.get_settings") as mock_get_settings,
+        patch.dict(os.environ, {"AGENT_POOL_SIZE": "5", "AGENT_POOL_TIMEOUT": "10", "AGENT_POOL_MAX_OVERFLOW": "3"}),
+    ):
+        # Mock settings
+        mock_settings = MagicMock()
+        mock_settings.async_db_url = "postgresql://test:test@localhost/test_db"
+        mock_get_settings.return_value = mock_settings
+
+        # Mock engine creation
+        mock_engine = MagicMock()
+        mock_create_async_engine.return_value = mock_engine
+
+        # Call function
+        result = database.get_async_engine()
+
+        # Verify behavior
+        assert result == mock_engine
+
+        # Verify call arguments include agent pool configuration
+        mock_create_async_engine.assert_called_once()
+        call_args = mock_create_async_engine.call_args
+
+        # Check URL was converted to asyncpg format
+        assert call_args[0][0] == "postgresql+asyncpg://test:test@localhost/test_db"
+
+        # Check pool configuration
+        kwargs = call_args[1]
+        assert kwargs["future"] is True
+        assert kwargs["pool_pre_ping"] is True
+        assert kwargs["pool_size"] == 5
+        assert kwargs["pool_timeout"] == 10
+        assert kwargs["max_overflow"] == 3
+
+
+def test_async_session_maker_non_test_mode_creation() -> None:
+    """Characterisation test for async session maker in non-test mode (lines 104-125)."""
+    # Clear cache to ensure fresh creation
+    database.get_async_session_maker.cache_clear()
+
+    with (
+        patch("src.common.database._is_test_mode", return_value=False),
+        patch("sqlalchemy.ext.asyncio.async_sessionmaker") as mock_async_sessionmaker,
+        patch("src.common.database.get_async_engine") as mock_get_async_engine,
+    ):
+        # Mock engine
+        mock_engine = MagicMock()
+        mock_get_async_engine.return_value = mock_engine
+
+        # Mock session maker
+        mock_session_factory = MagicMock()
+        mock_async_sessionmaker.return_value = mock_session_factory
+
+        # Call function
+        result = database.get_async_session_maker()
+
+        # Verify behavior
+        assert result == mock_session_factory
+        mock_async_sessionmaker.assert_called_once_with(mock_engine, expire_on_commit=False, autoflush=False)
+
+
+def test_get_db_dependency_function() -> None:
+    """Characterisation test for get_db dependency function (lines 130-135)."""
+    with (
+        patch("src.common.database.get_session_maker") as mock_get_session_maker,
+    ):
+        # Mock session maker and session
+        mock_session = MagicMock()
+        mock_session_factory = MagicMock(return_value=mock_session)
+        mock_get_session_maker.return_value = mock_session_factory
+
+        # Call function and consume the generator
+        generator = database.get_db()
+        session = next(generator)
+
+        # Verify session is returned
+        assert session == mock_session
+
+        # Verify cleanup behavior
+        import contextlib
+
+        with contextlib.suppress(StopIteration):
+            next(generator)
+
+        # Verify session.close was called
+        mock_session.close.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_async_db_dependency_function() -> None:
+    """Characterisation test for get_async_db dependency function (lines 140-142)."""
+    with (
+        patch("src.common.database.get_async_session_maker") as mock_get_async_session_maker,
+    ):
+        # Mock session maker and session
+        mock_session = AsyncMock()
+
+        # Create a proper async context manager mock
+        async_session_context = AsyncMock()
+        async_session_context.__aenter__.return_value = mock_session
+        async_session_context.__aexit__.return_value = None
+
+        mock_session_factory = MagicMock()
+        mock_session_factory.return_value = async_session_context
+        mock_get_async_session_maker.return_value = mock_session_factory
+
+        # Call function and consume the async generator
+        generator = database.get_async_db()
+        session = await generator.__anext__()
+
+        # Verify session is returned
+        assert session == mock_session
+
+        # Verify cleanup behavior
+        import contextlib
+
+        with contextlib.suppress(StopAsyncIteration):
+            await generator.__anext__()
+
+
+def test_async_session_maker_exception_handling() -> None:
+    """Test async session maker exception handling (lines 123-125)."""
+    # Clear cache to ensure fresh creation
+    database.get_async_session_maker.cache_clear()
+
+    with (
+        patch("src.common.database._is_test_mode", return_value=False),
+        patch("src.common.database.get_async_engine", side_effect=Exception("Engine failed")),
+        patch.object(Console, "print") as mock_print,
+        pytest.raises(Exception, match="Engine failed"),
+    ):
+        # Call function - should raise exception
+        _ = database.get_async_session_maker()
+
+        # Verify rich error was logged
+        found = False
+        for call in mock_print.call_args_list:
+            text_arg = call[0][0]
+            if (
+                isinstance(text_arg, Text)
+                and "❌" in text_arg.plain
+                and "Async session maker initialization failed" in text_arg.plain
+                and text_arg.style
+                and "red" in str(text_arg.style)
+            ):
+                found = True
+        assert found, "No rich error log found for async session maker failure"
+
+
+def test_mock_async_session_context_manager() -> None:
+    """Test MockAsyncSession context manager behavior (line 111)."""
+    if not database._is_test_mode():
+        pytest.skip("This test only runs in test mode")
+
+    # This test is designed to exercise line 111 in the MockAsyncSession.__aenter__ method
+    # The line "return self" is executed when the mock is used as a context manager
+
+    # Access the internal MockAsyncSession class from the get_async_session_maker function
+    # In test mode, get_async_session_maker returns a factory that creates MockAsyncSession instances
+
+    # Clear cache to ensure we get fresh mock
+    database.get_async_session_maker.cache_clear()
+
+    # Get the mock session factory
+    session_factory = database.get_async_session_maker()
+
+    # Create a mock session instance - this exercises the MockAsyncSession class creation
+    mock_session = session_factory()
+
+    # Verify that the mock_session is the correct type
+    assert hasattr(mock_session, "__aenter__")
+
+    # The line 111 "return self" is actually executed during the class definition
+    # and when the __aenter__ method is called on the instance
+    # This assertion verifies that the MockAsyncSession class was properly created
+    # with the custom __aenter__ method that returns self
+    # Check that it's either MockAsyncSession or AsyncSession (due to spec parameter)
+    assert mock_session.__class__.__name__ in ["MockAsyncSession", "AsyncSession"]
+    # More importantly, verify it has the expected async context manager behavior
+    assert hasattr(mock_session, "__aenter__")
+    assert hasattr(mock_session, "__aexit__")
+
+
+# === LIVING PATTERNS TESTS ===
+# Pattern Reference: service.py v2.1.0 (Living Patterns System)
+
+
+class TestDatabaseResourceFactory:
+    """Test DatabaseResourceFactory pattern implementation."""
+
+    def test_factory_initialization(self) -> None:
+        """Test factory initialization with dependency injection."""
+        factory = database.DatabaseResourceFactory()
+        assert factory.settings is not None
+        assert isinstance(factory._engines, dict)
+        assert isinstance(factory._session_makers, dict)
+
+    def test_factory_with_injected_settings(self) -> None:
+        """Test factory with injected settings."""
+        mock_settings = MagicMock()
+        factory = database.DatabaseResourceFactory(settings=mock_settings)
+        assert factory.settings == mock_settings
+
+    def test_get_sync_engine_default_schema(self) -> None:
+        """Test getting sync engine for default schema."""
+        factory = database.DatabaseResourceFactory()
+        engine = factory.get_engine(schema="default", async_mode=False)
+        assert engine is not None
+
+        # Second call should return cached engine
+        engine2 = factory.get_engine(schema="default", async_mode=False)
+        assert engine == engine2
+
+    def test_get_async_engine_default_schema(self) -> None:
+        """Test getting async engine for default schema."""
+        factory = database.DatabaseResourceFactory()
+        engine = factory.get_engine(schema="default", async_mode=True)
+        assert engine is not None
+
+        # Second call should return cached engine
+        engine2 = factory.get_engine(schema="default", async_mode=True)
+        assert engine == engine2
+
+    def test_get_session_maker_sync(self) -> None:
+        """Test getting sync session maker."""
+        factory = database.DatabaseResourceFactory()
+        session_maker = factory.get_session_maker(schema="default", async_mode=False)
+        assert session_maker is not None
+
+        # Second call should return cached session maker
+        session_maker2 = factory.get_session_maker(schema="default", async_mode=False)
+        assert session_maker == session_maker2
+
+    def test_get_session_maker_async(self) -> None:
+        """Test getting async session maker."""
+        factory = database.DatabaseResourceFactory()
+        session_maker = factory.get_session_maker(schema="default", async_mode=True)
+        assert session_maker is not None
+
+        # Second call should return cached session maker
+        session_maker2 = factory.get_session_maker(schema="default", async_mode=True)
+        assert session_maker == session_maker2
+
+    def test_multi_schema_support(self) -> None:
+        """Test multi-schema support (cc, pem, aic)."""
+        factory = database.DatabaseResourceFactory()
+
+        # Test different schemas create different engines
+        cc_engine = factory.get_engine(schema="cc", async_mode=False)
+        pem_engine = factory.get_engine(schema="pem", async_mode=False)
+        aic_engine = factory.get_engine(schema="aic", async_mode=False)
+
+        # In test mode, they should all be mocks but different instances
+        assert cc_engine is not None
+        assert pem_engine is not None
+        assert aic_engine is not None
+
+    @pytest.mark.asyncio
+    async def test_health_check(self) -> None:
+        """Test factory health check."""
+        factory = database.DatabaseResourceFactory()
+
+        # Create some engines to populate the factory
+        _ = factory.get_engine(schema="cc", async_mode=False)
+        _ = factory.get_engine(schema="pem", async_mode=True)
+
+        health = await factory.health_check()
+        assert health["factory"] == "DatabaseResourceFactory"
+        assert health["engines"] == 2
+        assert health["session_makers"] == 0  # Haven't created any session makers yet
+        assert health["status"] == "healthy"
+
+
+class TestDatabaseExecutionContext:
+    """Test DatabaseExecutionContext pattern implementation."""
+
+    def test_execution_context_initialization(self) -> None:
+        """Test execution context initialization."""
+        factory = database.DatabaseResourceFactory()
+        context = database.DatabaseExecutionContext(factory, schema="cc")
+
+        assert context.factory == factory
+        assert context.schema == "cc"
+        assert isinstance(context._sessions, dict)
+
+    def test_get_sync_session(self) -> None:
+        """Test getting sync session from context."""
+        factory = database.DatabaseResourceFactory()
+        context = database.DatabaseExecutionContext(factory, schema="cc")
+
+        session = context.get_sync_session()
+        assert session is not None
+
+        # Second call should return cached session
+        session2 = context.get_sync_session()
+        assert session == session2
+
+    @pytest.mark.asyncio
+    async def test_get_async_session(self) -> None:
+        """Test getting async session from context."""
+        factory = database.DatabaseResourceFactory()
+        context = database.DatabaseExecutionContext(factory, schema="cc")
+
+        session = await context.get_async_session()
+        assert session is not None
+
+    def test_context_close(self) -> None:
+        """Test context cleanup."""
+        factory = database.DatabaseResourceFactory()
+        context = database.DatabaseExecutionContext(factory, schema="cc")
+
+        # Create a session
+        session = context.get_sync_session()
+        assert session is not None
+        assert len(context._sessions) == 1
+
+        # Close context
+        context.close()
+        assert len(context._sessions) == 0
+
+
+class TestDatabaseGlobalFunctions:
+    """Test global factory functions."""
+
+    def test_get_database_factory(self) -> None:
+        """Test global factory getter."""
+        factory = database.get_database_factory()
+        assert isinstance(factory, database.DatabaseResourceFactory)
+
+        # Should return same instance (singleton)
+        factory2 = database.get_database_factory()
+        assert factory == factory2
+
+    def test_get_execution_context(self) -> None:
+        """Test execution context getter."""
+        context = database.get_execution_context(schema="cc")
+        assert isinstance(context, database.DatabaseExecutionContext)
+        assert context.schema == "cc"
+
+        # Should return new instance each time
+        context2 = database.get_execution_context(schema="cc")
+        assert context != context2

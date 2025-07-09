@@ -265,15 +265,15 @@ class TestLedgerView:
         # Third call should contain memo
         assert "Test memo" in str(mock_print.call_args_list[2])
 
-    @patch("src.common.ledger_view.load_memories")
-    @patch("src.common.ledger_view.filter_memories")
-    @patch("src.common.ledger_view.render_rich_table")
-    def test_main_default_options(self, mock_render_rich: Mock, mock_filter: Mock, mock_load: Mock) -> None:
+    @patch("src.common.ledger_view.LedgerViewService")
+    def test_main_default_options(self, mock_service_class: Mock) -> None:
         """Test main function with default options."""
         # Arrange
         memories = [("key1", {"source": "pem", "timestamp": "2025-03-15T10:15:30"})]
-        mock_load.return_value = memories
-        mock_filter.return_value = memories
+        mock_service = Mock()
+        mock_service.load_memories.return_value = memories
+        mock_service.filter_memories.return_value = memories
+        mock_service_class.return_value = mock_service
 
         # Act - mock argument parsing and run main
         with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
@@ -288,19 +288,20 @@ class TestLedgerView:
             main()
 
         # Assert
-        mock_load.assert_called_once()
-        mock_filter.assert_called_once_with(memories, source=None, tag=None)
-        mock_render_rich.assert_called_once()
+        mock_service_class.assert_called_once()
+        mock_service.load_memories.assert_called_once()
+        mock_service.filter_memories.assert_called_once_with(memories, source=None, tag=None)
+        mock_service.render_rich_table.assert_called_once()
 
-    @patch("src.common.ledger_view.load_memories")
-    @patch("src.common.ledger_view.filter_memories")
-    @patch("src.common.ledger_view.render_plain")
-    def test_main_plain_output(self, mock_render_plain: Mock, mock_filter: Mock, mock_load: Mock) -> None:
+    @patch("src.common.ledger_view.LedgerViewService")
+    def test_main_plain_output(self, mock_service_class: Mock) -> None:
         """Test main function with plain output."""
         # Arrange
         memories = [("key1", {"source": "pem", "timestamp": "2025-03-15T10:15:30"})]
-        mock_load.return_value = memories
-        mock_filter.return_value = memories
+        mock_service = Mock()
+        mock_service.load_memories.return_value = memories
+        mock_service.filter_memories.return_value = memories
+        mock_service_class.return_value = mock_service
 
         # Act - mock argument parsing to enable plain output
         with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
@@ -314,10 +315,10 @@ class TestLedgerView:
             main()
 
         # Assert
-        mock_render_plain.assert_called_once()
+        mock_service.render_plain.assert_called_once()
 
-    @patch("src.common.ledger_view.load_memories")
-    def test_main_with_source_and_tag_filter(self, mock_load: Mock) -> None:
+    @patch("src.common.ledger_view.LedgerViewService")
+    def test_main_with_source_and_tag_filter(self, mock_service_class: Mock) -> None:
         """Test main function with source and tag filters."""
         # Arrange
         memories = [
@@ -334,7 +335,21 @@ class TestLedgerView:
                 {"source": "pem", "timestamp": "2025-03-15T10:25:30", "tags": ["tag1"]},
             ),
         ]
-        mock_load.return_value = memories
+        filtered_memories = [
+            (
+                "key1",
+                {"source": "pem", "timestamp": "2025-03-15T10:15:30", "tags": ["tag1"]},
+            ),
+            (
+                "key3",
+                {"source": "pem", "timestamp": "2025-03-15T10:25:30", "tags": ["tag1"]},
+            ),
+        ]
+
+        mock_service = Mock()
+        mock_service.load_memories.return_value = memories
+        mock_service.filter_memories.return_value = filtered_memories
+        mock_service_class.return_value = mock_service
 
         # Act - mock argument parsing for source and tag filters
         with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
@@ -345,18 +360,16 @@ class TestLedgerView:
             mock_args.tag = "tag1"
             mock_parse_args.return_value = mock_args
 
-            # Mock render_rich_table to avoid actual printing
-            with patch("src.common.ledger_view.render_rich_table") as mock_render:
-                main()
+            main()
 
-                # Assert - verify the filtered memories have the right source and tag
-                # We only need to check that the filter is applied
-                assert mock_render.call_count == 1
-                filtered_memories = mock_render.call_args[0][0]
-                assert len(filtered_memories) <= len(memories)  # Should be filtered
-                for _, data in filtered_memories:
-                    assert data["source"] == "pem"
-                    assert "tag1" in data["tags"]
+        # Assert - verify the service methods were called with correct parameters
+        mock_service.load_memories.assert_called_once()
+
+        # The memories are sorted by timestamp (newest first) before filtering
+        # So we need to check the call with the sorted order
+        sorted_memories = sorted(memories, key=lambda x: str(x[1].get("timestamp", [])), reverse=True)
+        mock_service.filter_memories.assert_called_once_with(sorted_memories, source="pem", tag="tag1")
+        mock_service.render_rich_table.assert_called_once()
 
     def test_empty_memories_render_rich_table(self) -> None:
         """Test rendering an empty memories list with rich table."""

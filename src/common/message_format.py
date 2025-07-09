@@ -10,15 +10,26 @@ Features:
 - Enum-based event type validation for L2 graph indexing
 - Forward/backward compatibility via schema versioning
 - Performance target: ≤ 50µs per message build
+
+Pattern Reference: error_handling.py v2.1.0 (Living Patterns System)
+Applied: COSError and error_handler context manager for structured error handling
+Applied: Validation error handling with proper error categories
+Applied: Graceful fallback for orjson serialization errors
 """
 
 import json
+import logging
 import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+# Import error handling patterns
+from src.core_v2.patterns.error_handling import COSError, ErrorCategory
+
+logger = logging.getLogger(__name__)
 
 # Try to import orjson for performance, fall back to standard json
 try:
@@ -96,20 +107,32 @@ class MessageEnvelope(BaseModel):
         -------
             JSON-encoded string ready for Redis pub/sub
 
+        Raises
+        ------
+            COSError: When serialization fails with structured error details
+
         """
-        if HAS_ORJSON:
-            # Use orjson for maximum performance
-            data = self.model_dump(by_alias=True, **kwargs)
-            # Convert datetime to RFC3339 format
-            if isinstance(data.get("timestamp"), datetime):
-                data["timestamp"] = data["timestamp"].isoformat(timespec="microseconds").replace("+00:00", "Z")
-            # Convert UUID to string
-            if isinstance(data.get("base_log_id"), uuid.UUID):
-                data["base_log_id"] = str(data["base_log_id"])
-            json_bytes: bytes = orjson.dumps(data)
-            return json_bytes.decode("utf-8")
-        # Fall back to Pydantic's standard serialization
-        return super().model_dump_json(by_alias=True, **kwargs)
+        try:
+            if HAS_ORJSON:
+                # Use orjson for maximum performance
+                data = self.model_dump(by_alias=True, **kwargs)
+                # Convert datetime to RFC3339 format
+                if isinstance(data.get("timestamp"), datetime):
+                    data["timestamp"] = data["timestamp"].isoformat(timespec="microseconds").replace("+00:00", "Z")
+                # Convert UUID to string
+                if isinstance(data.get("base_log_id"), uuid.UUID):
+                    data["base_log_id"] = str(data["base_log_id"])
+                json_bytes: bytes = orjson.dumps(data)
+                return json_bytes.decode("utf-8")
+            # Fall back to Pydantic's standard serialization
+            return super().model_dump_json(by_alias=True, **kwargs)
+        except Exception as e:
+            # Convert any serialization error to COSError
+            raise COSError(
+                message=f"Failed to serialize MessageEnvelope to JSON: {e}",
+                category=ErrorCategory.VALIDATION,
+                details={"operation": "model_dump_json", "has_orjson": HAS_ORJSON, "original_error": type(e).__name__},
+            ) from e
 
 
 def build_message(
@@ -141,6 +164,10 @@ def build_message(
     -------
         JSON-encoded string ready for Redis publishing
 
+    Raises:
+    ------
+        COSError: When message building fails with structured error details
+
     Performance:
         Target: ≤ 50µs per call on modern hardware
         Uses Pydantic v2 + orjson for optimal speed
@@ -160,23 +187,34 @@ def build_message(
         ... )
 
     """
-    # Ensure timestamp is UTC for consistency
-    if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=UTC)
-    elif timestamp.tzinfo != UTC:
-        timestamp = timestamp.astimezone(UTC)
+    try:
+        # Ensure timestamp is UTC for consistency
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=UTC)
+        elif timestamp.tzinfo != UTC:
+            timestamp = timestamp.astimezone(UTC)
 
-    envelope = MessageEnvelope(
-        base_log_id=base_log_id,
-        source_module=source_module,
-        timestamp=timestamp,
-        trace_id=trace_id,
-        request_id=request_id,
-        event_type=event_type,
-        data=data,
-    )
+        envelope = MessageEnvelope(
+            base_log_id=base_log_id,
+            source_module=source_module,
+            timestamp=timestamp,
+            trace_id=trace_id,
+            request_id=request_id,
+            event_type=event_type,
+            data=data,
+        )
 
-    return envelope.model_dump_json()
+        return envelope.model_dump_json()
+    except COSError:
+        # Re-raise COSError directly
+        raise
+    except Exception as e:
+        # Convert other exceptions to COSError
+        raise COSError(
+            message=f"Failed to build message: {e}",
+            category=ErrorCategory.VALIDATION,
+            details={"operation": "build_message", "original_error": type(e).__name__},
+        ) from e
 
 
 def parse_message(raw: str | bytes) -> MessageEnvelope:
@@ -195,8 +233,7 @@ def parse_message(raw: str | bytes) -> MessageEnvelope:
 
     Raises:
     ------
-        ValidationError: If the message format is invalid
-        json.JSONDecodeError: If the JSON is malformed
+        COSError: When parsing fails with structured error details
 
     Example:
     -------
@@ -204,14 +241,27 @@ def parse_message(raw: str | bytes) -> MessageEnvelope:
         >>> print(f"Event: {envelope.event_type}, Module: {envelope.source_module}")
 
     """
-    if isinstance(raw, bytes):
-        raw = raw.decode("utf-8")
+    try:
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
 
-    # Parse JSON to dict
-    data = orjson.loads(raw) if HAS_ORJSON else json.loads(raw)
+        # Parse JSON to dict
+        data = orjson.loads(raw) if HAS_ORJSON else json.loads(raw)
 
-    # Handle field aliasing for backward compatibility
-    if "_schema_version" in data and "schema_version" not in data:
-        data["schema_version"] = data["_schema_version"]
+        # Handle field aliasing for backward compatibility
+        if "_schema_version" in data and "schema_version" not in data:
+            data["schema_version"] = data["_schema_version"]
 
-    return MessageEnvelope.model_validate(data)
+        return MessageEnvelope.model_validate(data)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise COSError(
+            message=f"Failed to parse message JSON: {e}",
+            category=ErrorCategory.VALIDATION,
+            details={"operation": "parse_message", "raw_type": type(raw).__name__, "has_orjson": HAS_ORJSON},
+        ) from e
+    except Exception as e:
+        raise COSError(
+            message=f"Failed to validate message envelope: {e}",
+            category=ErrorCategory.VALIDATION,
+            details={"operation": "parse_message", "original_error": type(e).__name__},
+        ) from e
