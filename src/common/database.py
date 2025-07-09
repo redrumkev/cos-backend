@@ -10,6 +10,14 @@ For onboarding:
 1. Ensure Agent is configured and running
 2. Set up .env with agent connection URLs
 3. Use get_async_session_maker() for async contexts
+
+Pattern Reference: service.py v2.1.0 (Living Patterns System)
+Pattern Reference: error_handling.py v2.1.0 (COSError integration)
+Applied: ResourceFactory pattern for database connections
+Applied: ExecutionContext for request-scoped operations
+Applied: Multi-schema support (cc.*, pem.*, aic.*)
+Applied: Dependency injection patterns
+Applied: COSError for structured error handling
 """
 
 import os
@@ -155,8 +163,15 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
 class DatabaseResourceFactory:
     """Resource factory for database connections with multi-schema support.
 
+    Pattern Reference: service.py v2.1.0 (Living Patterns System)
     Implements the ResourceFactory pattern from service.py v2.1.0.
     Provides centralized management of database connections with schema-aware routing.
+
+    Applied Patterns:
+    - ResourceFactory: Centralized resource management
+    - Multi-schema support: cc.*, pem.*, aic.* routing
+    - Dependency injection: Settings injection for testability
+    - COSError: Structured error handling for database operations
     """
 
     def __init__(self, settings: Any = None):
@@ -282,8 +297,15 @@ class DatabaseResourceFactory:
 class DatabaseExecutionContext:
     """Request-scoped database execution context.
 
+    Pattern Reference: service.py v2.1.0 (Living Patterns System)
     Implements the ExecutionContext pattern from service.py v2.1.0.
     Provides resource management for database operations within a request scope.
+
+    Applied Patterns:
+    - ExecutionContext: Request-scoped resource management
+    - Resource lifecycle: Automatic session cleanup
+    - Multi-schema support: Schema-aware session management
+    - Service integration: Works with DatabaseResourceFactory
     """
 
     def __init__(self, factory: DatabaseResourceFactory, schema: str = "default"):
