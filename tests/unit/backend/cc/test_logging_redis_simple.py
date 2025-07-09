@@ -64,6 +64,9 @@ class TestPublishL1EventFunction:
         mock_get_pubsub.return_value = mock_pubsub
         mock_pubsub.publish.side_effect = Exception("Redis connection lost")
 
+        # Mock the publish_with_fallback method to succeed (preventing second logfire.error call)
+        mock_pubsub.publish_with_fallback = AsyncMock(return_value={"success": True, "fallback_used": True})
+
         # Mock Logfire span context manager
         mock_span = Mock()
         mock_logfire.span.return_value.__enter__ = Mock(return_value=mock_span)
@@ -75,12 +78,19 @@ class TestPublishL1EventFunction:
         # Should not raise exception
         await _publish_l1_event(log_id, event_data)
 
-        # Verify error was logged
-        mock_logfire.error.assert_called_once()
-        call_args = mock_logfire.error.call_args[1]
-        assert call_args["log_id"] == str(log_id)
-        assert call_args["error"] == "Redis connection lost"
-        assert call_args["error_type"] == "Exception"
+        # Verify error was logged for primary failure
+        # There should be one error call for the primary failure and one info call for fallback success
+        assert mock_logfire.error.call_count == 1
+        error_call_args = mock_logfire.error.call_args[1]
+        assert error_call_args["log_id"] == str(log_id)
+        assert error_call_args["error"] == "Redis connection lost"
+        assert error_call_args["error_type"] == "Exception"
+
+        # Verify fallback was attempted
+        mock_pubsub.publish_with_fallback.assert_called_once()
+
+        # Verify info call for successful fallback
+        mock_logfire.info.assert_called_once()
 
     @patch("src.backend.cc.logging.get_pubsub")
     @patch("src.backend.cc.logging.logfire")
