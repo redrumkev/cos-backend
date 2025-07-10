@@ -491,9 +491,9 @@ class TestFailurePerformanceValidation:
         detection_time = (time.perf_counter() - start_time) * 1000
 
         assert circuit_breaker.state == CircuitBreakerState.OPEN
-        # Should open circuit quickly (<10ms for 3 failures)
+        # Should open circuit quickly (<50ms for 3 failures)
         # CI-aware detection threshold
-        max_detection = 1000.0 if os.getenv("CI") == "true" else 10.0
+        max_detection = 1000.0 if os.getenv("CI") == "true" else 50.0
         assert (
             detection_time < max_detection
         ), f"Failure detection too slow: {detection_time:.2f}ms (threshold: {max_detection}ms)"

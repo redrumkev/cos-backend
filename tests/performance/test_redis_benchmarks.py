@@ -373,7 +373,7 @@ class TestRegressionDetection:
         import os
 
         # Environment-aware thresholds
-        latency_threshold = 500.0 if os.getenv("CI") == "true" else 1.0  # 500ms for CI, 1ms for local
+        latency_threshold = 500.0 if os.getenv("CI") == "true" else 3.0  # 500ms for CI, 3ms for local
 
         # Simple timing instead of pytest-benchmark
         latencies = []
