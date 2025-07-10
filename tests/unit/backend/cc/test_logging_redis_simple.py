@@ -12,11 +12,17 @@ from unittest.mock import ANY, AsyncMock, Mock, patch
 class TestPublishL1EventFunction:
     """Test the _publish_l1_event helper function in isolation."""
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
     @patch("src.backend.cc.logging.logfire")
-    async def test_publish_l1_event_success(self, mock_logfire: Mock, mock_get_pubsub: AsyncMock) -> None:
+    async def test_publish_l1_event_success(
+        self, mock_logfire: Mock, mock_get_pubsub: AsyncMock, mock_should_publish: Mock
+    ) -> None:
         """Test successful Redis publish operation."""
         from src.backend.cc.logging import _publish_l1_event
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         # Setup mocks
         mock_pubsub = AsyncMock()
@@ -53,11 +59,17 @@ class TestPublishL1EventFunction:
         mock_span.set_attribute.assert_any_call("log_id", str(log_id))
         mock_span.set_attribute.assert_any_call("event_type", "test_event")
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
     @patch("src.backend.cc.logging.logfire")
-    async def test_publish_l1_event_redis_error_isolation(self, mock_logfire: Mock, mock_get_pubsub: AsyncMock) -> None:
+    async def test_publish_l1_event_redis_error_isolation(
+        self, mock_logfire: Mock, mock_get_pubsub: AsyncMock, mock_should_publish: Mock
+    ) -> None:
         """Test that Redis errors are isolated and logged."""
         from src.backend.cc.logging import _publish_l1_event
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         # Setup mocks
         mock_pubsub = AsyncMock()
@@ -92,13 +104,17 @@ class TestPublishL1EventFunction:
         # Verify info call for successful fallback
         mock_logfire.info.assert_called_once()
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
     @patch("src.backend.cc.logging.logfire")
     async def test_publish_l1_event_logfire_span_error_isolation(
-        self, mock_logfire: Mock, mock_get_pubsub: AsyncMock
+        self, mock_logfire: Mock, mock_get_pubsub: AsyncMock, mock_should_publish: Mock
     ) -> None:
         """Test that Logfire span errors are also isolated."""
         from src.backend.cc.logging import _publish_l1_event
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         # Setup mocks
         mock_pubsub = AsyncMock()
@@ -125,14 +141,22 @@ class TestPublishL1EventFunction:
 class TestAfterCommitEventListener:
     """Test the SQLAlchemy after_commit event listener."""
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.asyncio.get_running_loop")
     @patch("src.backend.cc.logging._publish_l1_event")
-    def test_after_commit_listener_schedules_tasks(self, mock_publish: AsyncMock, mock_get_loop: Mock) -> None:
+    def test_after_commit_listener_schedules_tasks(
+        self, mock_publish: AsyncMock, mock_get_loop: Mock, mock_should_publish: Mock
+    ) -> None:
         """Test that after_commit listener schedules publishing tasks."""
         from src.backend.cc.logging import _after_commit_publish_events
 
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
+
         # Setup mocks
         mock_loop = Mock()
+        mock_loop.is_running.return_value = True
+        mock_loop.is_closed.return_value = False
         mock_get_loop.return_value = mock_loop
 
         # Create mock session with outbox events
@@ -157,11 +181,17 @@ class TestAfterCommitEventListener:
         # Verify the correct tasks were created with the right arguments
         # Note: We can't easily verify the exact coroutine arguments due to how create_task works
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.asyncio.get_running_loop")
     @patch("src.backend.cc.logging.logfire")
-    def test_after_commit_listener_no_event_loop(self, mock_logfire: Mock, mock_get_loop: Mock) -> None:
+    def test_after_commit_listener_no_event_loop(
+        self, mock_logfire: Mock, mock_get_loop: Mock, mock_should_publish: Mock
+    ) -> None:
         """Test graceful handling when no event loop is running."""
         from src.backend.cc.logging import _after_commit_publish_events
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         # Make get_running_loop raise RuntimeError
         mock_get_loop.side_effect = RuntimeError("No running event loop")
@@ -195,11 +225,17 @@ class TestAfterCommitEventListener:
 class TestRedisChannelAndMessageFormat:
     """Test Redis channel naming and message format specifications."""
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
     @patch("src.backend.cc.logging.logfire")
-    async def test_correct_channel_name(self, mock_logfire: Mock, mock_get_pubsub: AsyncMock) -> None:
+    async def test_correct_channel_name(
+        self, mock_logfire: Mock, mock_get_pubsub: AsyncMock, mock_should_publish: Mock
+    ) -> None:
         """Test that messages are published to the correct Redis channel."""
         from src.backend.cc.logging import _publish_l1_event
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub
@@ -217,11 +253,17 @@ class TestRedisChannelAndMessageFormat:
         # Verify correct channel is used
         mock_pubsub.publish.assert_called_once_with("mem0.recorded.cc", event_data, correlation_id=ANY)
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
     @patch("src.backend.cc.logging.logfire")
-    async def test_message_data_passed_correctly(self, mock_logfire: Mock, mock_get_pubsub: AsyncMock) -> None:
+    async def test_message_data_passed_correctly(
+        self, mock_logfire: Mock, mock_get_pubsub: AsyncMock, mock_should_publish: Mock
+    ) -> None:
         """Test that the event data is passed correctly to Redis publish."""
         from src.backend.cc.logging import _publish_l1_event
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub
@@ -252,11 +294,17 @@ class TestRedisChannelAndMessageFormat:
 class TestObservabilityIntegration:
     """Test Logfire observability integration."""
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
     @patch("src.backend.cc.logging.logfire")
-    async def test_span_attributes_set_correctly(self, mock_logfire: Mock, mock_get_pubsub: AsyncMock) -> None:
+    async def test_span_attributes_set_correctly(
+        self, mock_logfire: Mock, mock_get_pubsub: AsyncMock, mock_should_publish: Mock
+    ) -> None:
         """Test that Logfire span attributes are set with correct values."""
         from src.backend.cc.logging import _publish_l1_event
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub
@@ -275,11 +323,17 @@ class TestObservabilityIntegration:
         mock_span.set_attribute.assert_any_call("log_id", str(log_id))
         mock_span.set_attribute.assert_any_call("event_type", "observability_test")
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
     @patch("src.backend.cc.logging.logfire")
-    async def test_span_handles_missing_event_type(self, mock_logfire: Mock, mock_get_pubsub: AsyncMock) -> None:
+    async def test_span_handles_missing_event_type(
+        self, mock_logfire: Mock, mock_get_pubsub: AsyncMock, mock_should_publish: Mock
+    ) -> None:
         """Test span attribute handling when event_type is missing."""
         from src.backend.cc.logging import _publish_l1_event
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub

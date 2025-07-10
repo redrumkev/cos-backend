@@ -145,11 +145,15 @@ class TestLogL1RedisPublishErrorIsolation:
 class TestPublishL1EventFunction:
     """Test the _publish_l1_event helper function."""
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
-    async def test_publish_l1_event_success(self, mock_get_pubsub: AsyncMock) -> None:
+    async def test_publish_l1_event_success(self, mock_get_pubsub: AsyncMock, mock_should_publish: Mock) -> None:
         """Test successful Redis publish operation."""
         # Import function after patching to avoid import errors
         from src.backend.cc.logging import _publish_l1_event
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub
@@ -169,10 +173,16 @@ class TestPublishL1EventFunction:
         # Verify Redis publish was called with correlation_id
         mock_pubsub.publish.assert_called_once_with("mem0.recorded.cc", event_data, correlation_id=ANY)
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
-    async def test_publish_l1_event_redis_error_isolation(self, mock_get_pubsub: AsyncMock, caplog: Any) -> None:
+    async def test_publish_l1_event_redis_error_isolation(
+        self, mock_get_pubsub: AsyncMock, mock_should_publish: Mock, caplog: Any
+    ) -> None:
         """Test that Redis errors are isolated and logged."""
         from src.backend.cc.logging import _publish_l1_event
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub
@@ -187,11 +197,17 @@ class TestPublishL1EventFunction:
         # Verify error was logged (implementation detail)
         # The actual logging verification would depend on implementation
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
     @patch("src.backend.cc.logging.logfire")
-    async def test_publish_l1_event_logfire_span(self, mock_logfire: Mock, mock_get_pubsub: AsyncMock) -> None:
+    async def test_publish_l1_event_logfire_span(
+        self, mock_logfire: Mock, mock_get_pubsub: AsyncMock, mock_should_publish: Mock
+    ) -> None:
         """Test Logfire span integration in publish function."""
         from src.backend.cc.logging import _publish_l1_event
+
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
 
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub
@@ -246,9 +262,15 @@ class TestSQLAlchemyAfterCommitIntegration:
 class TestRedisChannelAndMessageFormat:
     """Test Redis channel naming and message format specifications."""
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
-    async def test_correct_channel_name(self, mock_get_pubsub: AsyncMock, test_db_session: AsyncSession) -> None:
+    async def test_correct_channel_name(
+        self, mock_get_pubsub: AsyncMock, mock_should_publish: Mock, test_db_session: AsyncSession
+    ) -> None:
         """Test that messages are published to the correct Redis channel."""
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
+
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub
 
@@ -266,9 +288,15 @@ class TestRedisChannelAndMessageFormat:
 
         assert channel_name == "mem0.recorded.cc"
 
+    @patch("src.backend.cc.logging._should_publish_events")
     @patch("src.backend.cc.logging.get_pubsub")
-    async def test_message_format_structure(self, mock_get_pubsub: AsyncMock, test_db_session: AsyncSession) -> None:
+    async def test_message_format_structure(
+        self, mock_get_pubsub: AsyncMock, mock_should_publish: Mock, test_db_session: AsyncSession
+    ) -> None:
         """Test that published messages have the correct JSON structure."""
+        # Enable publishing for this test
+        mock_should_publish.return_value = True
+
         mock_pubsub = AsyncMock()
         mock_get_pubsub.return_value = mock_pubsub
 
