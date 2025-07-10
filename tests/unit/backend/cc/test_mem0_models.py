@@ -10,12 +10,34 @@ Focused tests for the SQLAlchemy model layer including:
 Following Task 013 proven testing patterns with realistic expectations.
 """
 
+import os
 import uuid
 from datetime import datetime
+from unittest.mock import patch
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace
+from src.backend.cc.mem0_models import BaseLog, EventLog, PromptTrace, get_base_log_fk_target
+
+
+class TestHelperFunctions:
+    """Test helper functions for mem0 models."""
+
+    def test_get_base_log_fk_target_with_integration(self) -> None:
+        """Test get_base_log_fk_target with DB integration enabled (covers line 39)."""
+        with (
+            patch.dict(os.environ, {"ENABLE_DB_INTEGRATION": "1"}),
+            patch("src.backend.cc.mem0_models.settings") as mock_settings,
+        ):
+            mock_settings.MEM0_SCHEMA = "mem0_cc"
+            fk_target = get_base_log_fk_target()
+            assert fk_target == "mem0_cc.base_log.id"
+
+    def test_get_base_log_fk_target_without_integration(self) -> None:
+        """Test get_base_log_fk_target with DB integration disabled."""
+        with patch.dict(os.environ, {"ENABLE_DB_INTEGRATION": "0"}):
+            fk_target = get_base_log_fk_target()
+            assert fk_target == "base_log.id"
 
 
 class TestBaseLogModel:
@@ -144,6 +166,55 @@ class TestEventLogModel:
         assert event_log.event_data == event_data
         assert event_log.event_data["action"] == "click"
         assert event_log.request_id is not None
+
+
+class TestModelRepresentations:
+    """Test model __repr__ methods for coverage."""
+
+    async def test_baselog_repr(self, mem0_db_session: AsyncSession) -> None:
+        """Test BaseLog __repr__ method (covers line 150)."""
+        base_log = BaseLog(level="INFO", message="Test log")
+        mem0_db_session.add(base_log)
+        await mem0_db_session.flush()
+
+        repr_str = repr(base_log)
+        assert repr_str.startswith("<BaseLog(id=")
+        assert "level='INFO'" in repr_str
+        assert "timestamp=" in repr_str
+        assert repr_str.endswith(")>")
+
+    async def test_prompttrace_repr(self, mem0_db_session: AsyncSession) -> None:
+        """Test PromptTrace __repr__ method (covers line 217)."""
+        base_log = BaseLog(level="INFO", message="Parent log")
+        mem0_db_session.add(base_log)
+        await mem0_db_session.flush()
+
+        prompt_trace = PromptTrace(base_log_id=base_log.id, prompt_text="Test prompt", execution_time_ms=123)
+        mem0_db_session.add(prompt_trace)
+        await mem0_db_session.flush()
+
+        repr_str = repr(prompt_trace)
+        assert repr_str.startswith("<PromptTrace(id=")
+        assert f"base_log_id={base_log.id}" in repr_str
+        assert "execution_time_ms=123" in repr_str
+        assert repr_str.endswith(")>")
+
+    async def test_eventlog_repr(self, mem0_db_session: AsyncSession) -> None:
+        """Test EventLog __repr__ method (covers line 293)."""
+        base_log = BaseLog(level="INFO", message="Parent log")
+        mem0_db_session.add(base_log)
+        await mem0_db_session.flush()
+
+        request_id = uuid.uuid4()
+        event_log = EventLog(base_log_id=base_log.id, event_type="user_action", request_id=request_id)
+        mem0_db_session.add(event_log)
+        await mem0_db_session.flush()
+
+        repr_str = repr(event_log)
+        assert repr_str.startswith("<EventLog(id=")
+        assert "event_type='user_action'" in repr_str
+        assert f"request_id={request_id}" in repr_str
+        assert repr_str.endswith(")>")
 
 
 class TestModelBasicIntegration:

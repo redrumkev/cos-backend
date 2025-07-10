@@ -11,6 +11,7 @@ This module tests the RequestIDMiddleware functionality including:
 
 import asyncio
 import contextlib
+import os
 import uuid
 from unittest.mock import Mock, patch
 
@@ -545,3 +546,65 @@ class TestMiddlewareEdgeCases:
 
         # Should have logged the error at debug level
         mock_logger.debug.assert_called()
+
+
+class TestLogfireImportError:
+    """Test cases for logfire import error handling."""
+
+    def test_logfire_import_error_handling(self) -> None:
+        """Test handling when logfire module is not available (covers lines 40-41)."""
+        import subprocess
+        import sys
+
+        # Create a test script that simulates logfire not being available
+        test_script = """
+import sys
+import builtins
+
+# Store original import
+original_import = builtins.__import__
+
+# Custom import that blocks logfire
+def custom_import(name, *args, **kwargs):
+    if name == 'logfire':
+        raise ModuleNotFoundError("No module named 'logfire'")
+    return original_import(name, *args, **kwargs)
+
+# Replace import temporarily
+builtins.__import__ = custom_import
+
+# Now try to import request_id_middleware
+try:
+    # Clear any cached modules
+    if 'src.common.request_id_middleware' in sys.modules:
+        del sys.modules['src.common.request_id_middleware']
+
+    # Import and check
+    import src.common.request_id_middleware
+
+    # Verify logfire is None when import fails
+    expected_result = src.common.request_id_middleware.logfire
+    assert expected_result is None, f"Expected logfire to be None, but got {expected_result}"
+    print("SUCCESS: logfire gracefully set to None when module not found")
+except Exception as e:
+    print(f"ERROR: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+finally:
+    # Restore original import
+    builtins.__import__ = original_import
+"""
+
+        # Run the test script in a subprocess
+        result = subprocess.run(
+            [sys.executable, "-c", test_script],
+            capture_output=True,
+            text=True,
+            cwd="/Users/kevinmba/dev/cos",
+            env={**os.environ, "PYTHONPATH": "/Users/kevinmba/dev/cos"},
+        )
+
+        # Check the script ran successfully
+        assert result.returncode == 0, f"Script failed: {result.stderr}\nOutput: {result.stdout}"
+        assert "SUCCESS: logfire gracefully set to None" in result.stdout

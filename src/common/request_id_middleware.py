@@ -11,6 +11,12 @@ Features:
 - Response header propagation
 - ContextVar async access pattern
 - Logfire span integration with graceful degradation
+
+Version: 2025-07-09 v2.1.0 (Living Patterns System)
+ADR: ADR-002 (Living Patterns System)
+Pattern Reference: error_handling.py v2.1.0 (Living Patterns System)
+Applied: Graceful degradation with optional dependency import fallback
+Applied: Context variable patterns for request correlation
 """
 
 from __future__ import annotations

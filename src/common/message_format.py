@@ -11,6 +11,8 @@ Features:
 - Forward/backward compatibility via schema versioning
 - Performance target: ≤ 50µs per message build
 
+Version: 2025-07-09 v2.1.0 (Living Patterns System)
+ADR: ADR-002 (Living Patterns System)
 Pattern Reference: error_handling.py v2.1.0 (Living Patterns System)
 Applied: COSError and error_handler context manager for structured error handling
 Applied: Validation error handling with proper error categories

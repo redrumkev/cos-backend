@@ -98,6 +98,25 @@ class TestMem0CRUD:
         updated_note = await mem0_crud.update_scratch_note(db_session, 99999, content="new content")
         assert updated_note is None
 
+    async def test_update_scratch_note_no_changes(self, db_session: AsyncSession) -> None:
+        """Test updating a scratch note with no changes (covers line 78)."""
+        # Create a note
+        note = await mem0_crud.create_scratch_note(db_session, key="no_update", content="original")
+        original_id = note.id
+        original_content = note.content
+        # Handle both real and mock mode
+        original_expires = getattr(note, "expires_at", None)
+
+        # Update with no actual changes - should return the existing note
+        updated = await mem0_crud.update_scratch_note(db_session, note.id)
+
+        assert updated is not None
+        assert updated.id == original_id
+        assert updated.content == original_content
+        # In mock mode, expires_at might not exist
+        if hasattr(updated, "expires_at"):
+            assert updated.expires_at == original_expires
+
     async def test_delete_scratch_note(self, db_session: AsyncSession) -> None:
         """Test deleting scratch note."""
         # Create a note first
@@ -259,6 +278,24 @@ class TestMem0CRUD:
         deleted_count_3 = await mem0_crud.cleanup_expired_notes(db_session, batch_size=2, auto_commit=False)
         assert deleted_count_3 == 1  # Last remaining note
 
+    async def test_cleanup_expired_notes_no_batch_size(self, db_session: AsyncSession) -> None:
+        """Test cleanup without batch size - deletes all expired (covers lines 139-140)."""
+        current_time = datetime.now(UTC)
+
+        # Create multiple expired notes
+        for i in range(5):
+            expired_note = ScratchNote(key=f"all_expired_{i}", content="expired")
+            expired_note.expires_at = current_time - timedelta(days=1)
+            db_session.add(expired_note)
+
+        await db_session.commit()
+
+        # Run cleanup without batch_size - should delete all expired notes
+        deleted_count = await mem0_crud.cleanup_expired_notes(db_session, auto_commit=False)
+
+        # Should delete all 5 expired notes in one go
+        assert deleted_count == 5
+
     async def test_count_scratch_notes(self, db_session: AsyncSession) -> None:
         """Test counting scratch notes."""
         # Get initial count
@@ -271,6 +308,20 @@ class TestMem0CRUD:
         # Check count increased
         new_count = await mem0_crud.count_scratch_notes(db_session)
         assert new_count == initial_count + 2
+
+    async def test_count_scratch_notes_with_key_prefix(self, db_session: AsyncSession) -> None:
+        """Test counting scratch notes with key prefix filter (covers line 152)."""
+        # Create test notes with different prefixes
+        await mem0_crud.create_scratch_note(db_session, key="test_prefix_1", content="content1")
+        await mem0_crud.create_scratch_note(db_session, key="test_prefix_2", content="content2")
+        await mem0_crud.create_scratch_note(db_session, key="other_prefix_1", content="content3")
+
+        # Count notes with specific prefix
+        test_count = await mem0_crud.count_scratch_notes(db_session, key_prefix="test_")
+        other_count = await mem0_crud.count_scratch_notes(db_session, key_prefix="other_")
+
+        assert test_count == 2
+        assert other_count == 1
 
     async def test_get_expired_notes_count(self, db_session: AsyncSession) -> None:
         """Test counting expired notes."""

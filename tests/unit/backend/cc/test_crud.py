@@ -285,6 +285,25 @@ class TestModuleCRUD:
         assert updated_module.name == module_name
         # Invalid fields should be ignored, not cause errors
 
+    async def test_update_module_only_invalid_fields(self, test_db_session: AsyncSession, unique_test_id: str) -> None:
+        """Test updating a module with only invalid fields returns current module."""
+        # Create a module first
+        module_name = f"test_module_{unique_test_id}"
+        created_module = await create_module(test_db_session, module_name, "1.0.0")
+        original_version = created_module.version
+        original_active = created_module.active
+
+        # Update with only invalid fields - should return the module unchanged
+        update_data = {"invalid_field": "should_be_ignored", "another_invalid": 123, "not_a_column": True}
+        updated_module = await update_module(test_db_session, str(created_module.id), update_data)
+
+        assert updated_module is not None
+        assert updated_module.id == created_module.id
+        assert updated_module.version == original_version
+        assert updated_module.active == original_active
+        assert updated_module.name == module_name
+        # Module should be unchanged when no valid fields are provided
+
     async def test_delete_module_success(self, test_db_session: AsyncSession, unique_test_id: str) -> None:
         """Test deleting a module successfully."""
         # Create a module first

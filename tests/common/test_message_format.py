@@ -5,6 +5,8 @@ for building and parsing standardized messages for Redis pub/sub communication.
 """
 
 import json
+import subprocess
+import sys
 import uuid
 from datetime import UTC, datetime
 
@@ -253,3 +255,83 @@ class TestEventType:
 
         # Verify enum serialization
         assert json_data["event_type"] == "prompt_trace"
+
+
+class TestOrjsonImportFallback:
+    """Test orjson import fallback behavior."""
+
+    def test_message_format_without_orjson(self) -> None:
+        """Test that message_format works without orjson installed."""
+        # Create a test script that imports message_format without orjson
+        test_script = """
+import sys
+import json
+
+# Clear any existing imports
+for module in list(sys.modules.keys()):
+    if module.startswith('src.common.message_format') or module == 'orjson':
+        del sys.modules[module]
+
+# Add a custom import hook to make orjson import fail
+class OrjsonBlocker:
+    def find_spec(self, fullname, path, target=None):
+        if fullname == 'orjson':
+            # Return a spec that will fail on load
+            import importlib.machinery
+            spec = importlib.machinery.ModuleSpec(fullname, None)
+            spec.loader = self
+            return spec
+        return None
+
+    def create_module(self, spec):
+        return None
+
+    def exec_module(self, module):
+        raise ImportError("orjson blocked for testing")
+
+# Insert the blocker at the beginning
+sys.meta_path.insert(0, OrjsonBlocker())
+
+# Now import message_format - should hit the ImportError branch
+from src.common.message_format import HAS_ORJSON, build_message, EventType
+import uuid
+from datetime import datetime, UTC
+
+# Verify orjson is not available
+assert not HAS_ORJSON, f"HAS_ORJSON should be False when orjson import fails, but got {HAS_ORJSON}"
+
+# Test that functionality still works without orjson
+msg = build_message(
+    base_log_id=uuid.uuid4(),
+    source_module="test",
+    timestamp=datetime.now(UTC),
+    trace_id="test-123",
+    request_id="req-456",
+    event_type=EventType.EVENT_LOG,
+    data={"test": "value"}
+)
+
+# Verify message was created successfully
+assert isinstance(msg, str)
+assert len(msg) > 0
+parsed = json.loads(msg)
+assert parsed["source_module"] == "test"
+assert parsed["event_type"] == "event_log"
+
+print("SUCCESS: message_format works without orjson")
+"""
+
+        # Run the test script in a subprocess with a clean environment
+        import os
+
+        env = os.environ.copy()
+        # Ensure Python path is set correctly
+        env["PYTHONPATH"] = "/Users/kevinmba/dev/cos"
+
+        result = subprocess.run(
+            [sys.executable, "-c", test_script], capture_output=True, text=True, cwd="/Users/kevinmba/dev/cos", env=env
+        )
+
+        # Check the script ran successfully
+        assert result.returncode == 0, f"Script failed: {result.stderr}"
+        assert "SUCCESS: message_format works without orjson" in result.stdout
