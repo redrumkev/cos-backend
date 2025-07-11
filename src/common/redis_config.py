@@ -87,19 +87,19 @@ class RedisConfig(BaseSettings):
 
     # Basic Redis connection settings
     redis_host: str = Field(default="localhost", description="Redis server hostname")
-    redis_port: int = Field(default=6379, ge=1, le=65535, description="Redis server port")
+    redis_port: int = Field(default=6379, description="Redis server port")
     redis_password: str | None = Field(default=None, description="Redis password")
-    redis_db: int = Field(default=0, ge=0, description="Redis database number")
+    redis_db: int = Field(default=0, description="Redis database number")
 
     # Full Redis URL override (takes precedence over individual settings)
     redis_url_override: str | None = Field(default=None, alias="REDIS_URL", description="Complete Redis URL")
 
     # Connection pool settings
-    redis_max_connections: int = Field(default=20, ge=1, description="Maximum connections in pool")
-    redis_socket_connect_timeout: int = Field(default=5, ge=1, description="Connection timeout in seconds")
+    redis_max_connections: int = Field(default=20, description="Maximum connections in pool")
+    redis_socket_connect_timeout: int = Field(default=5, description="Connection timeout in seconds")
     redis_socket_keepalive: bool = Field(default=True, description="Enable socket keepalive")
     redis_retry_on_timeout: bool = Field(default=True, description="Retry on timeout")
-    redis_health_check_interval: int = Field(default=30, ge=1, description="Health check interval in seconds")
+    redis_health_check_interval: int = Field(default=30, description="Health check interval in seconds")
 
     @model_validator(mode="before")
     @classmethod

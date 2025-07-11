@@ -129,7 +129,8 @@ class TestRedisConfig:
             RedisConfig()
 
         errors = exc_info.value.errors()
-        assert any(error["type"] == "greater_than_equal" for error in errors)
+        assert any(error["type"] == "value_error" for error in errors)
+        assert any("Port must be between 1 and 65535" in error["msg"] for error in errors)
 
     def test_redis_config_validation_port_too_high(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test validation fails for port > 65535."""
@@ -139,7 +140,8 @@ class TestRedisConfig:
             RedisConfig()
 
         errors = exc_info.value.errors()
-        assert any(error["type"] == "less_than_equal" for error in errors)
+        assert any(error["type"] == "value_error" for error in errors)
+        assert any("Port must be between 1 and 65535" in error["msg"] for error in errors)
 
     def test_redis_config_validation_negative_db(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test validation fails for negative database number."""
@@ -149,7 +151,8 @@ class TestRedisConfig:
             RedisConfig()
 
         errors = exc_info.value.errors()
-        assert any(error["type"] == "greater_than_equal" for error in errors)
+        assert any(error["type"] == "value_error" for error in errors)
+        assert any("Database number must be >= 0" in error["msg"] for error in errors)
 
     def test_redis_config_validation_max_connections_too_low(
         self, clean_env: None, monkeypatch: pytest.MonkeyPatch
@@ -161,7 +164,8 @@ class TestRedisConfig:
             RedisConfig()
 
         errors = exc_info.value.errors()
-        assert any(error["type"] == "greater_than_equal" for error in errors)
+        assert any(error["type"] == "value_error" for error in errors)
+        assert any("Max connections must be positive" in error["msg"] for error in errors)
 
     def test_redis_config_str_representation(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test string representation of Redis config."""

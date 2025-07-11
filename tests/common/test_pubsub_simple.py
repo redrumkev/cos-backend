@@ -3,9 +3,9 @@
 
 import asyncio
 import contextlib
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import TYPE_CHECKING, Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 # Import pytest and Redis with graceful degradation - use Any for type hints to avoid linter issues
 if TYPE_CHECKING:
@@ -37,6 +37,16 @@ from src.common.pubsub import (
     cleanup_pubsub,
     get_pubsub,
 )
+
+
+@pytest.fixture(autouse=True)
+async def clean_pubsub_state() -> AsyncIterator[None]:
+    """Ensure clean PubSub state between tests."""
+    # Clean up before test
+    await cleanup_pubsub()
+    yield
+    # Clean up after test
+    await cleanup_pubsub()
 
 
 class TestRedisPubSubCore:
@@ -173,6 +183,14 @@ class TestRedisPubSubCore:
                 pubsub._connected = True
                 mock_pubsub = AsyncMock()
                 mock_pubsub.subscribe = AsyncMock()
+
+                # Fix: Configure listen() to return an async iterator
+                async def mock_listen() -> AsyncIterator[dict[str, Any]]:
+                    # Empty async generator that stops immediately
+                    return
+                    yield  # Unreachable but makes it an async generator
+
+                mock_pubsub.listen = Mock(return_value=mock_listen())
                 mock_redis = AsyncMock()
                 mock_redis.pubsub.return_value = mock_pubsub
                 pubsub._redis = mock_redis
@@ -182,6 +200,12 @@ class TestRedisPubSubCore:
 
             await pubsub.subscribe("test", handler)
             mock_connect.assert_called_once()
+
+            # Clean up listening task to prevent orphaned tasks
+            if pubsub._listening_task and not pubsub._listening_task.done():
+                pubsub._listening_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await pubsub._listening_task
 
     async def test_unsubscribe_nonexistent_channel(self) -> None:
         """Test unsubscribing from nonexistent channel."""

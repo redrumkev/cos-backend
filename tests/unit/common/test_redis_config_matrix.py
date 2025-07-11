@@ -15,7 +15,7 @@ from src.common.redis_config import get_redis_config
 
 @pytest.fixture
 def clean_env(monkeypatch: Any) -> None:
-    """Clear Redis-related environment variables."""
+    """Clear Redis-related environment variables, including Docker environment variables."""
     redis_env_vars = [
         "REDIS_URL",
         "REDIS_HOST",
@@ -33,6 +33,11 @@ def clean_env(monkeypatch: Any) -> None:
 
     for var in redis_env_vars:
         monkeypatch.delenv(var, raising=False)
+
+    # Ensure cache is cleared after environment cleanup
+    from src.common.redis_config import get_redis_config
+
+    get_redis_config.cache_clear()
 
 
 class TestRedisConfigurationMatrix:
@@ -235,7 +240,7 @@ class TestRedisConfigurationMatrix:
         monkeypatch.setenv("REDIS_PORT", "6379")
         monkeypatch.setenv("REDIS_MAX_CONNECTIONS", "-1")
 
-        with pytest.raises(ValueError, match="Input should be greater than or equal to 1"):
+        with pytest.raises(ValueError, match="Max connections must be positive"):
             get_redis_config()
 
     async def test_configuration_caching_and_reload(

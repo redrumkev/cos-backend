@@ -20,7 +20,7 @@ from enum import Enum
 from typing import Any
 
 # Pattern v2.1.0: Enhanced error handling with structured categories
-from ..core_v2.patterns.error_handling import error_handler, map_redis_error
+from ..core_v2.patterns.error_handling import COSError, ErrorCategory, error_handler, map_redis_error
 
 logger = logging.getLogger(__name__)
 
@@ -439,11 +439,19 @@ async def get_redis_health_monitor() -> RedisHealthMonitor:
     Pattern Applied: error_handling.py v2.1.0 (Structured error handling)
 
     """
-    async with error_handler("get_redis_health_monitor", logger, reraise=False):
-        global _health_monitor
-        if _health_monitor is None:
+    global _health_monitor
+    if _health_monitor is None:
+        try:
             _health_monitor = RedisHealthMonitor()
-        return _health_monitor
+        except Exception as e:
+            logger.error("Failed to create Redis health monitor instance", exc_info=True)
+            # Re-raise to maintain function contract - must return RedisHealthMonitor or fail
+            raise COSError(
+                message=f"Failed to create Redis health monitor: {e}",
+                category=ErrorCategory.INTERNAL,
+                details={"original_error": type(e).__name__},
+            ) from e
+    return _health_monitor
 
 
 async def ensure_redis_available_for_tests() -> bool:
@@ -460,9 +468,13 @@ async def ensure_redis_available_for_tests() -> bool:
     Pattern Applied: error_handling.py v2.1.0 (Structured error handling)
 
     """
-    async with error_handler("ensure_redis_available_for_tests", logger, reraise=False):
+    try:
         monitor = await get_redis_health_monitor()
         return await monitor.ensure_redis_available()
+    except Exception:
+        logger.error("Failed to ensure Redis availability for tests", exc_info=True)
+        # Return False to indicate Redis is not available, don't raise
+        return False
 
 
 async def cleanup_redis_monitor() -> None:
@@ -470,8 +482,12 @@ async def cleanup_redis_monitor() -> None:
 
     Pattern Applied: error_handling.py v2.1.0 (Structured error handling)
     """
-    async with error_handler("cleanup_redis_monitor", logger, reraise=False):
-        global _health_monitor
-        if _health_monitor:
+    global _health_monitor
+    if _health_monitor:
+        try:
             await _health_monitor.stop_monitoring()
+        except Exception:
+            # Log error but continue with cleanup
+            logger.exception("Error during Redis health monitor cleanup")
+        finally:
             _health_monitor = None

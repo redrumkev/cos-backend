@@ -347,6 +347,95 @@ skip_if_no_message_bus = pytest.mark.skipif(
 )
 
 
+# SEGMENT 5: Global Instance Cleanup
+
+
+@pytest.fixture(autouse=True, scope="function")
+def cleanup_global_instances(request: Any) -> Generator[None, None, None]:
+    """Clean up global instances before and after each test.
+
+    This fixes test interaction issues caused by global singletons not being
+    properly cleaned up between test runs.
+    """
+    # Import cleanup functions
+    import src.common.pubsub
+    import src.common.redis_health_monitor
+    from src.common.config import get_settings
+    from src.common.database import get_async_engine, get_async_session_maker, get_engine, get_session_maker
+    from src.common.redis_config import get_redis_config
+    from src.graph.base import get_neo4j_client
+
+    def sync_cleanup() -> None:
+        """Sync cleanup for LRU caches and global state."""
+        # Clean up Redis health monitor properly
+        src.common.redis_health_monitor._health_monitor = None
+
+        # Force reset other global instances to None
+        src.common.pubsub._pubsub_instance = None
+
+        # Clear all LRU caches
+        get_redis_config.cache_clear()
+        get_settings.cache_clear()
+        get_async_engine.cache_clear()
+        get_async_session_maker.cache_clear()
+        get_engine.cache_clear()
+        get_session_maker.cache_clear()
+        get_neo4j_client.cache_clear()
+
+    async def async_cleanup() -> None:
+        """Async cleanup for health monitor singleton."""
+        try:
+            # Clean up Redis health monitor properly
+            from src.common.redis_health_monitor import cleanup_redis_monitor
+
+            await cleanup_redis_monitor()
+        except Exception:
+            # Fallback to sync cleanup if async cleanup fails
+            sync_cleanup()
+
+    # Clean up before test
+    sync_cleanup()
+
+    # Yield to run the test
+    yield
+
+    # Clean up after test - use async cleanup if in async context
+    try:
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        if loop and not loop.is_closed():
+            # We're in an async context, ensure async cleanup completes
+            # before the fixture returns. Use asyncio.run in a thread.
+            import concurrent.futures
+
+            def run_async_cleanup() -> None:
+                """Run async cleanup in a new event loop."""
+                return asyncio.run(async_cleanup())
+
+            # Run async cleanup in a thread with a new event loop
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_async_cleanup)
+                try:
+                    # Wait for the async cleanup to complete
+                    future.result(timeout=5.0)
+                except concurrent.futures.TimeoutError:
+                    # If cleanup takes too long, fallback to sync
+                    sync_cleanup()
+                except Exception:
+                    # Log the exception but continue with sync cleanup
+                    import logging
+
+                    logging.getLogger(__name__).exception("Async cleanup failed")
+                    sync_cleanup()
+        else:
+            # No async loop, use sync cleanup
+            sync_cleanup()
+    except RuntimeError:
+        # No event loop running, use sync cleanup
+        sync_cleanup()
+
+
 # SEGMENT 5: Database Fixtures
 
 
