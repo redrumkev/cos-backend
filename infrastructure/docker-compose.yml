@@ -13,6 +13,17 @@ services:
       - type: bind
         source: ${COS_POSTGRES_ROOT}_prod
         target: /var/lib/postgresql/data
+    # Resource limits - Soft limits (reservations) with higher limits
+    # For MacBook Air M4 (24GB): 2GB typical, 3GB max
+    # For Mac Studio M4 Max (128GB): 8GB typical, 12GB max
+    deploy:
+      resources:
+        limits:
+          cpus: "4"      # Max 4 CPU cores (half of M4's 8 cores)
+          memory: 3G     # Hard limit: 3GB for MacBook Air
+        reservations:
+          cpus: "2"      # Reserve 2 CPU cores
+          memory: 2G     # Reserve 2GB RAM (soft limit)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
@@ -38,6 +49,17 @@ services:
       - type: bind
         source: ${COS_POSTGRES_ROOT}_dev
         target: /var/lib/postgresql/data
+    # Resource limits - Lower than prod since it's for development
+    # For MacBook Air M4 (24GB): 1GB typical, 2GB max
+    # For Mac Studio M4 Max (128GB): 4GB typical, 8GB max
+    deploy:
+      resources:
+        limits:
+          cpus: "2"      # Max 2 CPU cores for dev
+          memory: 2G     # Hard limit: 2GB for MacBook Air
+        reservations:
+          cpus: "1"      # Reserve 1 CPU core
+          memory: 1G     # Reserve 1GB RAM (soft limit)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
@@ -82,6 +104,17 @@ services:
       # often has an entrypoint script that processes the .conf file.
       # For safety, you can add:
       REDIS_PASSWORD: ${REDIS_PASSWORD} # Makes it available to entrypoint scripts
+    # Resource limits - Redis is memory-intensive but CPU-light
+    # For MacBook Air M4 (24GB): 512MB typical, 1GB max
+    # For Mac Studio M4 Max (128GB): 2GB typical, 4GB max
+    deploy:
+      resources:
+        limits:
+          cpus: "2"      # Max 2 CPU cores (Redis is mostly single-threaded)
+          memory: 1G     # Hard limit: 1GB for MacBook Air
+        reservations:
+          cpus: "0.5"    # Reserve 0.5 CPU core
+          memory: 512M   # Reserve 512MB RAM (soft limit)
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
@@ -99,13 +132,27 @@ services:
     container_name: cos_elasticsearch
     environment:
       - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms4g -Xmx4g
+      # Adjust ES_JAVA_OPTS based on available memory
+      # For MacBook Air M4: Use 2G heap (within 3G container limit)
+      # For Mac Studio M4 Max: Use 4G heap (within 6G container limit)
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
     ports:
       - "9200:9200"
     volumes:
       - type: bind
         source: ${COS_ELASTICSEARCH_ROOT}
         target: /usr/share/elasticsearch/data
+    # Resource limits - Elasticsearch is memory and CPU intensive
+    # For MacBook Air M4 (24GB): 2G typical, 3G max
+    # For Mac Studio M4 Max (128GB): 4G typical, 6G max
+    deploy:
+      resources:
+        limits:
+          cpus: "4"      # Max 4 CPU cores
+          memory: 3G     # Hard limit: 3GB for MacBook Air (includes JVM heap + overhead)
+        reservations:
+          cpus: "2"      # Reserve 2 CPU cores
+          memory: 2G     # Reserve 2GB RAM (soft limit)
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health || exit 1"]
       interval: 30s

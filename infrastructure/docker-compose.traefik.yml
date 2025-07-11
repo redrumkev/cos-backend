@@ -18,6 +18,17 @@ services:
       - "8080:8080"                                     # Dashboard (insecure if api.insecure=true)
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"  # Needed for Docker provider; consider using a proxy in production
+    # Resource limits - Traefik is lightweight but handles all routing
+    # For MacBook Air M4 (24GB): 256MB typical, 512MB max
+    # For Mac Studio M4 Max (128GB): 512MB typical, 1GB max
+    deploy:
+      resources:
+        limits:
+          cpus: "1"      # Max 1 CPU core (Traefik is efficient)
+          memory: 512M   # Hard limit: 512MB for MacBook Air
+        reservations:
+          cpus: "0.25"   # Reserve 0.25 CPU core
+          memory: 256M   # Reserve 256MB RAM (soft limit)
     logging:
       driver: "json-file"
       options:

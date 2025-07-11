@@ -5,9 +5,12 @@ services:
     container_name: cos_neo4j
     environment:
       NEO4J_AUTH: ${NEO4J_USER}/${NEO4J_PASSWORD}
-      NEO4J_dbms_memory_pagecache_size: 2G
-      NEO4J_dbms_memory_heap_initial__size: 2G
-      NEO4J_dbms_memory_heap_max__size: 2G
+      # Adjust Neo4j memory based on container limits
+      # For MacBook Air M4: 1G pagecache + 1G heap = 2G total (within 3G container)
+      # For Mac Studio M4 Max: 2G pagecache + 2G heap = 4G total (within 6G container)
+      NEO4J_dbms_memory_pagecache_size: 1G
+      NEO4J_dbms_memory_heap_initial__size: 1G
+      NEO4J_dbms_memory_heap_max__size: 1G
     ports:
       - "7474:7474"
       - "7687:7687"
@@ -21,6 +24,17 @@ services:
       - type: bind
         source: ${COS_NEO4J_ROOT}_transactions
         target: /var/lib/neo4j/transactions
+    # Resource limits - Neo4j is memory-intensive for graph operations
+    # For MacBook Air M4 (24GB): 2G typical, 3G max
+    # For Mac Studio M4 Max (128GB): 4G typical, 6G max
+    deploy:
+      resources:
+        limits:
+          cpus: "4"      # Max 4 CPU cores for graph operations
+          memory: 3G     # Hard limit: 3GB for MacBook Air (includes heap + pagecache + overhead)
+        reservations:
+          cpus: "2"      # Reserve 2 CPU cores
+          memory: 2G     # Reserve 2GB RAM (soft limit)
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.neo4j.rule=Host(`neo4j.cos.local`)"
