@@ -42,13 +42,13 @@ class TestRouterIntegration:
             await async_client.post("/cc/modules", json=module_data)
 
         # Test first page
-        response1 = await async_client.get("/cc/modules?skip=0&limit=10")
+        response1 = await async_client.get("/cc/modules?page=1&limit=10")
         assert response1.status_code == 200
         data1 = response1.json()
         assert len(data1) == 10
 
         # Test second page
-        response2 = await async_client.get("/cc/modules?skip=10&limit=10")
+        response2 = await async_client.get("/cc/modules?page=2&limit=10")
         assert response2.status_code == 200
         data2 = response2.json()
         assert len(data2) == 2

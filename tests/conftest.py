@@ -525,6 +525,34 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
         # - Eliminates need for real database infrastructure in CI
         # - Significantly faster than real database operations
 
+        class _MockScalarResult:
+            """Mock implementation of SQLAlchemy ScalarResult for proper .first() behavior."""
+
+            def __init__(self, data: list[Any]) -> None:
+                self._data = data
+
+            def first(self) -> Any | None:
+                """Return first row or None - synchronous as per SQLAlchemy 2.0."""
+                return self._data[0] if self._data else None
+
+            def one_or_none(self) -> Any | None:
+                """Return exactly one row or None - synchronous as per SQLAlchemy 2.0."""
+                if len(self._data) == 0:
+                    return None
+                if len(self._data) > 1:
+                    raise ValueError("Expected 0 or 1 rows")
+                return self._data[0]
+
+            def one(self) -> Any:
+                """Return exactly one row or raise - synchronous as per SQLAlchemy 2.0."""
+                if len(self._data) != 1:
+                    raise ValueError("Expected exactly 1 row")
+                return self._data[0]
+
+            def all(self) -> list[Any]:
+                """Return all rows as list - synchronous as per SQLAlchemy 2.0."""
+                return self._data
+
         class _MockAsyncResult:
             """Mock SQLAlchemy AsyncResult for schema query compatibility."""
 
@@ -535,9 +563,9 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                 """Return first value or None."""
                 return self._data[0] if self._data else None
 
-            def scalars(self) -> _MockAsyncResult:
-                """Return chainable scalar interface."""
-                return self
+            def scalars(self) -> _MockScalarResult:
+                """Return scalar values - synchronous as per SQLAlchemy 2.0."""
+                return _MockScalarResult(self._data)
 
             def all(self) -> list[Any]:
                 """Return all data as list."""
@@ -983,24 +1011,29 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                 skip = 0
                 limit = None
 
-                # Try to get from params argument
-                if params:
-                    skip = params.get("param_2", 0)  # offset is param_2
-                    limit = params.get("param_1", None)  # limit is param_1
-
                 # Try to extract from compiled query object
-                if skip == 0 and limit is None:
-                    try:
-                        compiled = query.compile()
-                        param_dict = compiled.params
-                        if param_dict:
-                            skip = param_dict.get("param_2", 0)  # offset
-                            limit = param_dict.get("param_1", None)  # limit
-                    except Exception as e:
-                        # Fall back to no pagination if extraction fails
-                        import logging
+                try:
+                    compiled = query.compile()
+                    param_dict = compiled.params
+                    if param_dict:
+                        # Look for various parameter patterns that SQLAlchemy 2.0 might use
+                        # Try limit first (usually param_1)
+                        for key in param_dict:
+                            if "limit" in key.lower() or key == "param_1":
+                                limit = param_dict[key]
+                            elif "offset" in key.lower() or key == "param_2":
+                                skip = param_dict[key]
 
-                        logging.debug(f"Pagination parameter extraction failed: {e}")
+                        # Fallback to numbered parameters if no named ones found
+                        if limit is None and "param_1" in param_dict:
+                            limit = param_dict["param_1"]
+                        if skip == 0 and "param_2" in param_dict:
+                            skip = param_dict["param_2"]
+                except Exception as e:
+                    # Fall back to no pagination if extraction fails
+                    import logging
+
+                    logging.debug(f"Pagination parameter extraction failed: {e}")
 
                 # Define dynamic mock class for consistent object creation
                 class MockObject:

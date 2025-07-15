@@ -24,8 +24,11 @@ class TestGraphRouterCoverage:
     @pytest.fixture(scope="class")
     def app(self) -> Any:
         """Create test FastAPI app with graph router."""
+        from tests.common.error_helpers import setup_error_handlers
+
         app = FastAPI()
         app.include_router(graph_router)
+        setup_error_handlers(app)
         return app
 
     @pytest.fixture(scope="class")
@@ -52,7 +55,7 @@ class TestGraphRouterCoverage:
 
         app.dependency_overrides[get_async_neo4j] = mock_get_client
 
-        response = client.get("/graph/health")
+        response = client.get("/v1/graph/health")
 
         assert response.status_code == 200
         data = response.json()
@@ -69,10 +72,10 @@ class TestGraphRouterCoverage:
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
         node_data = {"node_type": "Module", "module": "tech_cc", "properties": {"name": "test-node"}}
-        response = client.post("/graph/nodes", json=node_data)
+        response = client.post("/v1/graph/nodes", json=node_data)
 
         assert response.status_code == 500
-        assert "Failed to create node" in response.json()["detail"]
+        assert "Unable to create node in graph database" in response.json()["detail"]
 
     def test_get_node_general_exception(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test get node with general exception (lines 163-164)."""
@@ -81,10 +84,10 @@ class TestGraphRouterCoverage:
 
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/nodes/Module/tech_cc/test-id")
+        response = client.get("/v1/graph/nodes/Module/tech_cc/test-id")
 
         assert response.status_code == 500
-        assert "Failed to get node" in response.json()["detail"]
+        assert "Unable to retrieve node from graph database" in response.json()["detail"]
 
     def test_update_node_not_found(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test update node when node not found (line 179)."""
@@ -94,10 +97,10 @@ class TestGraphRouterCoverage:
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
         update_data = {"properties": {"name": "updated-node"}}
-        response = client.put("/graph/nodes/Module/tech_cc/nonexistent", json=update_data)
+        response = client.put("/v1/graph/nodes/Module/tech_cc/nonexistent", json=update_data)
 
         assert response.status_code == 404
-        assert "Node not found" in response.json()["detail"]
+        assert "Node nonexistent not found in graph" in response.json()["detail"]
 
     def test_update_node_general_exception(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test update node with general exception (lines 184-185)."""
@@ -107,10 +110,10 @@ class TestGraphRouterCoverage:
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
         update_data = {"properties": {"name": "updated-node"}}
-        response = client.put("/graph/nodes/Module/tech_cc/test-id", json=update_data)
+        response = client.put("/v1/graph/nodes/Module/tech_cc/test-id", json=update_data)
 
         assert response.status_code == 500
-        assert "Failed to update node" in response.json()["detail"]
+        assert "Unable to update node in graph database" in response.json()["detail"]
 
     def test_delete_node_not_found(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test delete node when node not found (line 200)."""
@@ -119,10 +122,10 @@ class TestGraphRouterCoverage:
 
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.delete("/graph/nodes/Module/tech_cc/nonexistent")
+        response = client.delete("/v1/graph/nodes/Module/tech_cc/nonexistent")
 
         assert response.status_code == 404
-        assert "Node not found" in response.json()["detail"]
+        assert "Node nonexistent not found in graph" in response.json()["detail"]
 
     def test_delete_node_general_exception(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test delete node with general exception (lines 205-206)."""
@@ -131,10 +134,10 @@ class TestGraphRouterCoverage:
 
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.delete("/graph/nodes/Module/tech_cc/test-id")
+        response = client.delete("/v1/graph/nodes/Module/tech_cc/test-id")
 
         assert response.status_code == 500
-        assert "Failed to delete node" in response.json()["detail"]
+        assert "Unable to delete node from graph database" in response.json()["detail"]
 
     def test_get_nodes_by_property_exception(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test get nodes by property with exception (lines 224-225)."""
@@ -143,10 +146,10 @@ class TestGraphRouterCoverage:
 
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/nodes/Module/tech_cc?property_name=name&property_value=test")
+        response = client.get("/v1/graph/nodes/Module/tech_cc?property_name=name&property_value=test")
 
         assert response.status_code == 500
-        assert "Failed to get nodes" in response.json()["detail"]
+        assert "Unable to search nodes by property" in response.json()["detail"]
 
     def test_search_nodes_exception(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test search nodes with exception (lines 242-243)."""
@@ -155,10 +158,10 @@ class TestGraphRouterCoverage:
 
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/search?search_text=test")
+        response = client.get("/v1/graph/search?search_text=test")
 
         assert response.status_code == 500
-        assert "Failed to search nodes" in response.json()["detail"]
+        assert "Unable to search nodes in graph database" in response.json()["detail"]
 
     def test_create_relationship_exception(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test create relationship with exception (lines 266-267)."""
@@ -176,10 +179,10 @@ class TestGraphRouterCoverage:
             "to_module": "tech_cc",
             "to_node_id": "node-2",
         }
-        response = client.post("/graph/relationships", json=rel_data)
+        response = client.post("/v1/graph/relationships", json=rel_data)
 
         assert response.status_code == 500
-        assert "Failed to create relationship" in response.json()["detail"]
+        assert "Unable to create relationship in graph database" in response.json()["detail"]
 
     def test_get_node_relationships_exception(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test get node relationships with exception (lines 283-284)."""
@@ -188,14 +191,14 @@ class TestGraphRouterCoverage:
 
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/nodes/Module/tech_cc/node-1/relationships")
+        response = client.get("/v1/graph/nodes/Module/tech_cc/node-1/relationships")
 
         assert response.status_code == 500
-        assert "Failed to get relationships" in response.json()["detail"]
+        assert "Unable to retrieve node relationships from graph database" in response.json()["detail"]
 
     def test_get_schema_info(self, client: Any) -> None:
         """Test get schema info endpoint (lines 291-293)."""
-        response = client.get("/graph/schema")
+        response = client.get("/v1/graph/schema")
 
         assert response.status_code == 200
         data = response.json()
@@ -229,7 +232,7 @@ class TestGraphRouterCoverage:
 
         app.dependency_overrides[get_async_neo4j] = mock_get_client
 
-        response = client.get("/graph/health")
+        response = client.get("/v1/graph/health")
 
         assert response.status_code == 200
         data = response.json()
@@ -245,10 +248,10 @@ class TestGraphRouterCoverage:
 
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/stats")
+        response = client.get("/v1/graph/stats")
 
         assert response.status_code == 500
-        assert "Failed to get graph stats" in response.json()["detail"]
+        assert "Unable to retrieve graph statistics" in response.json()["detail"]
 
     def test_get_node_relationships_with_filters(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test get node relationships with all filter options."""
@@ -262,7 +265,7 @@ class TestGraphRouterCoverage:
 
         # Test with relationship type filter
         response = client.get(
-            "/graph/nodes/Module/tech_cc/node-1/relationships?direction=out&relationship_type=CONTAINS"
+            "/v1/graph/nodes/Module/tech_cc/node-1/relationships?direction=out&relationship_type=CONTAINS"
         )
 
         assert response.status_code == 200

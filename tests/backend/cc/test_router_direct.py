@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.backend.cc.schemas import ModuleCreate, ModuleUpdate
+from tests.common.db_test_helpers import create_module_deps_mock
 
 
 class TestRouterDirectCoverage:
@@ -33,11 +34,12 @@ class TestRouterDirectCoverage:
             "details": "All systems operational",
         }
 
-        # Mock database
+        # Create proper ModuleDeps mock with database session
         mock_db = MagicMock()
+        mock_deps = create_module_deps_mock(db_session=mock_db)
 
         # Call the function directly
-        result = await health_check(mock_db)
+        result = await health_check(mock_deps)
 
         # Assertions
         assert result.status == "healthy"
@@ -49,23 +51,24 @@ class TestRouterDirectCoverage:
     @patch("src.backend.cc.router.log_event")
     async def test_health_check_no_record_covers_lines_53_58(self, mock_log: Any, mock_health: Any) -> None:
         """Test health_check function no record - covers exception lines 53-58."""
-        from fastapi import HTTPException
-
         from src.backend.cc.router import health_check
+        from src.core_v2.patterns.error_handling import NotFoundError
 
         # Mock no health record found
         mock_health.return_value = None
 
-        # Mock database
+        # Create proper ModuleDeps mock with database session
         mock_db = MagicMock()
+        mock_deps = create_module_deps_mock(db_session=mock_db)
 
         # Call the function and expect exception
-        with pytest.raises(HTTPException) as exc_info:
-            await health_check(mock_db)
+        with pytest.raises(NotFoundError) as exc_info:
+            await health_check(mock_deps)
 
         # Assertions
-        assert exc_info.value.status_code == 404
-        assert "no health record yet" in str(exc_info.value.detail)
+        assert exc_info.value.details["resource"] == "Health record"
+        assert exc_info.value.details["id"] == "system"
+        assert "No health record available yet" in str(exc_info.value.user_message)
         mock_log.assert_called_once()
 
     @patch("src.backend.cc.router.log_event")
@@ -189,9 +192,8 @@ class TestRouterDirectCoverage:
     @patch("src.backend.cc.router.log_event")
     async def test_create_module_value_error_covers_lines_172_173(self, mock_log: Any, mock_create: Any) -> None:
         """Test create_module function ValueError exception - covers lines 172-173."""
-        from fastapi import HTTPException
-
         from src.backend.cc.router import create_module
+        from src.core_v2.patterns.error_handling import ValidationError
 
         # Mock ValueError from service
         mock_create.side_effect = ValueError("Invalid module data")
@@ -199,14 +201,15 @@ class TestRouterDirectCoverage:
         # Create request data
         module_data = ModuleCreate(name="invalid_module", version="1.0.0")
         mock_db = MagicMock()
+        mock_deps = create_module_deps_mock(db_session=mock_db)
 
         # Call the function and expect exception
-        with pytest.raises(HTTPException) as exc_info:
-            await create_module(module_data, mock_db)
+        with pytest.raises(ValidationError) as exc_info:
+            await create_module(module_data, mock_deps)
 
         # Assertions
-        assert exc_info.value.status_code == 409
-        assert "Invalid module data" in str(exc_info.value.detail)
+        assert str(exc_info.value) == "Invalid module data"
+        assert "Cannot create module" in str(exc_info.value.user_message)
         mock_log.assert_called_once()
         mock_create.assert_called_once()
 
@@ -244,34 +247,40 @@ class TestRouterDirectCoverage:
     @patch("src.backend.cc.router.log_event")
     async def test_get_module_not_found_covers_404(self, mock_log: Any, mock_get: Any) -> None:
         """Test get_module function not found - covers 404 path."""
-        from fastapi import HTTPException
-
         from src.backend.cc.router import get_module
+        from src.core_v2.patterns.error_handling import NotFoundError
 
         # Mock not found
         mock_get.return_value = None
         mock_db = MagicMock()
+        mock_deps = create_module_deps_mock(db_session=mock_db)
 
         # Call the function and expect exception
-        with pytest.raises(HTTPException) as exc_info:
-            await get_module("nonexistent", mock_db)
+        with pytest.raises(NotFoundError) as exc_info:
+            await get_module("nonexistent", mock_deps)
 
         # Assertions
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.details["resource"] == "Module"
+        assert exc_info.value.details["id"] == "nonexistent"
         mock_log.assert_called_once()
 
     @patch("src.backend.cc.router.service_get_modules")
     @patch("src.backend.cc.router.log_event")
     async def test_list_modules_covers_pagination(self, mock_log: Any, mock_get_modules: Any) -> None:
         """Test list_modules function with pagination."""
+        from src.backend.cc.router import list_modules
+        from src.core_v2.patterns.router import PaginationParams
+
         # Mock the service response
         mock_get_modules.return_value = []
         mock_db = MagicMock()
+        mock_deps = create_module_deps_mock(db_session=mock_db)
 
-        # Call the service function directly
-        from src.backend.cc.services import get_modules as service_get_modules
+        # Create pagination params
+        pagination = PaginationParams(page=1, limit=10)
 
-        result = await service_get_modules(mock_db, skip=0, limit=10)
+        # Call the router function directly
+        result = await list_modules(pagination, mock_deps)
 
         # Assertions
         assert result == []
@@ -313,46 +322,47 @@ class TestRouterDirectCoverage:
     @patch("src.backend.cc.router.log_event")
     async def test_update_module_not_found_covers_404(self, mock_log: Any, mock_update: Any) -> None:
         """Test update_module function not found - covers 404 path."""
-        from fastapi import HTTPException
-
         from src.backend.cc.router import update_module
+        from src.core_v2.patterns.error_handling import NotFoundError
 
         # Mock not found
         mock_update.return_value = None
         mock_db = MagicMock()
+        mock_deps = create_module_deps_mock(db_session=mock_db)
         module_data = ModuleUpdate(version="2.0.0")
 
         # Call the function and expect exception
-        with pytest.raises(HTTPException) as exc_info:
-            await update_module("nonexistent", module_data, mock_db)
+        with pytest.raises(NotFoundError) as exc_info:
+            await update_module("nonexistent", module_data, mock_deps)
 
         # Assertions
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.details["resource"] == "Module"
+        assert exc_info.value.details["id"] == "nonexistent"
         mock_log.assert_called_once()
 
     @patch("src.backend.cc.router.service_update_module")
     @patch("src.backend.cc.router.log_event")
     async def test_update_module_value_error_covers_exception(self, mock_log: Any, mock_update: Any) -> None:
         """Test update_module function value error - covers exception path."""
-        from fastapi import HTTPException
-
         from src.backend.cc.router import update_module
+        from src.core_v2.patterns.error_handling import ValidationError
 
         # Mock value error
         mock_update.side_effect = ValueError("Invalid data")
         mock_db = MagicMock()
+        mock_deps = create_module_deps_mock(db_session=mock_db)
         module_data = ModuleUpdate(version="invalid")
 
         # Call the function and expect exception
         import uuid
 
         test_uuid = str(uuid.uuid4())
-        with pytest.raises(HTTPException) as exc_info:
-            await update_module(test_uuid, module_data, mock_db)
+        with pytest.raises(ValidationError) as exc_info:
+            await update_module(test_uuid, module_data, mock_deps)
 
         # Assertions
-        assert exc_info.value.status_code == 409
-        assert "Invalid data" in str(exc_info.value.detail)
+        assert str(exc_info.value) == "Invalid data"
+        assert "Cannot update module" in str(exc_info.value.user_message)
         mock_log.assert_called_once()
 
     @patch("src.backend.cc.router.service_delete_module")
@@ -389,18 +399,19 @@ class TestRouterDirectCoverage:
     @patch("src.backend.cc.router.log_event")
     async def test_delete_module_not_found_covers_404(self, mock_log: Any, mock_delete: Any) -> None:
         """Test delete_module function not found - covers 404 path."""
-        from fastapi import HTTPException
-
         from src.backend.cc.router import delete_module
+        from src.core_v2.patterns.error_handling import NotFoundError
 
         # Mock not found
         mock_delete.return_value = None
         mock_db = MagicMock()
+        mock_deps = create_module_deps_mock(db_session=mock_db)
 
         # Call the function and expect exception
-        with pytest.raises(HTTPException) as exc_info:
-            await delete_module("nonexistent", mock_db)
+        with pytest.raises(NotFoundError) as exc_info:
+            await delete_module("nonexistent", mock_deps)
 
         # Assertions
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.details["resource"] == "Module"
+        assert exc_info.value.details["id"] == "nonexistent"
         mock_log.assert_called_once()

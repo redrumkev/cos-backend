@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from starlette.responses import Response  # noqa: E402
 
-from src.backend.cc.router import router  # noqa: E402
+from src.backend.cc.router import router, router_test  # noqa: E402
 from src.common.logger import log_event  # noqa: E402
 from src.core_v2.patterns.error_handling import COSError  # noqa: E402
 from src.core_v2.patterns.router import cos_error_handler, validation_error_handler  # noqa: E402
@@ -51,6 +51,9 @@ app.add_exception_handler(RequestValidationError, validation_error_handler_wrapp
 
 # Mount the CC router (router already has prefix configured)
 app.include_router(router)
+
+# Mount the non-versioned CC router for testing/integration
+app.include_router(router_test)
 
 # Mount the graph router (router already has prefix configured)
 app.include_router(graph_router)

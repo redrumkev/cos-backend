@@ -134,6 +134,10 @@ class TestGraphRouter:
         """Test node creation with validation error."""
         # Import GraphService dependency
         from src.graph.router import get_graph_service
+        from tests.common.error_helpers import setup_error_handlers
+
+        # Setup error handlers for proper ValidationError handling
+        setup_error_handlers(app)
 
         # Configure mock service
         mock_service = AsyncMock()
@@ -146,6 +150,9 @@ class TestGraphRouter:
         response = client.post("/v1/graph/nodes", json=node_data)
 
         assert response.status_code == 400
+        data = response.json()
+        assert "detail" in data
+        assert "Invalid node data" in data["detail"]
 
     def test_get_node_success(self, client: Any, app: Any, setup_mock_dependencies: Any) -> None:
         """Test successful node retrieval endpoint."""
@@ -173,6 +180,10 @@ class TestGraphRouter:
         """Test getting a node that doesn't exist."""
         # Import GraphService dependency
         from src.graph.router import get_graph_service
+        from tests.common.error_helpers import setup_error_handlers
+
+        # Setup error handlers for proper NotFoundError handling
+        setup_error_handlers(app)
 
         # Configure mock service
         mock_service = AsyncMock()
@@ -358,6 +369,10 @@ class TestGraphRouter:
         """Test server error handling."""
         # Import GraphService dependency
         from src.graph.router import get_graph_service
+        from tests.common.error_helpers import setup_error_handlers
+
+        # Setup error handlers for proper COSError handling
+        setup_error_handlers(app)
 
         # Configure mock service
         mock_service = AsyncMock()

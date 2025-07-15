@@ -45,7 +45,7 @@ class TestMem0Router:
         response = await async_client.post("/v1/cc/mem0/scratch/notes", json=data)
 
         assert response.status_code == 422  # FastAPI validation returns 422, not 400
-        assert "string_too_short" in response.json()["detail"][0]["type"]
+        assert "string_too_short" in response.json()["errors"][0]["type"]
 
     @pytest.mark.skipif(
         os.getenv("CI") == "true", reason="Mock patching unreliable in CI - module import timing issues"

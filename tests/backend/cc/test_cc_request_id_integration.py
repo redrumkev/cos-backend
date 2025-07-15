@@ -13,6 +13,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.backend.cc.cc_main import cc_app
+from src.common.database import get_async_db
+from tests._utils.db_mocks import mock_execute
 
 
 class TestCCRequestIDIntegration:
@@ -40,40 +42,25 @@ class TestCCRequestIDIntegration:
     @pytest.mark.usefixtures("mock_env_settings")
     def test_request_id_middleware_with_health_endpoint(self, client: TestClient) -> None:
         """Test RequestID middleware functionality with /cc/health endpoint."""
-        # Mock the database dependency following the gold standard pattern
-        with (
-            patch("src.db.connection.get_async_session_maker") as mock_session_maker,
-            patch("src.db.connection.get_async_engine"),
-        ):
-            # Create a mock HealthStatus object
-            mock_health_status = AsyncMock()
-            mock_health_status.id = "123e4567-e89b-12d3-a456-426614174000"
-            mock_health_status.module = "cc"
-            mock_health_status.status = "healthy"
-            mock_health_status.last_updated = "2025-01-01T12:00:00Z"
-            mock_health_status.details = "All systems operational"
+        # Create a mock HealthStatus object
+        mock_health_status = AsyncMock()
+        mock_health_status.id = "123e4567-e89b-12d3-a456-426614174000"
+        mock_health_status.module = "cc"
+        mock_health_status.status = "healthy"
+        mock_health_status.last_updated = "2025-01-01T12:00:00Z"
+        mock_health_status.details = "All systems operational"
 
-            # Mock the database session and query chain
-            mock_session = AsyncMock()
-            mock_scalars = AsyncMock()
-            mock_scalars.first = lambda: mock_health_status
-            mock_result = AsyncMock()
-            mock_result.scalars = lambda: mock_scalars
+        # Mock the database session using proper mock helper
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = mock_execute(mock_health_status)
 
-            async def mock_execute(*args: Any, **kwargs: Any) -> Any:
-                return mock_result
+        # Override the database dependency
+        async def mock_get_async_db() -> Any:
+            yield mock_session
 
-            mock_session.execute = mock_execute
-
-            # Create async context manager for session
-            class MockAsyncContextManager:
-                async def __aenter__(self) -> Any:
-                    return mock_session
-
-                async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-                    return None
-
-            mock_session_maker.return_value = lambda: MockAsyncContextManager()
+        try:
+            # Apply the dependency override
+            cc_app.dependency_overrides[get_async_db] = mock_get_async_db
 
             response = client.get("/cc/health")
 
@@ -83,6 +70,9 @@ class TestCCRequestIDIntegration:
             # Request ID should be a valid UUID
             request_id = response.headers["x-request-id"]
             uuid.UUID(request_id)  # This will raise ValueError if invalid
+        finally:
+            # Clean up the override
+            cc_app.dependency_overrides.clear()
 
     @pytest.mark.usefixtures("mock_env_settings")
     def test_request_id_middleware_with_config_endpoint(self, client: TestClient) -> None:
