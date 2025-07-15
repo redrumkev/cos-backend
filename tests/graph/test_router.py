@@ -18,7 +18,7 @@ from src.graph.router import router as graph_router
 class TestGraphRouter:
     """Test cases for graph router endpoints."""
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def app(self) -> Any:
         """Create test FastAPI app with graph router."""
         app = FastAPI()
@@ -26,7 +26,7 @@ class TestGraphRouter:
         app.include_router(graph_router)
         return app
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def client(self, app: Any) -> Any:
         """Create test client with mounted graph router."""
         return TestClient(app)
