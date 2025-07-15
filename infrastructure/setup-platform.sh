@@ -14,7 +14,7 @@ echo "======================================="
 # Detect platform
 if [[ "$OSTYPE" != "darwin"* ]]; then
     echo "❌ Error: This script is for macOS only"
-    echo "   Use setup-platform.ps1 for Windows"
+    echo "   Windows development is deprecated - see docs/archive/windows-configs/"
     exit 1
 fi
 

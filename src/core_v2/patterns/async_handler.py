@@ -1,7 +1,8 @@
 """Pattern: Async Route Handler.
 
 Version: 2025-07-08 (Initial - Pending Research)
-ADR: ADR-002 (Pending)
+ADR: ADR-002 (Living Patterns System)
+Status: Not Yet Implemented - Needs research and real-world testing
 
 Purpose: Define the canonical structure for FastAPI async route handlers
 When to use: All FastAPI endpoint handlers
@@ -91,3 +92,9 @@ To migrate existing handlers:
 # - WebSocket handler patterns
 # - Background task integration
 # - Rate limiting decorators
+
+# IMPLEMENTATION STATUS:
+# - Pattern defined but not yet adopted in codebase
+# - Current routers use varied approaches
+# - Needs research: Look at FastAPI best practices, Stripe API design
+# - Consider OpenTelemetry integration for observability

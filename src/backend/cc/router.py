@@ -164,6 +164,13 @@ async def enhanced_health_check() -> EnhancedHealthResponse:
     # Mock Redis connection status (would check actual Redis connectivity)
     redis_connected = True  # Would use: await redis_client.ping()
 
+    # Check Qdrant status (gracefully handles unavailability)
+    from .vector_service import get_vector_service
+
+    vector_service = get_vector_service()
+    qdrant_health = await vector_service.health_check()
+    # qdrant_status is tracked in qdrant_health response
+
     current_time = datetime.utcnow()
 
     # Determine overall status based on metrics
@@ -174,6 +181,8 @@ async def enhanced_health_check() -> EnhancedHealthResponse:
         overall_status = "offline"
     elif any(dlq.size > 100 for dlq in dlq_metrics):  # High DLQ size threshold
         overall_status = "degraded"
+    # Note: Qdrant unavailability doesn't degrade status (graceful fallback)
+    # TODO: Change this when Qdrant becomes required in Sprint 3
 
     return EnhancedHealthResponse(
         status=overall_status,
@@ -182,6 +191,7 @@ async def enhanced_health_check() -> EnhancedHealthResponse:
         dlq_metrics=dlq_metrics,
         uptime_seconds=uptime_seconds,
         redis_connected=redis_connected,
+        qdrant_status=qdrant_health,
     )
 
 

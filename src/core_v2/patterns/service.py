@@ -1,7 +1,8 @@
 """Pattern: Service Class.
 
 Version: 2025-07-08 (Initial - Pending Research)
-ADR: ADR-002 (Pending)
+ADR: ADR-002 (Living Patterns System)
+Status: In Use - ledger_view.py implements BaseService
 
 Purpose: Define the canonical structure for business logic service classes
 When to use: Any class that encapsulates business logic and coordinates operations
@@ -114,3 +115,9 @@ To migrate existing services:
 # - Retry/circuit breaker integration
 # - Observability hooks (metrics, tracing)
 # - Generic typing for better IDE support
+
+# IMPLEMENTATION STATUS:
+# - Used in: src/common/ledger_view.py (LedgerView extends BaseService)
+# - Pattern is functional but needs research-based enhancements
+# - Consider adding connection pooling patterns
+# - Add distributed tracing integration

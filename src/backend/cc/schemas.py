@@ -501,6 +501,9 @@ class EnhancedHealthResponse(BaseModel):
     dlq_metrics: list[DLQMetrics] = Field(..., description="Dead Letter Queue metrics for all monitored channels")
     uptime_seconds: float = Field(..., description="Service uptime in seconds")
     redis_connected: bool = Field(..., description="Whether Redis connection is active")
+    qdrant_status: dict[str, Any] | None = Field(
+        default=None, description="Qdrant vector database status (optional service)"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={

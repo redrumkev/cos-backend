@@ -15,15 +15,14 @@ This folder contains the canonical code patterns used across the COS project.
 
 ## Pattern Files
 
-| Pattern | Purpose | Last Updated |
-|---------|---------|--------------|
-| `service.py` | Business logic service classes | Pending |
-| `async_handler.py` | Async FastAPI route handlers | Pending |
-| `error_handling.py` | Exception handling patterns | Pending |
-| `dependency_injection.py` | DI and component wiring | Pending |
-| `model.py` | Pydantic model structure | Pending |
-| `router.py` | FastAPI router organization | Pending |
-| `database_operations.py` | Async database patterns | Pending |
+| Pattern | Purpose | Status | Last Updated |
+| `service.py` | Business logic service classes | **In Use** | 2025-07-08 |
+| `async_handler.py` | Async FastAPI route handlers | **Pending Research** | 2025-07-08 |
+| `error_handling.py` | Exception handling patterns | **In Use** | 2025-07-08 v2.1.0 |
+| `dependency_injection.py` | DI and component wiring | **Not Created** | - |
+| `model.py` | Pydantic model structure | **Not Created** | - |
+| `router.py` | FastAPI router organization | **Not Created** | - |
+| `database_operations.py` | Async database patterns | **Not Created** | - |
 
 ## Quick Links
 - [Pattern Philosophy](./COS_PATTERNS_PHILOSOPHY.md) - Why we use patterns

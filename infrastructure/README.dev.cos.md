@@ -6,7 +6,7 @@
 ```markdown
 # 🧠 COS Infrastructure – Developer README
 
-Located: `G:/cos/infrastructure/`
+Located: `~/dev/cos/infrastructure/`
 
 This file documents how to set up, launch, and work with the **COS (Creative Operating System)** infrastructure stack. It serves as the foundational runtime environment for core backend services and memory components.
 
@@ -40,11 +40,21 @@ COS uses **modular Docker Compose files**, allowing flexible startup and isolate
 | `traefik.yml`   | Static Traefik configuration (entrypoints, providers) |
 | `redis.conf`    | Redis server configuration                   |
 
+### Platform Setup:
+
+**macOS Development (Standard):**
+- Run `./setup-platform.sh` to configure the environment
+- Creates data directories under `~/cos-data/`
+- Copies `.env.macos` to `.env`
+- Configures platform-specific Docker mounts
+
+**Note:** Windows development has been deprecated. Historical Windows configurations are archived in `docs/archive/windows-configs/`.
+
 ---
 
 ### 🚀 Startup Sequence (All Services)
 
-(Run commands from `G:/cos/infrastructure/`)
+(Run commands from `~/dev/cos/infrastructure/`)
 
 1.  **Ensure `preflight_checklist.md` is completed.**
 2.  **Pull images for all services:**

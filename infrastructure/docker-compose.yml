@@ -164,6 +164,47 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: cos_qdrant
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      # Optional: Add API key for production
+      # QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    ports:
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC (optional)
+    volumes:
+      - type: bind
+        source: ${COS_QDRANT_ROOT}
+        target: /qdrant/storage
+    # Resource limits - Vector DBs are memory-intensive
+    # For MacBook Air M4 (24GB): 1GB typical, 2GB max
+    # For Mac Studio M4 Max (128GB): 4GB typical, 8GB max
+    deploy:
+      resources:
+        limits:
+          cpus: "1"      # Max 1 CPU core for MacBook Air
+          memory: 2G     # Hard limit: 2GB for MacBook Air
+        reservations:
+          cpus: "0.5"    # Reserve 0.5 CPU core
+          memory: 1G     # Reserve 1GB RAM (soft limit)
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/readyz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cos_network
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # Placeholder for backend container
   # (Currently building the 'cc' module — later integrate backend server here)
 

@@ -27,8 +27,11 @@ This document outlines the Docker resource allocation strategy for the Creative 
 | Redis | 2 cores | 0.5 cores | 1GB | 512MB | Mostly single-threaded |
 | Elasticsearch | 4 cores | 2 cores | 3GB | 2GB | JVM heap: 2GB |
 | Neo4j | 4 cores | 2 cores | 3GB | 2GB | Heap: 1GB, Pagecache: 1GB |
+| Qdrant* | 1 core | 0.5 cores | 2GB | 1GB | Vector DB (Sprint 3) |
 | Traefik | 1 core | 0.25 cores | 512MB | 256MB | Lightweight proxy |
-| **Total** | - | **7.75 cores** | **12.5GB** | **7.75GB** | Within 8GB typical usage |
+| **Total** | - | **8.25 cores** | **14.5GB** | **8.75GB** | Within 8GB typical usage |
+
+*Qdrant is optional in Sprint 2, becomes required in Sprint 3
 
 ### Mac Studio M4 Max (128GB) Configuration - Scaling Guide
 
@@ -39,8 +42,9 @@ This document outlines the Docker resource allocation strategy for the Creative 
 | Redis | 4 cores | 1 core | 4GB | 2GB | Scale for caching |
 | Elasticsearch | 8 cores | 4 cores | 6GB | 4GB | JVM heap: 4GB |
 | Neo4j | 8 cores | 4 cores | 6GB | 4GB | Heap: 2GB, Pagecache: 2GB |
+| Qdrant* | 2 cores | 1 core | 8GB | 4GB | Vector DB (Sprint 3) |
 | Traefik | 2 cores | 0.5 cores | 1GB | 512MB | Still lightweight |
-| **Total** | - | **15.5 cores** | **37GB** | **22.5GB** | Within 32GB cap |
+| **Total** | - | **16.5 cores** | **45GB** | **26.5GB** | Within 32GB cap |
 
 ## Key Design Principles
 
