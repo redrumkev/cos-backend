@@ -1536,6 +1536,9 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                         return self._data[0] if self._data else None
 
                 mock_scalars = MockScalars(results)
+
+                # IMPORTANT: scalars() must be a regular method that returns MockScalars directly
+                # SQLAlchemy's result.scalars() is synchronous, not async
                 mock_result.scalars = MagicMock(return_value=mock_scalars)
                 mock_result.scalar_one_or_none = MagicMock(return_value=results[0] if results else None)
 
@@ -1640,6 +1643,62 @@ def override_get_db(db_session: Any, run_integration_mode: str) -> Generator[Non
         # Apply dependency overrides
         app.dependency_overrides[get_async_db] = _get_db
         app.dependency_overrides[get_cc_db] = _get_db
+
+        # Also override the new router pattern dependencies
+        try:
+            # Import router-specific dependencies
+            # Create a factory that returns ModuleDeps with the mock session
+            from fastapi import BackgroundTasks, Request
+
+            from src.backend.cc.router import get_module_deps
+            from src.common.config import Settings, get_settings
+            from src.common.request_id_middleware import get_request_id
+            from src.core_v2.patterns.router import ModuleDeps
+            from src.graph.registry import ModuleLabel
+            from src.graph.router import get_module_deps as get_graph_module_deps
+
+            async def _get_module_deps() -> ModuleDeps:
+                # Create minimal ModuleDeps with just the db session
+                # Other fields will be None but that's OK for tests
+                return ModuleDeps(
+                    module=ModuleLabel.TECH_CC,
+                    request=None,
+                    db=db_session,  # Use the mock session directly
+                    settings=None,
+                    background_tasks=None,
+                    request_id="test-request-id",
+                )
+
+            async def _get_graph_module_deps(
+                request: Request,
+                db: Any = None,  # Will be injected by dependency override
+                settings: Settings | None = None,
+                background_tasks: BackgroundTasks | None = None,
+            ) -> ModuleDeps:
+                # Resolve dependencies inside the function to avoid B008
+                if settings is None:
+                    settings = get_settings()
+                if background_tasks is None:
+                    background_tasks = BackgroundTasks()
+
+                # Use the mock session directly
+                return ModuleDeps(
+                    module=ModuleLabel.TECH_CC,  # Use TECH_CC as TECH_GRAPH doesn't exist
+                    request=request,
+                    db=db_session,  # Use the mock session directly
+                    settings=settings,
+                    background_tasks=background_tasks,
+                    request_id=get_request_id() or "test-request-id",
+                )
+
+            # Apply the overrides
+            app.dependency_overrides[get_module_deps] = _get_module_deps
+            app.dependency_overrides[get_graph_module_deps] = _get_graph_module_deps
+
+        except ImportError:
+            # Router pattern not available, skip
+            pass
+
         yield
     except ImportError:
         yield

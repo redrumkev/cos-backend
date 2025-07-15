@@ -2,6 +2,13 @@
 
 This file defines all HTTP endpoints for the CC module,
 connecting client requests to the appropriate services.
+
+Pattern Reference: router.py v3.0.0 (Research-Driven Implementation)
+Applied: create_module_router factory pattern
+Applied: RFC 9457 Problem Details for error responses
+Applied: Annotated[Type, Depends()] dependency injection
+Applied: ModuleDeps for bundled dependencies
+Applied: Request ID propagation for tracing
 """
 
 # MDC: cc_module
@@ -9,13 +16,30 @@ import time
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import BackgroundTasks, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.logging import log_l1
+from src.common.config import Settings, get_settings
+from src.common.database import get_async_db
 from src.common.logger import log_event
+from src.common.request_id_middleware import get_request_id
+from src.core_v2.patterns.error_handling import (
+    ConflictError,
+    COSError,
+    ErrorCategory,
+    NotFoundError,
+    ValidationError,
+)
+from src.core_v2.patterns.router import (
+    ModuleDeps,
+    PaginationParams,
+    RateLimitConfig,
+    create_module_router,
+)
+from src.graph.registry import ModuleLabel
 
-from .deps import ModuleConfig, get_cc_db, get_module_config
+from .deps import ModuleConfig, get_module_config
 from .mem0_router import router as mem0_router
 from .schemas import (
     CCConfig,
@@ -44,10 +68,35 @@ from .services import get_modules as service_get_modules
 from .services import read_system_health
 from .services import update_module as service_update_module
 
-router = APIRouter()
+# Create router with new pattern
+router = create_module_router(
+    prefix="/cc",
+    module=ModuleLabel.TECH_CC,
+    tags=["control-center", "health", "monitoring"],
+    version="v1",
+    rate_limit=RateLimitConfig(requests_per_minute=300, burst_size=50),
+)
 
 # Mount mem0 scratch data router
 router.include_router(mem0_router, prefix="/mem0", tags=["mem0"])
+
+
+# Create module dependencies factory for this module
+async def get_module_deps(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    background_tasks: BackgroundTasks,
+) -> ModuleDeps:
+    """Get module dependencies instance."""
+    return ModuleDeps(
+        module=ModuleLabel.TECH_CC,
+        request=request,
+        db=db,
+        settings=settings,
+        background_tasks=background_tasks,
+        request_id=get_request_id(),
+    )
 
 
 @router.get(
@@ -58,19 +107,26 @@ router.include_router(mem0_router, prefix="/mem0", tags=["mem0"])
     description="Provides a simple health status check for the service.",
     tags=["Health"],
 )
-async def health_check(db: AsyncSession = Depends(get_cc_db)) -> HealthStatusResponse:
+async def health_check(
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
+) -> HealthStatusResponse:
     """Return the health status of the service."""
     log_event(
         source="cc",
-        data={},
+        data={"request_id": deps.request_id},
         tags=["health", "cc_router"],
         memo="Health check endpoint accessed.",
     )
-    row = await read_system_health(db)
+    if deps.db is None:
+        raise COSError(
+            message="Database connection not available",
+            category=ErrorCategory.INTERNAL,
+            user_message="Database connection not available",
+        )
+    row = await read_system_health(deps.db)
     if not row:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="no health record yet",
+        raise NotFoundError(
+            resource="Health record", identifier="system", user_message="No health record available yet"
         )
     return HealthStatusResponse.model_validate(row)
 
@@ -102,21 +158,26 @@ async def get_config(
     description="Provides a comprehensive health report for the entire system.",
     tags=["Health"],
 )
-async def system_health_report(db: AsyncSession = Depends(get_cc_db)) -> SystemHealthReport:
+async def system_health_report(
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
+) -> SystemHealthReport:
     """Get a comprehensive health report for all system modules."""
     log_event(
         source="cc",
-        data={},
+        data={"request_id": deps.request_id},
         tags=["health", "system", "cc_router"],
         memo="System health report endpoint accessed.",
     )
+    from datetime import datetime
+
+    current_time = datetime.utcnow().isoformat() + "Z"
     return SystemHealthReport(
         overall_status="healthy",
         modules=[
-            ModuleHealthStatus(module="cc", status="healthy", last_updated="2025-04-02T10:00:00Z"),
-            ModuleHealthStatus(module="mem0", status="healthy", last_updated="2025-04-02T09:55:00Z"),
+            ModuleHealthStatus(module="cc", status="healthy", last_updated=current_time),
+            ModuleHealthStatus(module="mem0", status="healthy", last_updated=current_time),
         ],
-        timestamp="2025-04-02T10:15:00Z",
+        timestamp=current_time,
     )
 
 
@@ -273,12 +334,12 @@ async def metrics() -> Any:
 )
 async def ping(
     request: ModulePingRequest,
-    db: AsyncSession = Depends(get_cc_db),
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> ModulePingResponse:
     """Ping a specific module to verify its health status."""
     log_event(
         source="cc",
-        data={"module": request.module},
+        data={"module": request.module, "request_id": deps.request_id},
         tags=["ping", "cc_router"],
         memo=f"Ping request for module {request.module}.",
     )
@@ -312,7 +373,7 @@ async def get_status() -> dict[str, str]:
 )
 async def create_debug_log(
     request: DebugLogRequest,
-    db: AsyncSession = Depends(get_cc_db),
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> DebugLogResponse:
     """Create debug log entries for testing and diagnostic purposes with Redis validation.
 
@@ -324,14 +385,25 @@ async def create_debug_log(
 
     try:
         # Persist logs via L1 logging service
+        if deps.db is None:
+            raise COSError(
+                message="Database connection not available",
+                category=ErrorCategory.INTERNAL,
+                user_message="Database connection not available",
+            )
+
         log_ids = await log_l1(
-            db=db,
+            db=deps.db,
             event_type=request.event_type,
             payload=request.payload,
             prompt_data=request.prompt_data,
-            request_id=request.request_id,
+            request_id=request.request_id or deps.request_id,
             trace_id=request.trace_id,
         )
+
+        # Perform Redis validation for the debug log in background
+        if deps.background_tasks is not None:
+            deps.background_tasks.add_task(_log_redis_validation, request, deps.request_id or "unknown")
 
         # Perform Redis validation for the debug log
         redis_validation = await _validate_redis_publishing(request)
@@ -349,6 +421,7 @@ async def create_debug_log(
                     "publish_success": redis_validation.publish_success,
                     "connection_status": redis_validation.connection_status,
                 },
+                "request_id": deps.request_id,
             },
             tags=["debug", "log", "cc_router", "redis_validation"],
             memo="Debug log created via enhanced /debug/log endpoint with Redis validation.",
@@ -386,14 +459,48 @@ async def create_debug_log(
                     "publish_success": redis_validation.publish_success,
                     "connection_status": redis_validation.connection_status,
                 },
+                "request_id": deps.request_id,
             },
             tags=["debug", "log", "error", "cc_router", "redis_validation"],
             memo="Failed to create debug log via enhanced /debug/log endpoint.",
         )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create debug log: {exc}",
+        raise COSError(
+            message=f"Failed to create debug log: {exc}",
+            category=ErrorCategory.INTERNAL,
+            details={"event_type": request.event_type},
+            user_message="Unable to create debug log entry",
         ) from exc
+
+
+async def _log_redis_validation(request: DebugLogRequest, request_id: str) -> None:
+    """Background task to log Redis validation results."""
+    try:
+        validation_result = await _validate_redis_publishing(request)
+        log_event(
+            source="cc",
+            data={
+                "event_type": request.event_type,
+                "validation_result": {
+                    "publish_success": validation_result.publish_success,
+                    "connection_status": validation_result.connection_status,
+                    "latency_ms": validation_result.redis_latency_ms,
+                },
+                "request_id": request_id,
+            },
+            tags=["background", "redis_validation"],
+            memo="Background Redis validation completed.",
+        )
+    except Exception as e:
+        log_event(
+            source="cc",
+            data={
+                "event_type": request.event_type,
+                "error": str(e),
+                "request_id": request_id,
+            },
+            tags=["background", "redis_validation", "error"],
+            memo="Background Redis validation failed.",
+        )
 
 
 async def _validate_redis_publishing(request: DebugLogRequest) -> RedisValidationInfo:
@@ -592,7 +699,7 @@ async def redis_health_check() -> RedisHealthResponse:
         )
 
 
-# Module CRUD Endpoints
+# Module CRUD Endpoints with new pattern
 @router.post(
     "/modules",
     response_model=Module,
@@ -603,23 +710,36 @@ async def redis_health_check() -> RedisHealthResponse:
 )
 async def create_module(
     module_data: ModuleCreate,
-    db: AsyncSession = Depends(get_cc_db),
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> Module:
     """Create a new module."""
     log_event(
         source="cc",
-        data={"module": module_data.name},
+        data={"module": module_data.name, "request_id": deps.request_id},
         tags=["module", "create", "cc_router"],
         memo=f"Creating module {module_data.name}.",
     )
 
     try:
+        if deps.db is None:
+            raise COSError(
+                message="Database connection not available",
+                category=ErrorCategory.INTERNAL,
+                user_message="Database connection not available",
+            )
+
         module = await service_create_module(
-            db, name=module_data.name, version=module_data.version, config=module_data.config
+            deps.db, name=module_data.name, version=module_data.version, config=module_data.config
         )
         return Module.model_validate(module)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+        error_msg = str(e)
+        if "already exists" in error_msg:
+            raise ConflictError(
+                resource="Module", identifier=module_data.name, user_message=f"Cannot create module: {e}"
+            ) from e
+        else:
+            raise ValidationError(message=error_msg, field="name", user_message=f"Cannot create module: {e}") from e
 
 
 @router.get(
@@ -630,19 +750,25 @@ async def create_module(
     tags=["Modules"],
 )
 async def list_modules(
-    db: AsyncSession = Depends(get_cc_db),
-    skip: int = 0,
-    limit: int = 100,
+    pagination: Annotated[PaginationParams, Depends()],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> list[Module]:
     """Get a list of modules with pagination."""
     log_event(
         source="cc",
-        data={"skip": skip, "limit": limit},
+        data={"page": pagination.page, "limit": pagination.limit, "request_id": deps.request_id},
         tags=["module", "list", "cc_router"],
-        memo=f"Listing modules with skip={skip}, limit={limit}.",
+        memo=f"Listing modules with page={pagination.page}, limit={pagination.limit}.",
     )
 
-    modules = await service_get_modules(db, skip=skip, limit=limit)
+    if deps.db is None:
+        raise COSError(
+            message="Database connection not available",
+            category=ErrorCategory.INTERNAL,
+            user_message="Database connection not available",
+        )
+
+    modules = await service_get_modules(deps.db, skip=pagination.offset, limit=pagination.limit)
     return [Module.model_validate(module) for module in modules]
 
 
@@ -655,19 +781,26 @@ async def list_modules(
 )
 async def get_module(
     module_id: str,
-    db: AsyncSession = Depends(get_cc_db),
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> Module:
     """Get a specific module by ID."""
     log_event(
         source="cc",
-        data={"module_id": module_id},
+        data={"module_id": module_id, "request_id": deps.request_id},
         tags=["module", "get", "cc_router"],
         memo=f"Getting module {module_id}.",
     )
 
-    module = await service_get_module(db, module_id)
+    if deps.db is None:
+        raise COSError(
+            message="Database connection not available",
+            category=ErrorCategory.INTERNAL,
+            user_message="Database connection not available",
+        )
+
+    module = await service_get_module(deps.db, module_id)
     if not module:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Module with ID {module_id} not found")
+        raise NotFoundError("Module", module_id)
 
     return Module.model_validate(module)
 
@@ -682,12 +815,16 @@ async def get_module(
 async def update_module(
     module_id: str,
     module_data: ModuleUpdate,
-    db: AsyncSession = Depends(get_cc_db),
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> Module:
     """Update a specific module by ID."""
     log_event(
         source="cc",
-        data={"module_id": module_id, "update_data": module_data.model_dump(exclude_unset=True)},
+        data={
+            "module_id": module_id,
+            "update_data": module_data.model_dump(exclude_unset=True),
+            "request_id": deps.request_id,
+        },
         tags=["module", "update", "cc_router"],
         memo=f"Updating module {module_id}.",
     )
@@ -696,13 +833,28 @@ async def update_module(
         # Convert Pydantic model to dict, excluding unset fields
         update_data = module_data.model_dump(exclude_unset=True)
 
-        module = await service_update_module(db, module_id, update_data)
+        if deps.db is None:
+            raise COSError(
+                message="Database connection not available",
+                category=ErrorCategory.INTERNAL,
+                user_message="Database connection not available",
+            )
+
+        module = await service_update_module(deps.db, module_id, update_data)
         if not module:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Module with ID {module_id} not found")
+            raise NotFoundError("Module", module_id)
 
         return Module.model_validate(module)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+        error_msg = str(e)
+        if "already exists" in error_msg:
+            raise ConflictError(
+                resource="Module",
+                identifier=update_data.get("name", module_id),
+                user_message=f"Cannot update module: {e}",
+            ) from e
+        else:
+            raise ValidationError(message=error_msg, field="name", user_message=f"Cannot update module: {e}") from e
 
 
 @router.delete(
@@ -714,18 +866,25 @@ async def update_module(
 )
 async def delete_module(
     module_id: str,
-    db: AsyncSession = Depends(get_cc_db),
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> Module:
     """Delete a specific module by ID."""
     log_event(
         source="cc",
-        data={"module_id": module_id},
+        data={"module_id": module_id, "request_id": deps.request_id},
         tags=["module", "delete", "cc_router"],
         memo=f"Deleting module {module_id}.",
     )
 
-    module = await service_delete_module(db, module_id)
+    if deps.db is None:
+        raise COSError(
+            message="Database connection not available",
+            category=ErrorCategory.INTERNAL,
+            user_message="Database connection not available",
+        )
+
+    module = await service_delete_module(deps.db, module_id)
     if not module:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Module with ID {module_id} not found")
+        raise NotFoundError("Module", module_id)
 
     return Module.model_validate(module)

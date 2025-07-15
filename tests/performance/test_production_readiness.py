@@ -174,7 +174,7 @@ async def run_docker_command(*args: str, command_timeout: float = 60.0, max_retr
         if attempt < max_retries - 1:
             wait_time = min(2**attempt, 8)  # Exponential backoff, max 8s
             logger.warning(
-                f"Docker command failed (attempt {attempt + 1}/{max_retries}), " f"retrying in {wait_time}s: {args}"
+                f"Docker command failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s: {args}"
             )
             await asyncio.sleep(wait_time)
 

@@ -300,7 +300,7 @@ class TestEnvModuleComprehensiveCoverage:
         if not migrate_url:
             with pytest.raises(RuntimeError, match="No database URL found"):
                 raise RuntimeError(
-                    "No database URL found for Alembic migrations. " "Checked: POSTGRES_MIGRATE_URL, POSTGRES_DEV_URL"
+                    "No database URL found for Alembic migrations. Checked: POSTGRES_MIGRATE_URL, POSTGRES_DEV_URL"
                 )
 
     def test_env_import_error_handling_logic(self) -> None:

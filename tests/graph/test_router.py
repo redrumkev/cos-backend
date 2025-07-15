@@ -55,7 +55,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_async_neo4j] = mock_get_client
 
-        response = client.get("/graph/health")
+        response = client.get("/v1/graph/health")
 
         assert response.status_code == 200
         data = response.json()
@@ -77,7 +77,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_async_neo4j] = mock_get_client
 
-        response = client.get("/graph/health")
+        response = client.get("/v1/graph/health")
 
         assert response.status_code == 200
         data = response.json()
@@ -100,7 +100,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/stats")
+        response = client.get("/v1/graph/stats")
 
         assert response.status_code == 200
         data = response.json()
@@ -123,7 +123,7 @@ class TestGraphRouter:
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
         node_data = {"node_type": "Module", "module": "tech_cc", "properties": {"name": "test-node"}}
-        response = client.post("/graph/nodes", json=node_data)
+        response = client.post("/v1/graph/nodes", json=node_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -143,7 +143,7 @@ class TestGraphRouter:
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
         node_data = {"node_type": "Module", "module": "tech_cc", "properties": {"name": "test-node"}}
-        response = client.post("/graph/nodes", json=node_data)
+        response = client.post("/v1/graph/nodes", json=node_data)
 
         assert response.status_code == 400
 
@@ -162,7 +162,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/nodes/Module/tech_cc/test-id")
+        response = client.get("/v1/graph/nodes/Module/tech_cc/test-id")
 
         assert response.status_code == 200
         data = response.json()
@@ -180,7 +180,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/nodes/Module/tech_cc/nonexistent")
+        response = client.get("/v1/graph/nodes/Module/tech_cc/nonexistent")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -197,7 +197,7 @@ class TestGraphRouter:
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
         update_data = {"properties": {"name": "updated-node"}}
-        response = client.put("/graph/nodes/Module/tech_cc/test-id", json=update_data)
+        response = client.put("/v1/graph/nodes/Module/tech_cc/test-id", json=update_data)
 
         assert response.status_code == 200
 
@@ -212,7 +212,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.delete("/graph/nodes/Module/tech_cc/test-id?delete_relationships=true")
+        response = client.delete("/v1/graph/nodes/Module/tech_cc/test-id?delete_relationships=true")
 
         assert response.status_code == 200
         data = response.json()
@@ -229,7 +229,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/nodes/Module/tech_cc?property_name=name&property_value=test")
+        response = client.get("/v1/graph/nodes/Module/tech_cc?property_name=name&property_value=test")
 
         assert response.status_code == 200
         data = response.json()
@@ -247,7 +247,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/search?search_text=test")
+        response = client.get("/v1/graph/search?search_text=test")
 
         assert response.status_code == 200
 
@@ -262,7 +262,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/search")
+        response = client.get("/v1/graph/search")
 
         assert response.status_code == 200
 
@@ -291,7 +291,7 @@ class TestGraphRouter:
             "to_module": "tech_cc",
             "to_node_id": "node-2",
         }
-        response = client.post("/graph/relationships", json=rel_data)
+        response = client.post("/v1/graph/relationships", json=rel_data)
 
         assert response.status_code == 200
 
@@ -306,7 +306,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/nodes/Module/tech_cc/node-1/relationships")
+        response = client.get("/v1/graph/nodes/Module/tech_cc/node-1/relationships")
 
         assert response.status_code == 200
 
@@ -321,21 +321,21 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/nodes/Module/tech_cc/node-1/relationships?direction=both")
+        response = client.get("/v1/graph/nodes/Module/tech_cc/node-1/relationships?direction=both")
 
         assert response.status_code == 200
 
     def test_invalid_node_type(self, client: Any) -> None:
         """Test with invalid node type."""
         node_data = {"node_type": "InvalidType", "module": "tech_cc", "properties": {"name": "test-node"}}
-        response = client.post("/graph/nodes", json=node_data)
+        response = client.post("/v1/graph/nodes", json=node_data)
 
         assert response.status_code == 422
 
     def test_invalid_module_label(self, client: Any) -> None:
         """Test with invalid module label."""
         node_data = {"node_type": "Module", "module": "invalid_module", "properties": {"name": "test-node"}}
-        response = client.post("/graph/nodes", json=node_data)
+        response = client.post("/v1/graph/nodes", json=node_data)
 
         assert response.status_code == 422
 
@@ -350,7 +350,7 @@ class TestGraphRouter:
             "end_module": "tech_cc",
             "end_node_id": "node-2",
         }
-        response = client.post("/graph/relationships", json=rel_data)
+        response = client.post("/v1/graph/relationships", json=rel_data)
 
         assert response.status_code == 422
 
@@ -365,14 +365,14 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/stats")
+        response = client.get("/v1/graph/stats")
 
         assert response.status_code == 500
 
     def test_endpoint_parameter_validation(self, client: Any) -> None:
         """Test endpoint parameter validation."""
         # Missing required JSON body
-        response = client.post("/graph/nodes")
+        response = client.post("/v1/graph/nodes")
 
         assert response.status_code == 422
 
@@ -380,7 +380,7 @@ class TestGraphRouter:
         """Test handling of missing required parameters."""
         # Missing node_type in request body
         node_data = {"module": "tech_cc", "properties": {"name": "test-node"}}
-        response = client.post("/graph/nodes", json=node_data)
+        response = client.post("/v1/graph/nodes", json=node_data)
 
         assert response.status_code == 422
 
@@ -399,7 +399,7 @@ class TestGraphRouter:
         # Override the dependency
         app.dependency_overrides[get_graph_service] = lambda: mock_service
 
-        response = client.get("/graph/stats")
+        response = client.get("/v1/graph/stats")
 
         assert response.status_code == 200
         data = response.json()

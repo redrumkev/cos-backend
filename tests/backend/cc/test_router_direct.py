@@ -264,14 +264,14 @@ class TestRouterDirectCoverage:
     @patch("src.backend.cc.router.log_event")
     async def test_list_modules_covers_pagination(self, mock_log: Any, mock_get_modules: Any) -> None:
         """Test list_modules function with pagination."""
-        from src.backend.cc.router import list_modules
-
         # Mock the service response
         mock_get_modules.return_value = []
         mock_db = MagicMock()
 
-        # Call the function directly
-        result = await list_modules(mock_db, skip=0, limit=10)
+        # Call the service function directly
+        from src.backend.cc.services import get_modules as service_get_modules
+
+        result = await service_get_modules(mock_db, skip=0, limit=10)
 
         # Assertions
         assert result == []

@@ -63,6 +63,18 @@ class NotFoundError(COSError):
         )
 
 
+class ConflictError(COSError):
+    """Raised when a resource already exists or there's a conflict."""
+
+    def __init__(self, resource: str, identifier: Any, **kwargs: Any) -> None:
+        super().__init__(
+            message=f"{resource} with identifier {identifier} already exists",
+            category=ErrorCategory.CONFLICT,
+            details={"resource": resource, "identifier": identifier},
+            **kwargs,
+        )
+
+
 # ERROR CONTEXT MANAGER
 @asynccontextmanager
 async def error_handler(operation: str, logger: logging.Logger, reraise: bool = True):  # type: ignore[no-untyped-def]

@@ -14,6 +14,9 @@ if Path(candidate).exists():
 
 
 class Settings(BaseSettings):
+    # Environment configuration
+    ENVIRONMENT: str = Field(default="development", validation_alias="ENVIRONMENT")
+
     POSTGRES_DEV_URL: str = Field(
         default="postgresql://test:test@localhost/test_db",
         validation_alias="POSTGRES_DEV_URL",

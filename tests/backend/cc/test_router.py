@@ -21,7 +21,7 @@ class TestModuleRouterEndpoints:
         module_name = f"test_module_{unique_test_id}"
         module_data = {"name": module_name, "version": "1.0.0", "config": '{"setting1": "value1"}'}
 
-        response = await async_client.post("/cc/modules", json=module_data)
+        response = await async_client.post("/v1/cc/modules", json=module_data)
 
         assert response.status_code == 201
         data = response.json()
@@ -37,7 +37,7 @@ class TestModuleRouterEndpoints:
         module_name = f"minimal_module_{unique_test_id}"
         module_data = {"name": module_name, "version": "1.0.0"}
 
-        response = await async_client.post("/cc/modules", json=module_data)
+        response = await async_client.post("/v1/cc/modules", json=module_data)
 
         assert response.status_code == 201
         data = response.json()
@@ -52,7 +52,7 @@ class TestModuleRouterEndpoints:
             "version": "1.0.0",
         }
 
-        response = await async_client.post("/cc/modules", json=module_data)
+        response = await async_client.post("/v1/cc/modules", json=module_data)
 
         assert response.status_code == 422  # Validation error
 
@@ -62,17 +62,17 @@ class TestModuleRouterEndpoints:
         module_data = {"name": module_name, "version": "1.0.0"}
 
         # Create first module
-        response1 = await async_client.post("/cc/modules", json=module_data)
+        response1 = await async_client.post("/v1/cc/modules", json=module_data)
         assert response1.status_code == 201
 
         # Try to create second module with same name
-        response2 = await async_client.post("/cc/modules", json=module_data)
+        response2 = await async_client.post("/v1/cc/modules", json=module_data)
         assert response2.status_code == 409
         assert "already exists" in response2.json()["detail"]
 
     async def test_list_modules_empty(self, async_client: AsyncClient) -> None:
         """Test listing modules when database is empty."""
-        response = await async_client.get("/cc/modules")
+        response = await async_client.get("/v1/cc/modules")
 
         assert response.status_code == 200
         data = response.json()
@@ -88,11 +88,11 @@ class TestModuleRouterEndpoints:
         ]
 
         for module_data in modules_data:
-            response = await async_client.post("/cc/modules", json=module_data)
+            response = await async_client.post("/v1/cc/modules", json=module_data)
             assert response.status_code == 201
 
         # List modules
-        response = await async_client.get("/cc/modules")
+        response = await async_client.get("/v1/cc/modules")
 
         assert response.status_code == 200
         data = response.json()
@@ -108,11 +108,11 @@ class TestModuleRouterEndpoints:
         # Create multiple modules
         for i in range(5):
             module_data = {"name": f"module_{i:02d}_{unique_test_id}", "version": "1.0.0"}
-            response = await async_client.post("/cc/modules", json=module_data)
+            response = await async_client.post("/v1/cc/modules", json=module_data)
             assert response.status_code == 201
 
         # Test first page
-        response = await async_client.get("/cc/modules?skip=0&limit=2")
+        response = await async_client.get("/v1/cc/modules?page=1&limit=2")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -120,7 +120,7 @@ class TestModuleRouterEndpoints:
         assert data[1]["name"] == f"module_01_{unique_test_id}"
 
         # Test second page
-        response = await async_client.get("/cc/modules?skip=2&limit=2")
+        response = await async_client.get("/v1/cc/modules?page=2&limit=2")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -132,12 +132,12 @@ class TestModuleRouterEndpoints:
         # Create a module first
         module_name = f"test_module_{unique_test_id}"
         module_data = {"name": module_name, "version": "1.0.0"}
-        create_response = await async_client.post("/cc/modules", json=module_data)
+        create_response = await async_client.post("/v1/cc/modules", json=module_data)
         assert create_response.status_code == 201
         created_module = create_response.json()
 
         # Get the module by ID
-        response = await async_client.get(f"/cc/modules/{created_module['id']}")
+        response = await async_client.get(f"/v1/cc/modules/{created_module['id']}")
 
         assert response.status_code == 200
         data = response.json()
@@ -148,7 +148,7 @@ class TestModuleRouterEndpoints:
     async def test_get_module_not_found(self, async_client: AsyncClient) -> None:
         """Test getting a module that doesn't exist."""
         fake_id = str(uuid4())
-        response = await async_client.get(f"/cc/modules/{fake_id}")
+        response = await async_client.get(f"/v1/cc/modules/{fake_id}")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
@@ -158,13 +158,13 @@ class TestModuleRouterEndpoints:
         # Create a module first
         module_name = f"test_module_{unique_test_id}"
         module_data = {"name": module_name, "version": "1.0.0"}
-        create_response = await async_client.post("/cc/modules", json=module_data)
+        create_response = await async_client.post("/v1/cc/modules", json=module_data)
         assert create_response.status_code == 201
         created_module = create_response.json()
 
         # Update the module
         update_data = {"version": "1.1.0", "active": False}
-        response = await async_client.patch(f"/cc/modules/{created_module['id']}", json=update_data)
+        response = await async_client.patch(f"/v1/cc/modules/{created_module['id']}", json=update_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -178,13 +178,13 @@ class TestModuleRouterEndpoints:
         # Create a module first
         module_name = f"test_module_{unique_test_id}"
         module_data = {"name": module_name, "version": "1.0.0"}
-        create_response = await async_client.post("/cc/modules", json=module_data)
+        create_response = await async_client.post("/v1/cc/modules", json=module_data)
         assert create_response.status_code == 201
         created_module = create_response.json()
 
         # Update only the version
         update_data = {"version": "1.2.0"}
-        response = await async_client.patch(f"/cc/modules/{created_module['id']}", json=update_data)
+        response = await async_client.patch(f"/v1/cc/modules/{created_module['id']}", json=update_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -196,7 +196,7 @@ class TestModuleRouterEndpoints:
         """Test updating a module that doesn't exist."""
         fake_id = str(uuid4())
         update_data = {"version": "1.1.0"}
-        response = await async_client.patch(f"/cc/modules/{fake_id}", json=update_data)
+        response = await async_client.patch(f"/v1/cc/modules/{fake_id}", json=update_data)
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
@@ -207,16 +207,16 @@ class TestModuleRouterEndpoints:
         module1_data = {"name": f"module_1_{unique_test_id}", "version": "1.0.0"}
         module2_data = {"name": f"module_2_{unique_test_id}", "version": "1.0.0"}
 
-        create_response1 = await async_client.post("/cc/modules", json=module1_data)
+        create_response1 = await async_client.post("/v1/cc/modules", json=module1_data)
         assert create_response1.status_code == 201
 
-        create_response2 = await async_client.post("/cc/modules", json=module2_data)
+        create_response2 = await async_client.post("/v1/cc/modules", json=module2_data)
         assert create_response2.status_code == 201
         module2 = create_response2.json()
 
         # Try to update module2's name to conflict with module1
         update_data = {"name": f"module_1_{unique_test_id}"}
-        response = await async_client.patch(f"/cc/modules/{module2['id']}", json=update_data)
+        response = await async_client.patch(f"/v1/cc/modules/{module2['id']}", json=update_data)
 
         assert response.status_code == 409
         assert "already exists" in response.json()["detail"]
@@ -226,25 +226,25 @@ class TestModuleRouterEndpoints:
         # Create a module first
         module_name = f"test_module_{unique_test_id}"
         module_data = {"name": module_name, "version": "1.0.0"}
-        create_response = await async_client.post("/cc/modules", json=module_data)
+        create_response = await async_client.post("/v1/cc/modules", json=module_data)
         assert create_response.status_code == 201
         created_module = create_response.json()
 
         # Delete the module
-        response = await async_client.delete(f"/cc/modules/{created_module['id']}")
+        response = await async_client.delete(f"/v1/cc/modules/{created_module['id']}")
 
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == created_module["id"]
 
         # Verify it's deleted by trying to get it
-        get_response = await async_client.get(f"/cc/modules/{created_module['id']}")
+        get_response = await async_client.get(f"/v1/cc/modules/{created_module['id']}")
         assert get_response.status_code == 404
 
     async def test_delete_module_not_found(self, async_client: AsyncClient) -> None:
         """Test deleting a module that doesn't exist."""
         fake_id = str(uuid4())
-        response = await async_client.delete(f"/cc/modules/{fake_id}")
+        response = await async_client.delete(f"/v1/cc/modules/{fake_id}")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
@@ -255,27 +255,27 @@ class TestModuleRouterEndpoints:
 
         # Create
         create_data = {"name": module_name, "version": "1.0.0"}
-        create_response = await async_client.post("/cc/modules", json=create_data)
+        create_response = await async_client.post("/v1/cc/modules", json=create_data)
         assert create_response.status_code == 201
         module = create_response.json()
 
         # Read
-        get_response = await async_client.get(f"/cc/modules/{module['id']}")
+        get_response = await async_client.get(f"/v1/cc/modules/{module['id']}")
         assert get_response.status_code == 200
         assert get_response.json()["name"] == module_name
 
         # Update
         update_data = {"version": "1.1.0", "active": False}
-        update_response = await async_client.patch(f"/cc/modules/{module['id']}", json=update_data)
+        update_response = await async_client.patch(f"/v1/cc/modules/{module['id']}", json=update_data)
         assert update_response.status_code == 200
         updated_module = update_response.json()
         assert updated_module["version"] == "1.1.0"
         assert updated_module["active"] is False
 
         # Delete
-        delete_response = await async_client.delete(f"/cc/modules/{module['id']}")
+        delete_response = await async_client.delete(f"/v1/cc/modules/{module['id']}")
         assert delete_response.status_code == 200
 
         # Verify deletion
-        final_get_response = await async_client.get(f"/cc/modules/{module['id']}")
+        final_get_response = await async_client.get(f"/v1/cc/modules/{module['id']}")
         assert final_get_response.status_code == 404

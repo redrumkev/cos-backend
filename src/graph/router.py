@@ -2,15 +2,38 @@
 
 This module provides REST API endpoints for graph operations,
 following the router pattern established in the cc module.
+
+Pattern Reference: router.py v3.0.0 (Research-Driven Implementation)
+Applied: create_module_router factory pattern
+Applied: RFC 9457 Problem Details for error responses
+Applied: Annotated[Type, Depends()] dependency injection
+Applied: ModuleDeps for bundled dependencies
+Applied: Request ID propagation for tracing
 """
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, Query, Request
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.common.config import Settings, get_settings
+from src.common.database import get_async_db
+from src.common.request_id_middleware import get_request_id
+from src.core_v2.patterns.error_handling import (
+    COSError,
+    ErrorCategory,
+    NotFoundError,
+    ValidationError,
+)
+from src.core_v2.patterns.router import (
+    ModuleDeps,
+    PaginationParams,
+    RateLimitConfig,
+    create_module_router,
+)
 from src.graph.base import Neo4jClient, get_async_neo4j
-from src.graph.registry import ModuleLabel, NodeType, RelationshipType
+from src.graph.registry import GraphRegistry, ModuleLabel, NodeType, RelationshipType
 from src.graph.service import GraphService
 
 
@@ -85,11 +108,13 @@ class HealthResponse(BaseModel):
     message: str
 
 
-# Create the router
-router = APIRouter(
+# Create the router with new pattern
+router = create_module_router(
     prefix="/graph",
-    tags=["graph"],
-    responses={404: {"description": "Not found"}},
+    module=ModuleLabel.TECH_CC,  # Graph operations are part of CC module
+    tags=["graph", "neo4j", "relationships"],
+    version="v1",
+    rate_limit=RateLimitConfig(requests_per_minute=200, burst_size=30),
 )
 
 
@@ -99,9 +124,30 @@ async def get_graph_service(client: Neo4jClient = Depends(get_async_neo4j)) -> G
     return GraphService(client)
 
 
+# Create module dependencies factory for this module
+async def get_module_deps(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    background_tasks: BackgroundTasks,
+) -> ModuleDeps:
+    """Get module dependencies instance."""
+    return ModuleDeps(
+        module=ModuleLabel.TECH_CC,
+        request=request,
+        db=db,
+        settings=settings,
+        background_tasks=background_tasks,
+        request_id=get_request_id(),
+    )
+
+
 # Health endpoints
 @router.get("/health", response_model=HealthResponse)
-async def health_check(client: Neo4jClient = Depends(get_async_neo4j)) -> HealthResponse:
+async def health_check(
+    client: Annotated[Neo4jClient, Depends(get_async_neo4j)],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
+) -> HealthResponse:
     """Check the health of the graph database connection."""
     try:
         is_connected = await client.verify_connectivity() if client.is_connected else False
@@ -120,18 +166,30 @@ async def health_check(client: Neo4jClient = Depends(get_async_neo4j)) -> Health
 
 
 @router.get("/stats", response_model=GraphStatsResponse)
-async def get_graph_stats(service: GraphService = Depends(get_graph_service)) -> GraphStatsResponse:
+async def get_graph_stats(
+    service: Annotated[GraphService, Depends(get_graph_service)],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
+) -> GraphStatsResponse:
     """Get statistics about the graph structure."""
     try:
         stats = await service.get_graph_stats()
         return GraphStatsResponse(success=True, data=stats, message="Graph statistics retrieved successfully")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get graph stats: {e!s}") from None
+        raise COSError(
+            message=f"Failed to get graph stats: {e!s}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"service": "neo4j"},
+            user_message="Unable to retrieve graph statistics",
+        ) from e
 
 
 # Node endpoints
 @router.post("/nodes", response_model=NodeResponse)
-async def create_node(node_data: NodeCreate, service: GraphService = Depends(get_graph_service)) -> NodeResponse:
+async def create_node(
+    node_data: NodeCreate,
+    service: Annotated[GraphService, Depends(get_graph_service)],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
+) -> NodeResponse:
     """Create a new node in the graph."""
     try:
         result = await service.create_node(
@@ -139,9 +197,14 @@ async def create_node(node_data: NodeCreate, service: GraphService = Depends(get
         )
         return NodeResponse(success=True, data=result, message=f"Created {node_data.node_type.value} node successfully")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise ValidationError(message=str(e), field="node_data", user_message=f"Invalid node data: {e}") from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create node: {e!s}") from None
+        raise COSError(
+            message=f"Failed to create node: {e!s}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"node_type": node_data.node_type.value},
+            user_message="Unable to create node in graph database",
+        ) from e
 
 
 @router.get("/nodes/{node_type}/{module}/{node_id}", response_model=NodeResponse)
@@ -149,19 +212,29 @@ async def get_node(
     node_type: NodeType,
     module: ModuleLabel,
     node_id: str | int,
-    service: GraphService = Depends(get_graph_service),
+    service: Annotated[GraphService, Depends(get_graph_service)],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> NodeResponse:
     """Get a specific node by its ID."""
     try:
         result = await service.get_node(node_type, module, node_id)
         if result is None:
-            raise HTTPException(status_code=404, detail="Node not found")
+            raise NotFoundError(
+                resource=f"{node_type.value} node",
+                identifier=node_id,
+                user_message=f"Node {node_id} not found in graph",
+            )
 
         return NodeResponse(success=True, data=result, message=f"Retrieved {node_type.value} node successfully")
-    except HTTPException:
+    except (NotFoundError, COSError):
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get node: {e!s}") from None
+        raise COSError(
+            message=f"Failed to get node: {e!s}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"node_type": node_type.value, "node_id": str(node_id)},
+            user_message="Unable to retrieve node from graph database",
+        ) from e
 
 
 @router.put("/nodes/{node_type}/{module}/{node_id}", response_model=NodeResponse)
@@ -170,19 +243,29 @@ async def update_node(
     module: ModuleLabel,
     node_id: str | int,
     node_data: NodeUpdate,
-    service: GraphService = Depends(get_graph_service),
+    service: Annotated[GraphService, Depends(get_graph_service)],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> NodeResponse:
     """Update an existing node."""
     try:
         result = await service.update_node(node_type, module, node_id, node_data.properties)
         if result is None:
-            raise HTTPException(status_code=404, detail="Node not found")
+            raise NotFoundError(
+                resource=f"{node_type.value} node",
+                identifier=node_id,
+                user_message=f"Node {node_id} not found in graph",
+            )
 
         return NodeResponse(success=True, data=result, message=f"Updated {node_type.value} node successfully")
-    except HTTPException:
+    except (NotFoundError, COSError):
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update node: {e!s}") from None
+        raise COSError(
+            message=f"Failed to update node: {e!s}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"node_type": node_type.value, "node_id": str(node_id)},
+            user_message="Unable to update node in graph database",
+        ) from e
 
 
 @router.delete("/nodes/{node_type}/{module}/{node_id}", response_model=NodeResponse)
@@ -190,63 +273,95 @@ async def delete_node(
     node_type: NodeType,
     module: ModuleLabel,
     node_id: str | int,
-    delete_relationships: bool = Query(True, description="Whether to delete relationships as well"),
-    service: GraphService = Depends(get_graph_service),
+    service: Annotated[GraphService, Depends(get_graph_service)],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
+    delete_relationships: Annotated[bool, Query(description="Whether to delete relationships as well")] = True,
 ) -> NodeResponse:
     """Delete a node from the graph."""
     try:
         success = await service.delete_node(node_type, module, node_id, delete_relationships)
         if not success:
-            raise HTTPException(status_code=404, detail="Node not found")
+            raise NotFoundError(
+                resource=f"{node_type.value} node",
+                identifier=node_id,
+                user_message=f"Node {node_id} not found in graph",
+            )
 
         return NodeResponse(success=True, data=None, message=f"Deleted {node_type.value} node successfully")
-    except HTTPException:
+    except (NotFoundError, COSError):
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete node: {e!s}") from None
+        raise COSError(
+            message=f"Failed to delete node: {e!s}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={
+                "node_type": node_type.value,
+                "node_id": str(node_id),
+                "delete_relationships": delete_relationships,
+            },
+            user_message="Unable to delete node from graph database",
+        ) from e
 
 
 @router.get("/nodes/{node_type}/{module}", response_model=NodesResponse)
 async def get_nodes_by_property(
     node_type: NodeType,
     module: ModuleLabel,
-    property_name: str = Query(..., description="Property name to filter by"),
-    property_value: str = Query(..., description="Property value to match"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of results"),
-    service: GraphService = Depends(get_graph_service),
+    property_name: Annotated[str, Query(description="Property name to filter by")],
+    property_value: Annotated[str, Query(description="Property value to match")],
+    pagination: Annotated[PaginationParams, Depends()],
+    service: Annotated[GraphService, Depends(get_graph_service)],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> NodesResponse:
     """Get nodes by a specific property value."""
     try:
-        results = await service.get_nodes_by_property(node_type, module, property_name, property_value, limit)
+        results = await service.get_nodes_by_property(
+            node_type, module, property_name, property_value, pagination.limit
+        )
         return NodesResponse(
             success=True, data=results, count=len(results), message=f"Retrieved {len(results)} {node_type.value} nodes"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get nodes: {e!s}") from None
+        raise COSError(
+            message=f"Failed to get nodes: {e!s}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"node_type": node_type.value, "property_name": property_name, "property_value": property_value},
+            user_message="Unable to search nodes by property",
+        ) from e
 
 
 @router.get("/search", response_model=NodesResponse)
 async def search_nodes(
-    node_type: NodeType | None = Query(None, description="Filter by node type"),
-    module: ModuleLabel | None = Query(None, description="Filter by module"),
-    search_text: str | None = Query(None, description="Text to search in node properties"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of results"),
-    service: GraphService = Depends(get_graph_service),
+    pagination: Annotated[PaginationParams, Depends()],
+    service: Annotated[GraphService, Depends(get_graph_service)],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
+    node_type: Annotated[NodeType | None, Query(description="Filter by node type")] = None,
+    module: Annotated[ModuleLabel | None, Query(description="Filter by module")] = None,
+    search_text: Annotated[str | None, Query(description="Text to search in node properties")] = None,
 ) -> NodesResponse:
     """Search for nodes with flexible criteria."""
     try:
-        results = await service.search_nodes(node_type=node_type, module=module, search_text=search_text, limit=limit)
+        results = await service.search_nodes(
+            node_type=node_type, module=module, search_text=search_text, limit=pagination.limit
+        )
         return NodesResponse(
             success=True, data=results, count=len(results), message=f"Found {len(results)} matching nodes"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to search nodes: {e!s}") from None
+        raise COSError(
+            message=f"Failed to search nodes: {e!s}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"search_text": search_text, "filters": {"node_type": node_type, "module": module}},
+            user_message="Unable to search nodes in graph database",
+        ) from e
 
 
 # Relationship endpoints
 @router.post("/relationships", response_model=RelationshipResponse)
 async def create_relationship(
-    rel_data: RelationshipCreate, service: GraphService = Depends(get_graph_service)
+    rel_data: RelationshipCreate,
+    service: Annotated[GraphService, Depends(get_graph_service)],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
 ) -> RelationshipResponse:
     """Create a relationship between two nodes."""
     try:
@@ -264,7 +379,16 @@ async def create_relationship(
             success=True, data=result, message=f"Created {rel_data.relationship_type.value} relationship successfully"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create relationship: {e!s}") from None
+        raise COSError(
+            message=f"Failed to create relationship: {e!s}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={
+                "relationship_type": rel_data.relationship_type.value,
+                "from_node": str(rel_data.from_node_id),
+                "to_node": str(rel_data.to_node_id),
+            },
+            user_message="Unable to create relationship in graph database",
+        ) from e
 
 
 @router.get("/nodes/{node_type}/{module}/{node_id}/relationships", response_model=list[dict[str, Any]])
@@ -272,22 +396,28 @@ async def get_node_relationships(
     node_type: NodeType,
     module: ModuleLabel,
     node_id: str | int,
-    direction: str = Query("both", regex="^(in|out|both)$", description="Direction of relationships"),
-    relationship_type: RelationshipType | None = Query(None, description="Filter by relationship type"),
-    service: GraphService = Depends(get_graph_service),
+    service: Annotated[GraphService, Depends(get_graph_service)],
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
+    direction: Annotated[str, Query(pattern="^(in|out|both)$", description="Direction of relationships")] = "both",
+    relationship_type: Annotated[RelationshipType | None, Query(description="Filter by relationship type")] = None,
 ) -> list[dict[str, Any]]:
     """Get all relationships for a specific node."""
     try:
         results = await service.get_node_relationships(node_id, node_type, module, direction, relationship_type)
         return results
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get relationships: {e!s}") from None
+        raise COSError(
+            message=f"Failed to get relationships: {e!s}",
+            category=ErrorCategory.EXTERNAL_SERVICE,
+            details={"node_id": str(node_id), "node_type": node_type.value, "direction": direction},
+            user_message="Unable to retrieve node relationships from graph database",
+        ) from e
 
 
 # Schema information endpoints
 @router.get("/schema")
-async def get_schema_info() -> dict[str, Any]:
+async def get_schema_info(
+    deps: Annotated[ModuleDeps, Depends(get_module_deps)],
+) -> dict[str, Any]:
     """Get schema information about available node types, modules, and relationships."""
-    from src.graph.registry import GraphRegistry
-
     return GraphRegistry.get_schema_info()

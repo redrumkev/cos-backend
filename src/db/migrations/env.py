@@ -81,9 +81,7 @@ if not migrate_url:
     migrate_url = dev_url.replace("+asyncpg", "+psycopg") if dev_url and "+asyncpg" in dev_url else dev_url
 
 if not migrate_url:
-    raise RuntimeError(
-        "No database URL found for Alembic migrations. " "Checked: POSTGRES_MIGRATE_URL, POSTGRES_DEV_URL"
-    )
+    raise RuntimeError("No database URL found for Alembic migrations. Checked: POSTGRES_MIGRATE_URL, POSTGRES_DEV_URL")
 
 logger.info("Using migration URL: %s", migrate_url.replace(migrate_url.split("@")[0].split("//")[1], "***"))
 config.set_main_option("sqlalchemy.url", migrate_url)
