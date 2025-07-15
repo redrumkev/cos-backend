@@ -11,9 +11,11 @@ Applied: ModuleDeps for bundled dependencies
 Applied: Request ID propagation for tracing
 """
 
+import copy
 from typing import Annotated, Any
 
 from fastapi import BackgroundTasks, Depends, Query, Request
+from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,12 +110,21 @@ class HealthResponse(BaseModel):
     message: str
 
 
-# Create the router with new pattern
+# Create the router with new pattern (versioned for main app)
 router = create_module_router(
     prefix="/graph",
     module=ModuleLabel.TECH_CC,  # Graph operations are part of CC module
     tags=["graph", "neo4j", "relationships"],
     version="v1",
+    rate_limit=RateLimitConfig(requests_per_minute=200, burst_size=30),
+)
+
+# Create non-versioned router for testing purposes
+router_test = create_module_router(
+    prefix="/graph",
+    module=ModuleLabel.TECH_CC,  # Graph operations are part of CC module
+    tags=["graph", "neo4j", "relationships"],
+    version=None,  # No version for testing
     rate_limit=RateLimitConfig(requests_per_minute=200, burst_size=30),
 )
 
@@ -421,3 +432,20 @@ async def get_schema_info(
 ) -> dict[str, Any]:
     """Get schema information about available node types, modules, and relationships."""
     return GraphRegistry.get_schema_info()
+
+
+# Copy all routes from the main router to the test router
+# This ensures both routers have identical route definitions
+# We need to create new routes with modified paths (remove /v1 prefix)
+for route in router.routes:
+    if (
+        hasattr(route, "path")
+        and hasattr(route, "methods")
+        and isinstance(route, APIRoute)
+        and route.path.startswith("/v1/graph/")
+    ):
+        # Create a new route with the non-versioned path
+        new_route = copy.copy(route)
+        new_route.path = route.path.replace("/v1/graph/", "/graph/")
+        new_route.path_regex = None  # type: ignore  # Let FastAPI regenerate the path regex
+        router_test.routes.append(new_route)

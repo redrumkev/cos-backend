@@ -17,8 +17,9 @@ from src.common.logger import log_event
 from src.common.request_id_middleware import RequestIDMiddleware
 from src.graph.base import close_neo4j_connections
 from src.graph.router import router as graph_router
+from src.graph.router import router_test as graph_router_test
 
-from .router import router
+from .router import router, router_test
 
 # Initialize logging for this module
 logger = logging.getLogger(__name__)
@@ -182,11 +183,11 @@ cc_app = FastAPI(
 # Add middleware in proper order: RequestID first, then Logfire instrumentation happens in lifespan
 cc_app.add_middleware(RequestIDMiddleware)
 
-# Include the routers with prefix
-cc_app.include_router(router, prefix="/cc", tags=["cc"])
-cc_app.include_router(graph_router, tags=["graph"])
+# Include the routers (use non-versioned routers for testing)
+cc_app.include_router(router_test, tags=["cc"])
+cc_app.include_router(graph_router_test, tags=["graph"])
 
-# Entry router for use by main application
+# Entry router for use by main application (use versioned router)
 cc_router = APIRouter()
-cc_router.include_router(router, prefix="/cc", tags=["cc"])
+cc_router.include_router(router, tags=["cc"])
 cc_router.include_router(graph_router, tags=["graph"])

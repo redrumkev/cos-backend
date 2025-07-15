@@ -12,11 +12,13 @@ Applied: Request ID propagation for tracing
 """
 
 # MDC: cc_module
+import copy
 import time
 import uuid
 from typing import Annotated, Any
 
 from fastapi import BackgroundTasks, Depends, Request, status
+from fastapi.routing import APIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backend.cc.logging import log_l1
@@ -68,7 +70,7 @@ from .services import get_modules as service_get_modules
 from .services import read_system_health
 from .services import update_module as service_update_module
 
-# Create router with new pattern
+# Create router with new pattern (versioned for main app)
 router = create_module_router(
     prefix="/cc",
     module=ModuleLabel.TECH_CC,
@@ -77,8 +79,18 @@ router = create_module_router(
     rate_limit=RateLimitConfig(requests_per_minute=300, burst_size=50),
 )
 
-# Mount mem0 scratch data router
+# Create non-versioned router for testing purposes
+router_test = create_module_router(
+    prefix="/cc",
+    module=ModuleLabel.TECH_CC,
+    tags=["control-center", "health", "monitoring"],
+    version=None,  # No version for testing
+    rate_limit=RateLimitConfig(requests_per_minute=300, burst_size=50),
+)
+
+# Mount mem0 scratch data router on both routers
 router.include_router(mem0_router, prefix="/mem0", tags=["mem0"])
+router_test.include_router(mem0_router, prefix="/mem0", tags=["mem0"])
 
 
 # Create module dependencies factory for this module
@@ -888,3 +900,21 @@ async def delete_module(
         raise NotFoundError("Module", module_id)
 
     return Module.model_validate(module)
+
+
+# Copy all routes from the main router to the test router
+# This ensures both routers have identical route definitions
+# We need to create new routes with modified paths (remove /v1 prefix)
+for route in router.routes:
+    if (
+        hasattr(route, "path")
+        and hasattr(route, "methods")
+        and isinstance(route, APIRoute)
+        and route.path.startswith("/v1/cc/")
+        and not route.path.startswith("/v1/cc/mem0/")
+    ):
+        # Create a new route with the non-versioned path
+        new_route = copy.copy(route)
+        new_route.path = route.path.replace("/v1/cc/", "/cc/")
+        new_route.path_regex = None  # type: ignore  # Let FastAPI regenerate the path regex
+        router_test.routes.append(new_route)

@@ -17,7 +17,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 from httpx import AsyncClient
 
 from src.backend.cc.schemas import (
@@ -32,7 +31,7 @@ class TestRouterCoverageEnhanced:
     async def test_enhanced_health_check_circuit_breaker_open(self, async_client: AsyncClient) -> None:
         """Test enhanced health check with circuit breaker open state."""
         # Test the enhanced health check endpoint that returns mock circuit breaker data
-        response = await async_client.get("/cc/health/enhanced")
+        response = await async_client.get("/v1/cc/health/enhanced")
 
         assert response.status_code == 200
         data = response.json()
@@ -53,7 +52,7 @@ class TestRouterCoverageEnhanced:
     async def test_enhanced_health_check_high_dlq_size(self, async_client: AsyncClient) -> None:
         """Test enhanced health check with high DLQ size for degraded status."""
         # The implementation uses mock data, so we're testing the structure
-        response = await async_client.get("/cc/health/enhanced")
+        response = await async_client.get("/v1/cc/health/enhanced")
 
         assert response.status_code == 200
         data = response.json()
@@ -77,7 +76,7 @@ class TestRouterCoverageEnhanced:
         """Test metrics endpoint basic accessibility."""
         # Test that we can access metrics endpoint successfully
         # Note: We only test once to avoid registry conflicts
-        response = await async_client.get("/cc/metrics")
+        response = await async_client.get("/v1/cc/metrics")
 
         assert response.status_code == 200
         content = response.text
@@ -94,7 +93,7 @@ class TestRouterCoverageEnhanced:
             "trace_id": str(uuid4()),
         }
 
-        response = await async_client.post("/cc/debug/log", json=request_data)
+        response = await async_client.post("/v1/cc/debug/log", json=request_data)
 
         assert response.status_code == 201
         data = response.json()
@@ -116,7 +115,7 @@ class TestRouterCoverageEnhanced:
         # Send invalid request data (missing required fields)
         request_data: dict[str, Any] = {}  # Completely empty request should cause validation error
 
-        response = await async_client.post("/cc/debug/log", json=request_data)
+        response = await async_client.post("/v1/cc/debug/log", json=request_data)
 
         assert response.status_code == 422  # Validation error
 
@@ -131,15 +130,15 @@ class TestRouterCoverageEnhanced:
                 "payload": {"test": "data"},
             }
 
-            response = await async_client.post("/cc/debug/log", json=request_data)
+            response = await async_client.post("/v1/cc/debug/log", json=request_data)
 
             assert response.status_code == 500
             data = response.json()
-            assert "Failed to create debug log" in data["detail"]
+            assert "Unable to create debug log entry" in data["detail"]
 
     async def test_redis_health_check_success(self, async_client: AsyncClient) -> None:
         """Test Redis health check endpoint with successful connection."""
-        response = await async_client.get("/cc/debug/redis-health")
+        response = await async_client.get("/v1/cc/debug/redis-health")
 
         assert response.status_code == 200
         data = response.json()
@@ -165,7 +164,7 @@ class TestRouterCoverageEnhanced:
         with patch("src.common.pubsub.get_pubsub") as mock_pubsub:
             mock_pubsub.side_effect = Exception("Redis connection failed")
 
-            response = await async_client.get("/cc/debug/redis-health")
+            response = await async_client.get("/v1/cc/debug/redis-health")
 
             assert response.status_code == 200  # Endpoint handles errors gracefully
             data = response.json()
@@ -179,7 +178,7 @@ class TestRouterCoverageEnhanced:
         """Test ping endpoint with different module scenarios."""
         # Test with known module
         request_data = {"module": "cc"}
-        response = await async_client.post("/cc/ping", json=request_data)
+        response = await async_client.post("/v1/cc/ping", json=request_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -189,7 +188,7 @@ class TestRouterCoverageEnhanced:
 
         # Test with unknown module
         request_data = {"module": "unknown_module"}
-        response = await async_client.post("/cc/ping", json=request_data)
+        response = await async_client.post("/v1/cc/ping", json=request_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -199,7 +198,7 @@ class TestRouterCoverageEnhanced:
 
     async def test_config_endpoint_response_structure(self, async_client: AsyncClient) -> None:
         """Test config endpoint response structure."""
-        response = await async_client.get("/cc/config")
+        response = await async_client.get("/v1/cc/config")
 
         assert response.status_code == 200
         data = response.json()
@@ -213,7 +212,7 @@ class TestRouterCoverageEnhanced:
 
     async def test_status_endpoint_response(self, async_client: AsyncClient) -> None:
         """Test status endpoint response."""
-        response = await async_client.get("/cc/status")
+        response = await async_client.get("/v1/cc/status")
 
         assert response.status_code == 200
         data = response.json()
@@ -223,7 +222,7 @@ class TestRouterCoverageEnhanced:
 
     async def test_system_health_report_structure(self, async_client: AsyncClient) -> None:
         """Test system health report endpoint structure."""
-        response = await async_client.get("/cc/system/health")
+        response = await async_client.get("/v1/cc/system/health")
 
         assert response.status_code == 200
         data = response.json()
@@ -242,11 +241,11 @@ class TestRouterCoverageEnhanced:
         with patch("src.backend.cc.router.read_system_health") as mock_health:
             mock_health.return_value = None
 
-            response = await async_client.get("/cc/health")
+            response = await async_client.get("/v1/cc/health")
 
             assert response.status_code == 404
             data = response.json()
-            assert "no health record yet" in data["detail"]
+            assert "No health record available yet" in data["detail"]
 
     async def test_module_endpoints_error_handling(self, async_client: AsyncClient, unique_test_id: str) -> None:
         """Test module endpoints error handling paths."""
@@ -259,7 +258,7 @@ class TestRouterCoverageEnhanced:
                 "version": "1.0.0",
             }
 
-            response = await async_client.post("/cc/modules", json=module_data)
+            response = await async_client.post("/v1/cc/modules", json=module_data)
 
             assert response.status_code == 409
             data = response.json()
@@ -273,7 +272,7 @@ class TestRouterCoverageEnhanced:
             "version": "1.0.0",
         }
 
-        create_response = await async_client.post("/cc/modules", json=module_data)
+        create_response = await async_client.post("/v1/cc/modules", json=module_data)
         assert create_response.status_code == 201
         module = create_response.json()
 
@@ -282,16 +281,16 @@ class TestRouterCoverageEnhanced:
             mock_update.side_effect = ValueError("Invalid update data")
 
             update_data = {"version": "2.0.0"}
-            response = await async_client.patch(f"/cc/modules/{module['id']}", json=update_data)
+            response = await async_client.patch(f"/v1/cc/modules/{module['id']}", json=update_data)
 
-            assert response.status_code == 409
+            assert response.status_code == 400  # ValidationError returns 400
             data = response.json()
             assert "Invalid update data" in data["detail"]
 
     async def test_router_includes_mem0_router(self, async_client: AsyncClient) -> None:
         """Test that router includes mem0 router endpoints."""
         # Test that mem0 endpoints are accessible through the main router
-        response = await async_client.get("/cc/mem0/notes")
+        response = await async_client.get("/v1/cc/mem0/notes")
 
         # Should return 200 (empty list) - mem0 endpoints should be accessible
         # Note: This test may depend on proper database setup and mem0 configuration
@@ -363,13 +362,15 @@ class TestRouterDirectCoverageEnhanced:
         )
         mock_db = MagicMock()
 
-        # Call the function and expect HTTPException
-        with pytest.raises(HTTPException) as exc_info:
+        # Call the function and expect COSError
+        from src.core_v2.patterns.error_handling import COSError
+
+        with pytest.raises(COSError) as exc_info:
             await create_debug_log(request, mock_db)
 
-        # Should raise 500 error
-        assert exc_info.value.status_code == 500
-        assert "Failed to create debug log" in str(exc_info.value.detail)
+        # Should raise COSError with proper message
+        assert "Failed to create debug log" in str(exc_info.value)
+        assert "Database error" in str(exc_info.value)
         mock_log_event.assert_called()  # Should log the error
 
     @patch("src.common.pubsub.get_pubsub")

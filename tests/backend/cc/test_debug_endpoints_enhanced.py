@@ -33,7 +33,7 @@ class TestEnhancedDebugLogEndpoint:
                 "payload": {"test_key": "test_value"},
             }
 
-            response = test_client.post("/cc/debug/log", json=request_data)
+            response = test_client.post("/v1/cc/debug/log", json=request_data)
 
             # Enhanced response should include Redis validation fields
             assert response.status_code == STATUS_CREATED
@@ -66,7 +66,7 @@ class TestEnhancedDebugLogEndpoint:
                 "payload": {"test": "data"},
             }
 
-            response = test_client.post("/cc/debug/log", json=request_data)
+            response = test_client.post("/v1/cc/debug/log", json=request_data)
 
             assert response.status_code == STATUS_CREATED  # Should still succeed
             result = response.json()
@@ -92,7 +92,7 @@ class TestEnhancedDebugLogEndpoint:
                 "trace_id": "trace-456",
             }
 
-            response = test_client.post("/cc/debug/log", json=request_data)
+            response = test_client.post("/v1/cc/debug/log", json=request_data)
 
             assert response.status_code == STATUS_CREATED
             result = response.json()
@@ -107,7 +107,7 @@ class TestRedisHealthEndpoint:
 
     def test_redis_health_endpoint_exists(self, test_client: TestClient) -> None:
         """Test that /debug/redis-health endpoint exists and responds."""
-        response = test_client.get("/cc/debug/redis-health")
+        response = test_client.get("/v1/cc/debug/redis-health")
 
         # Should exist (not 404) - may be 500 if Redis unavailable, but should exist
         assert response.status_code != STATUS_NOT_FOUND
@@ -131,7 +131,7 @@ class TestRedisHealthEndpoint:
             }
             mock_redis.connection_pool.connection_kwargs = {"max_connections": 10}
 
-            response = test_client.get("/cc/debug/redis-health")
+            response = test_client.get("/v1/cc/debug/redis-health")
 
             assert response.status_code == STATUS_OK
             result = response.json()
@@ -166,7 +166,7 @@ class TestRedisHealthEndpoint:
             mock_pubsub.circuit_breaker = mock_circuit_breaker
             mock_get_pubsub.return_value = mock_pubsub
 
-            response = test_client.get("/cc/debug/redis-health")
+            response = test_client.get("/v1/cc/debug/redis-health")
 
             assert response.status_code == STATUS_OK
             result = response.json()
@@ -182,7 +182,7 @@ class TestRedisHealthEndpoint:
         with patch("src.common.pubsub.get_pubsub") as mock_get_pubsub:
             mock_get_pubsub.side_effect = Exception("Redis connection failed")
 
-            response = test_client.get("/cc/debug/redis-health")
+            response = test_client.get("/v1/cc/debug/redis-health")
 
             assert response.status_code == STATUS_OK  # Should return health status even if Redis is down
             result = response.json()
@@ -231,7 +231,7 @@ class TestRedisHealthEndpoint:
             # Mock timing for ping operation
             mock_redis.ping.return_value = True
 
-            response = test_client.get("/cc/debug/redis-health")
+            response = test_client.get("/v1/cc/debug/redis-health")
 
             assert response.status_code == STATUS_OK
             result = response.json()
@@ -283,7 +283,7 @@ class TestRedisHealthAggregation:
             mock_redis.ping.return_value = True
             mock_get_pubsub.return_value = mock_pubsub
 
-            response = test_client.get("/cc/debug/redis-health")
+            response = test_client.get("/v1/cc/debug/redis-health")
 
             assert response.status_code == STATUS_OK
             result = response.json()
@@ -326,7 +326,7 @@ class TestRedisHealthAggregation:
             mock_redis.ping.return_value = True
             mock_get_pubsub.return_value = mock_pubsub
 
-            response = test_client.get("/cc/debug/redis-health")
+            response = test_client.get("/v1/cc/debug/redis-health")
 
             assert response.status_code == STATUS_OK
             result = response.json()
@@ -339,7 +339,7 @@ class TestRedisHealthAggregation:
             mock_pubsub.is_connected = False
             mock_get_pubsub.return_value = mock_pubsub
 
-            response = test_client.get("/cc/debug/redis-health")
+            response = test_client.get("/v1/cc/debug/redis-health")
 
             assert response.status_code == STATUS_OK
             result = response.json()

@@ -27,7 +27,7 @@ class TestMem0Router:
         """Test POST /scratch/notes endpoint."""
         data = {"key": "api_test", "content": "api content", "ttl_days": 7}
 
-        response = await async_client.post("/cc/mem0/scratch/notes", json=data)
+        response = await async_client.post("/v1/cc/mem0/scratch/notes", json=data)
 
         assert response.status_code == 200
         result = response.json()
@@ -42,7 +42,7 @@ class TestMem0Router:
             "content": "content",
         }
 
-        response = await async_client.post("/cc/mem0/scratch/notes", json=data)
+        response = await async_client.post("/v1/cc/mem0/scratch/notes", json=data)
 
         assert response.status_code == 422  # FastAPI validation returns 422, not 400
         assert "string_too_short" in response.json()["detail"][0]["type"]
@@ -63,7 +63,7 @@ class TestMem0Router:
         with patch("src.backend.cc.mem0_service.create_note", side_effect=ValueError("Custom business rule violation")):
             data = {"key": "test_key", "content": "test content"}
 
-            response = await async_client.post("/cc/mem0/scratch/notes", json=data)
+            response = await async_client.post("/v1/cc/mem0/scratch/notes", json=data)
 
             # The ValueError is caught and converted to HTTPException 400
             assert response.status_code == 400
@@ -79,7 +79,7 @@ class TestMem0Router:
         with patch("src.backend.cc.mem0_service.create_note", side_effect=Exception("Database error")):
             data = {"key": "error_test", "content": "content"}
 
-            response = await async_client.post("/cc/mem0/scratch/notes", json=data)
+            response = await async_client.post("/v1/cc/mem0/scratch/notes", json=data)
 
             assert response.status_code == 500
             assert "Failed to create note" in response.json()["detail"]
@@ -92,7 +92,7 @@ class TestMem0Router:
         await db_session.commit()
         await db_session.refresh(note)
 
-        response = await async_client.get(f"/cc/mem0/scratch/notes/{note.id}")
+        response = await async_client.get(f"/v1/cc/mem0/scratch/notes/{note.id}")
 
         assert response.status_code == 200
         result = response.json()
@@ -101,7 +101,7 @@ class TestMem0Router:
 
     async def test_get_note_by_id_not_found(self, async_client: AsyncClient) -> None:
         """Test GET /scratch/notes/{note_id} with non-existent ID."""
-        response = await async_client.get("/cc/mem0/scratch/notes/99999")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes/99999")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Note not found"
@@ -113,7 +113,7 @@ class TestMem0Router:
         db_session.add(note)
         await db_session.commit()
 
-        response = await async_client.get("/cc/mem0/scratch/notes/key/key_api_test")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes/key/key_api_test")
 
         assert response.status_code == 200
         result = response.json()
@@ -121,7 +121,7 @@ class TestMem0Router:
 
     async def test_get_note_by_key_not_found(self, async_client: AsyncClient) -> None:
         """Test GET /scratch/notes/key/{key} with non-existent key."""
-        response = await async_client.get("/cc/mem0/scratch/notes/key/nonexistent")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes/key/nonexistent")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Note not found"
@@ -134,7 +134,7 @@ class TestMem0Router:
         db_session.add_all([note1, note2])
         await db_session.commit()
 
-        response = await async_client.get("/cc/mem0/scratch/notes")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes")
 
         assert response.status_code == 200
         result = response.json()
@@ -151,7 +151,7 @@ class TestMem0Router:
         await db_session.commit()
 
         # Test with key prefix filter
-        response = await async_client.get("/cc/mem0/scratch/notes?key_prefix=filter_&limit=10&offset=0")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes?key_prefix=filter_&limit=10&offset=0")
 
         assert response.status_code == 200
         result = response.json()
@@ -171,7 +171,7 @@ class TestMem0Router:
         await db_session.commit()
 
         # Test excluding expired
-        response = await async_client.get("/cc/mem0/scratch/notes?include_expired=false")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes?include_expired=false")
 
         assert response.status_code == 200
         result = response.json()
@@ -179,7 +179,7 @@ class TestMem0Router:
         assert "test_router_expired_api" not in keys
 
         # Test including expired
-        response = await async_client.get("/cc/mem0/scratch/notes?include_expired=true")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes?include_expired=true")
 
         assert response.status_code == 200
         result = response.json()
@@ -197,7 +197,7 @@ class TestMem0Router:
         # Update it
         update_data = {"content": "updated content", "ttl_days": 5}
 
-        response = await async_client.put(f"/cc/mem0/scratch/notes/{note.id}", json=update_data)
+        response = await async_client.put(f"/v1/cc/mem0/scratch/notes/{note.id}", json=update_data)
 
         assert response.status_code == 200
         result = response.json()
@@ -208,7 +208,7 @@ class TestMem0Router:
         """Test PUT /scratch/notes/{note_id} with non-existent ID."""
         update_data = {"content": "updated content"}
 
-        response = await async_client.put("/cc/mem0/scratch/notes/99999", json=update_data)
+        response = await async_client.put("/v1/cc/mem0/scratch/notes/99999", json=update_data)
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Note not found"
@@ -221,7 +221,7 @@ class TestMem0Router:
         await db_session.commit()
         await db_session.refresh(note)
 
-        response = await async_client.delete(f"/cc/mem0/scratch/notes/{note.id}")
+        response = await async_client.delete(f"/v1/cc/mem0/scratch/notes/{note.id}")
 
         assert response.status_code == 200
         result = response.json()
@@ -229,7 +229,7 @@ class TestMem0Router:
 
     async def test_delete_note_not_found(self, async_client: AsyncClient) -> None:
         """Test DELETE /scratch/notes/{note_id} with non-existent ID."""
-        response = await async_client.delete("/cc/mem0/scratch/notes/99999")
+        response = await async_client.delete("/v1/cc/mem0/scratch/notes/99999")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Note not found"
@@ -251,7 +251,7 @@ class TestMem0Router:
 
         await db_session.commit()
 
-        response = await async_client.get("/cc/mem0/scratch/stats")
+        response = await async_client.get("/v1/cc/mem0/scratch/stats")
 
         assert response.status_code == 200
         result = response.json()
@@ -275,7 +275,7 @@ class TestMem0Router:
 
         await db_session.commit()
 
-        response = await async_client.post("/cc/mem0/scratch/cleanup")
+        response = await async_client.post("/v1/cc/mem0/scratch/cleanup")
 
         assert response.status_code == 200
         result = response.json()
@@ -284,7 +284,7 @@ class TestMem0Router:
 
     async def test_trigger_cleanup_background_endpoint(self, async_client: AsyncClient) -> None:
         """Test POST /scratch/cleanup/background endpoint."""
-        response = await async_client.post("/cc/mem0/scratch/cleanup/background")
+        response = await async_client.post("/v1/cc/mem0/scratch/cleanup/background")
 
         assert response.status_code == 200
         result = response.json()
@@ -292,7 +292,7 @@ class TestMem0Router:
 
     async def test_collect_stats_background_endpoint(self, async_client: AsyncClient) -> None:
         """Test POST /scratch/stats/background endpoint."""
-        response = await async_client.post("/cc/mem0/scratch/stats/background")
+        response = await async_client.post("/v1/cc/mem0/scratch/stats/background")
 
         assert response.status_code == 200
         result = response.json()
@@ -301,7 +301,7 @@ class TestMem0Router:
     async def test_router_prefix_and_tags(self, async_client: AsyncClient) -> None:
         """Test that router has correct prefix and tags."""
         # This test verifies the router configuration
-        response = await async_client.get("/cc/mem0/scratch/stats")
+        response = await async_client.get("/v1/cc/mem0/scratch/stats")
 
         # Should work with the prefix
         assert response.status_code == 200
@@ -313,21 +313,21 @@ class TestMem0Router:
     async def test_query_parameter_validation(self, async_client: AsyncClient) -> None:
         """Test query parameter validation."""
         # Test invalid limit
-        response = await async_client.get("/cc/mem0/scratch/notes?limit=0")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes?limit=0")
         assert response.status_code == 422  # Validation error
 
         # Test invalid offset
-        response = await async_client.get("/cc/mem0/scratch/notes?offset=-1")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes?offset=-1")
         assert response.status_code == 422  # Validation error
 
         # Test limit too high
-        response = await async_client.get("/cc/mem0/scratch/notes?limit=2000")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes?limit=2000")
         assert response.status_code == 422  # Validation error
 
     async def test_request_body_validation(self, async_client: AsyncClient) -> None:
         """Test request body validation."""
         # Test missing required fields
-        response = await async_client.post("/cc/mem0/scratch/notes", json={})
+        response = await async_client.post("/v1/cc/mem0/scratch/notes", json={})
         assert response.status_code == 422  # Validation error
 
         # Test invalid data types
@@ -336,7 +336,7 @@ class TestMem0Router:
             "content": "content",
             "ttl_days": "invalid",  # Should be int
         }
-        response = await async_client.post("/cc/mem0/scratch/notes", json=invalid_data)
+        response = await async_client.post("/v1/cc/mem0/scratch/notes", json=invalid_data)
         assert response.status_code == 422  # Validation error
 
     async def test_response_model_validation(self, async_client: AsyncClient, db_session: AsyncSession) -> None:
@@ -344,7 +344,7 @@ class TestMem0Router:
         # Create a note
         data = {"key": "schema_test", "content": "schema content"}
 
-        response = await async_client.post("/cc/mem0/scratch/notes", json=data)
+        response = await async_client.post("/v1/cc/mem0/scratch/notes", json=data)
 
         assert response.status_code == 200
         result = response.json()
@@ -357,13 +357,13 @@ class TestMem0Router:
     async def test_error_handling_consistency(self, async_client: AsyncClient) -> None:
         """Test that error responses are consistent."""
         # Test 404 error format
-        response = await async_client.get("/cc/mem0/scratch/notes/99999")
+        response = await async_client.get("/v1/cc/mem0/scratch/notes/99999")
         assert response.status_code == 404
         error_response = response.json()
         assert "detail" in error_response
 
         # Test 422 validation error format (FastAPI returns 422 for validation errors)
-        response = await async_client.post("/cc/mem0/scratch/notes", json={"key": "", "content": "test"})
+        response = await async_client.post("/v1/cc/mem0/scratch/notes", json={"key": "", "content": "test"})
         assert response.status_code == 422
         error_response = response.json()
         assert "detail" in error_response
@@ -371,7 +371,7 @@ class TestMem0Router:
     async def test_background_task_integration(self, async_client: AsyncClient) -> None:
         """Test background task integration."""
         # The background tasks are working - just test the endpoint response
-        response = await async_client.post("/cc/mem0/scratch/cleanup/background")
+        response = await async_client.post("/v1/cc/mem0/scratch/cleanup/background")
 
         assert response.status_code == 200
         result = response.json()
@@ -385,7 +385,7 @@ class TestMem0Router:
         tasks = []
         for i in range(5):
             data = {"key": f"concurrent_api_{i}", "content": f"content_{i}"}
-            task = async_client.post("/cc/mem0/scratch/notes", json=data)
+            task = async_client.post("/v1/cc/mem0/scratch/notes", json=data)
             tasks.append(task)
 
         # Wait for all requests to complete
@@ -402,7 +402,7 @@ class TestMem0Router:
 
         data = {"key": "large_content_test", "content": large_content}
 
-        response = await async_client.post("/cc/mem0/scratch/notes", json=data)
+        response = await async_client.post("/v1/cc/mem0/scratch/notes", json=data)
 
         assert response.status_code == 200
         result = response.json()
@@ -415,7 +415,7 @@ class TestMem0Router:
 
         data = {"key": special_key, "content": "special content"}
 
-        response = await async_client.post("/cc/mem0/scratch/notes", json=data)
+        response = await async_client.post("/v1/cc/mem0/scratch/notes", json=data)
 
         assert response.status_code == 200
         result = response.json()
