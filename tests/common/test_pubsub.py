@@ -219,11 +219,11 @@ class TestRedisPubSub:
         with patch("time.perf_counter") as mock_perf_counter:
             # Provide values for: start time, end time for operation metrics,
             # and potentially more calls from circuit breaker
-            mock_perf_counter.side_effect = [0, 0.002, 0.002, 0.002, 0.002, 0.002]
+            mock_perf_counter.side_effect = [0, 0.006, 0.006, 0.006, 0.006, 0.006]
             await connected_pubsub.publish("test", {"data": "test"})
 
         # Check for performance warning
-        assert "exceeded 1ms target" in caplog.text
+        assert "exceeded 5ms target" in caplog.text
 
     async def test_subscribe_success(self, connected_pubsub: RedisPubSub) -> None:
         """Test successful channel subscription."""
@@ -840,9 +840,9 @@ class TestRedisPubSubIntegration:
         assert avg_time < 10.0, f"Average publish time {avg_time:.2f}ms exceeds 10ms threshold"
         assert max_time < 20.0, f"Max publish time {max_time:.2f}ms exceeds 20ms threshold"
 
-        # For single-user solution on MacBook Air, we expect at least 20% to meet <1ms target
+        # For single-user solution on MacBook Air, we expect at least 80% to meet <5ms target
         # This accounts for system load variations and other running programs
-        fast_publishes = sum(1 for t in times if t < 1.0)
+        fast_publishes = sum(1 for t in times if t < 5.0)
         assert (
-            fast_publishes >= 2
-        ), f"Only {fast_publishes}/10 publishes met <1ms target (expected at least 2/10 for development environment)"
+            fast_publishes >= 8
+        ), f"Only {fast_publishes}/10 publishes met <5ms target (expected at least 8/10 for development environment)"

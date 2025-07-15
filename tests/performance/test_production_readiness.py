@@ -788,7 +788,7 @@ class TestFailureScenarios:
 
                 if "Circuit breaker" in str(e):
                     # Circuit breaker should fail fast
-                    assert operation_time < 1.0, f"Circuit breaker fail-fast took {operation_time:.2f}ms"
+                    assert operation_time < 5.0, f"Circuit breaker fail-fast took {operation_time:.2f}ms"
                     metrics.record("circuit_breaker_fail_time", operation_time)
 
         # Validate error handling

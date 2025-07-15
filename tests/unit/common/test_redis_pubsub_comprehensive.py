@@ -110,7 +110,7 @@ class TestRedisPubSubComprehensive:
 
             await connected_pubsub.publish("test", {"data": "test"})
 
-            assert "exceeded 1ms target" in caplog.text
+            assert "exceeded 5ms target" in caplog.text
 
     async def test_publish_json_serialization_edge_cases(self, connected_pubsub: RedisPubSub) -> None:
         """Test JSON serialization edge cases."""

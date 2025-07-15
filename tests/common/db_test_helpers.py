@@ -13,7 +13,7 @@ Key Features:
 
 Usage:
     # Basic database override
-    with test_db_context(app, mock_session) as session:
+    with db_test_context(app, mock_session) as session:
         # Test code here
         pass
 
@@ -108,7 +108,7 @@ def create_async_session_maker_override(
 
 
 @contextmanager
-def test_db_context(
+def db_test_context(
     app: Any,
     mock_session: AsyncSession | MagicMock | None = None,
 ) -> Generator[AsyncSession | MagicMock, None, None]:
@@ -128,7 +128,7 @@ def test_db_context(
 
     Example:
     -------
-        with test_db_context(app, mock_session) as session:
+        with db_test_context(app, mock_session) as session:
             # Test code here
             response = await client.get("/endpoint")
             # Session is automatically cleaned up
@@ -365,5 +365,5 @@ __all__ = [
     "create_module_deps_mock",
     "create_test_db_override",
     "mock_module_deps_context",
-    "test_db_context",
+    "db_test_context",
 ]

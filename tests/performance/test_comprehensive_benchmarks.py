@@ -5,7 +5,7 @@ for Phase 2 Sprint 2, validating production readiness across all system componen
 
 Performance Targets:
 - API response times: P50 < 100ms, P95 < 500ms, P99 < 1000ms
-- Redis pub/sub latency: < 1ms
+- Redis pub/sub latency: < 5ms
 - Redis throughput: ≥ 1000 msg/s
 - Database query performance: < 50ms for standard operations
 - Connection pool efficiency: 1000 pings < 1s

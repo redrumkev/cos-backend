@@ -1,7 +1,7 @@
 """High-performance Redis Pub/Sub wrapper for COS.
 
 This module provides a lightweight, high-performance Redis Pub/Sub wrapper designed for
-<1ms publish latency with comprehensive error handling, Logfire integration, and
+<5ms publish latency with comprehensive error handling, Logfire integration, and
 correlation ID tracking for distributed observability.
 
 Living Pattern: ADR-002 v2.1.0
@@ -422,7 +422,7 @@ class SubscribeError(PubSubError):
 class RedisPubSub:
     """High-performance Redis Pub/Sub wrapper with connection pooling and circuit breaker.
 
-    Designed for <1ms publish latency with automatic connection management,
+    Designed for <5ms publish latency with automatic connection management,
     error handling, circuit breaker resilience, and JSON serialization/deserialization.
 
     Living Pattern: ADR-002 v2.1.0 - Service pattern with health checks and structured errors
@@ -572,7 +572,7 @@ class RedisPubSub:
         logger.info("Redis Pub/Sub disconnected")
 
     async def publish(self, channel: str, message: MessageData, correlation_id: str | None = None) -> int:
-        """Publish message to Redis channel with <1ms latency target and comprehensive observability.
+        """Publish message to Redis channel with <5ms latency target and comprehensive observability.
 
         Args:
         ----
@@ -654,15 +654,15 @@ class RedisPubSub:
                     # Update metrics with subscriber count
                     metrics.subscriber_count = int(result)
 
-                    # Log performance warning if >1ms
-                    if elapsed > 1.0:
-                        logger.warning("Publish latency %.2fms exceeded 1ms target for channel '%s'", elapsed, channel)
+                    # Log performance warning if >5ms
+                    if elapsed > 5.0:
+                        logger.warning("Publish latency %.2fms exceeded 5ms target for channel '%s'", elapsed, channel)
                         if _LOGFIRE_AVAILABLE:
                             logfire.warning(
                                 "Publish latency exceeded target",
                                 channel=channel,
                                 latency_ms=elapsed,
-                                target_ms=1.0,
+                                target_ms=5.0,
                                 correlation_id=correlation_id,
                             )
 

@@ -25,8 +25,8 @@ from .db_test_helpers import (
     create_health_check_mock_db,
     create_module_deps_mock,
     create_test_db_override,
+    db_test_context,
     mock_module_deps_context,
-    test_db_context,
 )
 
 
@@ -80,7 +80,7 @@ class TestDatabaseOverrides:
         app = FastAPI()
         mock_session = MagicMock(spec=AsyncSession)
 
-        with test_db_context(app, mock_session) as session:
+        with db_test_context(app, mock_session) as session:
             assert session is mock_session
             assert get_async_db in app.dependency_overrides
 
@@ -91,7 +91,7 @@ class TestDatabaseOverrides:
         """Test database context manager without provided mock session."""
         app = FastAPI()
 
-        with test_db_context(app) as session:
+        with db_test_context(app) as session:
             assert isinstance(session, MagicMock)
             assert get_async_db in app.dependency_overrides
 
@@ -103,7 +103,7 @@ class TestDatabaseOverrides:
         app = FastAPI()
         mock_session = MagicMock(spec=AsyncSession)
 
-        with pytest.raises(RuntimeError), test_db_context(app, mock_session):
+        with pytest.raises(RuntimeError), db_test_context(app, mock_session):
             raise RuntimeError("Test exception")
 
         # Should still clean up after exception

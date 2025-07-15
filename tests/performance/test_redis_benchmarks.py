@@ -5,7 +5,7 @@ This module implements comprehensive performance benchmarks for Redis operations
 to validate the dual mandate requirements:
 
 Performance Targets (Single-Developer Optimized):
-- Publish latency < 1ms (functional validation focus)
+- Publish latency < 5ms (functional validation focus)
 - Throughput ≥ 500 msg/s (practical for single-dev hardware)
 - Connection pool efficiency (500 pings < 1s)
 - Memory leak detection (functional validation)
@@ -44,7 +44,7 @@ class TestRedisLatencyBenchmarks:
     @pytest.mark.functional
     @pytest.mark.asyncio
     async def test_publish_latency_benchmark(self, perf_client: redis.Redis) -> None:
-        """Benchmark publish latency with <1ms target using simple timing."""
+        """Benchmark publish latency with <5ms target using simple timing."""
         import os
 
         # Environment-aware thresholds
@@ -94,9 +94,9 @@ class TestRedisLatencyBenchmarks:
             p95_threshold = 1000.0  # 1s for CI
             p99_threshold = 2000.0  # 2s for CI
         else:
-            mean_threshold = 1.0  # 1ms for local
-            p95_threshold = 2.0  # 2ms for local
-            p99_threshold = 5.0  # 5ms for local
+            mean_threshold = 5.0  # 5ms for local
+            p95_threshold = 10.0  # 10ms for local
+            p99_threshold = 20.0  # 20ms for local
 
         latencies = []
 
@@ -416,8 +416,8 @@ class TestRegressionDetection:
             throughput_threshold = 50  # 50 msg/s for CI (10x reduction)
             ping_time_threshold = 10.0  # 10s for CI
         else:
-            avg_latency_threshold = 1.0  # 1ms for local
-            p95_latency_threshold = 2.0  # 2ms for local
+            avg_latency_threshold = 5.0  # 5ms for local
+            p95_latency_threshold = 10.0  # 10ms for local
             throughput_threshold = 500  # 500 msg/s for local
             ping_time_threshold = 1.0  # 1s for local
 

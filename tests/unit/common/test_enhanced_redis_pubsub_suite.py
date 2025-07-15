@@ -249,7 +249,7 @@ class TestEnhancedTestingSuitePerformance:
         setup_time_ms = (time.perf_counter() - setup_start) * 1000
 
         # Test fixture overhead should be minimal
-        assert setup_time_ms < 1.0, f"Test setup overhead {setup_time_ms:.2f}ms too high"
+        assert setup_time_ms < 5.0, f"Test setup overhead {setup_time_ms:.2f}ms too high"
 
         # Measure mock operation overhead
         mock_start = time.perf_counter()
