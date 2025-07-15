@@ -103,7 +103,7 @@ class TestRedisPubSubComprehensive:
         with freeze_time("2023-01-01 00:00:00") as frozen_time:
 
             async def slow_publish(*args: Any, **kwargs: Any) -> int:
-                frozen_time.tick(0.002)  # Simulate 2ms delay
+                frozen_time.tick(0.006)  # Simulate 6ms delay - exceeds 5ms threshold
                 return 1
 
             connected_pubsub._redis.publish = slow_publish

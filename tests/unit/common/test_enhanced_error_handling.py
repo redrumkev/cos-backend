@@ -221,7 +221,7 @@ class TestEnhancedPublishMethod:
 
         # Configure mock to simulate slow operation
         async def slow_publish(*args: Any, **kwargs: Any) -> int:
-            await asyncio.sleep(0.002)  # 2ms delay
+            await asyncio.sleep(0.006)  # 6ms delay - exceeds 5ms threshold
             return 1
 
         enhanced_pubsub._redis.publish = slow_publish
