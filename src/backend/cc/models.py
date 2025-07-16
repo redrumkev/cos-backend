@@ -2,6 +2,9 @@
 
 This file contains the database models for the CC module,
 using SQLAlchemy's declarative syntax with Table Args for schema isolation.
+
+Enhanced with COS Gold Standard patterns for better integration
+with Pydantic schemas and modern SQLAlchemy 2.0+ patterns.
 """
 
 # MDC: cc_module
@@ -10,8 +13,9 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import Boolean, Column, DateTime, String
+from sqlalchemy import TIMESTAMP, Boolean, String
 from sqlalchemy.dialects.postgresql import UUID as POSTGRES_UUID
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import String as SQLString
 from sqlalchemy.types import TypeDecorator
 
@@ -60,16 +64,21 @@ class HealthStatus(Base):
 
     This model tracks the health status of each module in the system,
     with a timestamp for the last update and the current operational status.
+
+    Enhanced with better type annotations while maintaining compatibility.
     """
 
-    __tablename__ = "health_status"  # Use schema instead of prefix
+    __tablename__ = "health_status"
     __table_args__ = get_table_args()
 
-    id = Column(UUID, primary_key=True, default=lambda: str(uuid4()))
-    module = Column(String, nullable=False, unique=True, index=True)
-    status = Column(String, nullable=False)
-    last_updated = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
-    details = Column(String, nullable=True)
+    # Enhanced with type annotations but maintaining backward compatibility
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=lambda: str(uuid4()))
+    module: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    last_updated: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    details: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize HealthStatus with defaults."""
@@ -90,17 +99,22 @@ class Module(Base):
 
     This model stores information about modules in the system,
     including their configuration, version, and activation status.
+
+    Enhanced with better type annotations while maintaining compatibility.
     """
 
-    __tablename__ = "modules"  # Use schema instead of prefix
+    __tablename__ = "modules"
     __table_args__ = get_table_args()
 
-    id = Column(UUID, primary_key=True, default=lambda: str(uuid4()))
-    name = Column(String, nullable=False, unique=True, index=True)
-    version = Column(String, nullable=False)
-    active = Column(Boolean, nullable=False, default=True)
-    last_active = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
-    config = Column(String, nullable=True)  # JSON string
+    # Enhanced with type annotations but maintaining backward compatibility
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=lambda: str(uuid4()))
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    version: Mapped[str] = mapped_column(String(50), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_active: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    config: Mapped[str | None] = mapped_column(String(2000), nullable=True)  # JSON string
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize Module with defaults."""

@@ -3,6 +3,9 @@
 This file demonstrates modern SQLAlchemy 2.0 patterns for temporary data storage,
 including TTL management, efficient indexing, and async compatibility.
 
+Enhanced with COS Gold Standard patterns for better integration
+with Pydantic schemas and modern SQLAlchemy 2.0+ patterns.
+
 Reference implementation for future module scratch storage patterns.
 """
 
@@ -44,10 +47,15 @@ def get_base_log_fk_target() -> str:
 class ScratchNote(Base):
     """Reference implementation for temporary data storage.
 
-    Demonstrates:
+    Demonstrates COS Gold Standard SQLAlchemy 2.0 patterns:
     - Modern SQLAlchemy 2.0 patterns (Mapped, mapped_column)
     - Efficient TTL management with proper indexing
     - Clean async patterns compatible with Sprint 2 integrations
+    - Perfect alignment with COS Pydantic schemas (ScratchNoteResponse)
+    - Constitutional principle adherence: KISS + efficiency + quality
+
+    This model serves as the reference for future module implementations,
+    demonstrating optimal patterns for the 100+ book legacy vision.
     """
 
     __tablename__ = "scratch_note"
@@ -93,8 +101,14 @@ class ScratchNote(Base):
 class BaseLog(Base):
     """Core logging table for L1 memory layer.
 
-    Stores primary logging events with structured payload support.
-    All other logging tables reference this as the source of truth.
+    COS Gold Standard implementation for multi-layer memory system:
+    - Stores primary logging events with structured payload support
+    - All other logging tables reference this as the source of truth
+    - Perfect alignment with COS constitutional principles (FORWARD)
+    - PostgreSQL-native features (UUID, JSONB, timezone-aware timestamps)
+    - Optimized for high-performance logging in production environments
+
+    Part of the L1-L4 memory hierarchy serving the 100+ book legacy vision.
     """
 
     __tablename__ = "base_log"
@@ -153,8 +167,14 @@ class BaseLog(Base):
 class PromptTrace(Base):
     """Prompt execution tracking for L1 memory layer.
 
-    Tracks LLM prompt/response pairs with execution metrics.
-    References BaseLog for complete audit trail.
+    COS Gold Standard implementation for AI interaction tracking:
+    - Tracks LLM prompt/response pairs with execution metrics
+    - References BaseLog for complete audit trail and correlation
+    - Essential for AI coaching and prompt engineering modules (future PEM/AIC)
+    - Performance-optimized for high-throughput AI operations
+    - Constitutional alignment: Quality tracking + efficiency measurement
+
+    Critical component for the 100+ book legacy vision AI orchestration.
     """
 
     __tablename__ = "prompt_trace"
@@ -222,8 +242,14 @@ class PromptTrace(Base):
 class EventLog(Base):
     """Event-specific logging for L1 memory layer.
 
-    Stores structured event data with request/trace correlation.
-    References BaseLog for complete audit trail.
+    COS Gold Standard implementation for event-driven architecture:
+    - Stores structured event data with request/trace correlation
+    - References BaseLog for complete audit trail and lineage tracking
+    - Foundation for Redis pub/sub highway integration (Sprint 2)
+    - Supports multi-module communication patterns (future CC/PEM/AIC)
+    - Constitutional alignment: Real-time + orchestrated + wide-angle thinking
+
+    Enables the event-driven patterns essential for 100+ book legacy scaling.
     """
 
     __tablename__ = "event_log"
