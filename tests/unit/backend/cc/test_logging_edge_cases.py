@@ -424,6 +424,7 @@ class TestLogL1EdgeCases:
 
         # The invalid UUID should be replaced with a valid one
 
+    @pytest.mark.filterwarnings("ignore:coroutine '_publish_l1_event' was never awaited:RuntimeWarning")
     @patch("src.backend.cc.logging._should_publish_events", return_value=False)
     async def test_log_l1_non_string_request_id(self, mock_should_publish: Mock, test_db_session: AsyncSession) -> None:
         """Test handling of non-string request_id."""
@@ -439,6 +440,7 @@ class TestLogL1EdgeCases:
         assert "base_log_id" in result
         assert "event_log_id" in result
 
+    @pytest.mark.filterwarnings("ignore:coroutine '_publish_l1_event' was never awaited:RuntimeWarning")
     @patch("src.backend.cc.logging._should_publish_events", return_value=False)
     async def test_log_l1_ultimate_uuid_fallback(
         self, mock_should_publish: Mock, test_db_session: AsyncSession

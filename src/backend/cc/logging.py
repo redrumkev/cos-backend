@@ -159,7 +159,7 @@ def _should_publish_events() -> bool:
 
 
 # Always define the function but conditionally register it
-@event.listens_for(Session, "after_commit", named=True)
+@event.listens_for(Session, "after_commit", named=True, propagate=True)
 def _after_commit_publish_events(session: Session, **kw: Any) -> None:
     """SQLAlchemy after_commit event listener for Redis publishing.
 
@@ -186,7 +186,15 @@ def _after_commit_publish_events(session: Session, **kw: Any) -> None:
 
     # Schedule publishing tasks asynchronously (fire-and-forget)
     try:
-        loop = asyncio.get_running_loop()
+        # Try to get the running loop
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running event loop - this can happen in some test scenarios
+            # Log the situation but don't fail
+            logfire.warn("No running event loop for Redis publishing", event_count=len(outbox_events))
+            return
+
         # Check if loop is running and not in shutdown state
         if loop.is_running() and not loop.is_closed():
             tasks = []
@@ -194,7 +202,7 @@ def _after_commit_publish_events(session: Session, **kw: Any) -> None:
                 task = loop.create_task(_publish_l1_event(log_id, event_data))
 
                 # Add cleanup callback to properly handle task completion/cancellation
-                def cleanup_task(t: asyncio.Task[None], task_ref: asyncio.Task[None] = task) -> None:
+                def cleanup_task(t: asyncio.Task[None]) -> None:
                     try:
                         if not t.cancelled():
                             # Consume any exception to prevent unhandled warnings
@@ -210,10 +218,9 @@ def _after_commit_publish_events(session: Session, **kw: Any) -> None:
             session.info["_redis_tasks"] = tasks
         else:
             logfire.warn("Event loop is shutting down, skipping Redis publishing", event_count=len(outbox_events))
-    except RuntimeError:
-        # No running event loop - this can happen in some test scenarios
-        # Log the situation but don't fail
-        logfire.warn("No running event loop for Redis publishing", event_count=len(outbox_events))
+    except Exception as e:
+        # Catch any other unexpected errors
+        logfire.warn(f"Unexpected error in after_commit handler: {e}", event_count=len(outbox_events))
 
 
 async def log_l1(
