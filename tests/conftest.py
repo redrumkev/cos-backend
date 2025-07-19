@@ -1584,9 +1584,81 @@ async def db_session(event_loop: asyncio.AbstractEventLoop, run_integration_mode
                 mock_result.all = MagicMock(return_value=results)
                 mock_result.fetchone = MagicMock(return_value=results[0] if results else None)
                 mock_result.fetchall = MagicMock(return_value=results)
-                mock_result.rowcount = len(results)
+
+                # Handle DELETE statements - check if this is a DELETE query
+                if query_str.strip().startswith("delete "):
+                    # For DELETE operations, we need to actually remove the object from storage
+                    # Extract the table name and get ID from query parameters
+                    deleted_count = 0
+
+                    # Extract table name from DELETE statement
+                    import re
+
+                    table_match = re.search(r"delete\s+from\s+(\w+)", query_str)
+                    if table_match:
+                        table_name_raw = table_match.group(1)
+
+                        # Get the actual ID value from compiled parameters
+                        record_id = None
+                        try:
+                            compiled = query.compile()
+                            if compiled.params:
+                                # Look for ID parameter (usually id_1, param_1, etc.)
+                                for param_name, param_value in compiled.params.items():
+                                    if "id" in param_name.lower() or param_name == "param_1":
+                                        record_id = str(param_value)
+                                        break
+                        except Exception:
+                            # Fallback: if we can't get params, we can't proceed with deletion
+                            record_id = None
+
+                        if record_id:
+                            # Map table names to storage keys
+                            table_mapping = {
+                                "scratch_note": "scratch_notes",
+                                "modules": "modules",
+                                "health_status": "health_status",
+                                "baselogs": "baselogs",
+                                "eventlogs": "eventlogs",
+                                "prompttraces": "prompttraces",
+                            }
+
+                            storage_key = table_mapping.get(table_name_raw, table_name_raw + "s")
+
+                            # Actually delete from storage if it exists
+                            if storage_key in self._storage and record_id in self._storage[storage_key]:
+                                del self._storage[storage_key][record_id]
+                                deleted_count = 1
+                                # Also track this ID as deleted
+                                self._deleted_ids.add(record_id)
+                            else:
+                                # For nonexistent records, return 0 rowcount (no deletion)
+                                deleted_count = 0
+
+                    # For DELETE operations, simulate successful deletion by setting rowcount
+                    mock_result.rowcount = deleted_count
+                else:
+                    mock_result.rowcount = len(results)
 
                 return mock_result
+
+            def begin(self) -> Any:
+                """Mock begin method for transaction context manager."""
+
+                class MockTransactionContext:
+                    def __init__(self, session: Any):
+                        self.session = session
+
+                    async def __aenter__(self) -> Any:
+                        return self.session
+
+                    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+                        if exc_type is None:
+                            await self.session.commit()
+                        else:
+                            await self.session.rollback()
+
+                return MockTransactionContext(self)
 
         yield MockAsyncSession()
         return

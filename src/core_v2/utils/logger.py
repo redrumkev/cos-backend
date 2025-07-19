@@ -162,7 +162,7 @@ async def log_event_async(
     try:
         # Get database session
         async_session_maker = get_async_session_maker()
-        async with async_session_maker() as session:  # type: ignore[attr-defined]
+        async with async_session_maker() as session:
             # Create BaseLog entry
             base_log = BaseLog(
                 level="INFO",

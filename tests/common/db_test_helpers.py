@@ -364,6 +364,6 @@ __all__ = [
     "create_health_check_mock_db",
     "create_module_deps_mock",
     "create_test_db_override",
-    "mock_module_deps_context",
     "db_test_context",
+    "mock_module_deps_context",
 ]

@@ -206,11 +206,11 @@ class TestDatabaseCoverage:
             # Call _create_async_engine directly
             factory._create_async_engine("test_schema")
 
-            # Verify only pool_size was set
+            # Verify pool_size was overridden, others use defaults from DatabaseConfig
             call_args = mock_create.call_args
-            assert call_args[1]["pool_size"] == 5
-            assert "pool_timeout" not in call_args[1]
-            assert "max_overflow" not in call_args[1]
+            assert call_args[1]["pool_size"] == 5  # Overridden by env var
+            assert call_args[1]["pool_timeout"] == 30  # Default from DatabaseConfig
+            assert call_args[1]["max_overflow"] == 40  # Default from DatabaseConfig
             assert call_args[1]["future"] is True
             assert call_args[1]["pool_pre_ping"] is True
 
@@ -229,11 +229,11 @@ class TestDatabaseCoverage:
             # Call _create_async_engine directly
             factory._create_async_engine("test_schema")
 
-            # Verify only base configuration was set
+            # Verify base configuration from DatabaseConfig was set
             call_args = mock_create.call_args
-            assert "pool_size" not in call_args[1]
-            assert "pool_timeout" not in call_args[1]
-            assert "max_overflow" not in call_args[1]
+            assert call_args[1]["pool_size"] == 20  # Default from DatabaseConfig
+            assert call_args[1]["pool_timeout"] == 30  # Default from DatabaseConfig
+            assert call_args[1]["max_overflow"] == 40  # Default from DatabaseConfig
             assert call_args[1]["future"] is True
             assert call_args[1]["pool_pre_ping"] is True
 

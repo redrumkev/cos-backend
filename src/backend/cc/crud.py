@@ -1,7 +1,13 @@
 """Database operations for the Control Center module.
 
 This file contains CRUD operations for interacting with the database,
-using SQLAlchemy's async API for optimal performance.
+using SQLAlchemy's async API with modern database operations patterns.
+
+Pattern Reference: src/core_v2/patterns/database_operations.py v2025-07-18
+Applied: Repository pattern with BaseRepository for type-safe CRUD operations
+Applied: Transaction context managers for automatic commit/rollback
+Applied: Circuit breaker protection for database resilience
+Applied: Modern SQLAlchemy 2.0+ patterns with proper session management
 """
 
 # MDC: cc_module
@@ -12,8 +18,95 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.logger import log_event
+from src.core_v2.patterns.database_operations import (
+    BaseRepository,
+    circuit_breaker,
+    transactional,
+)
 
 from .models import HealthStatus, Module
+
+# === REPOSITORY CLASSES (MODERN PATTERNS) ===
+
+
+class HealthStatusRepository(BaseRepository[HealthStatus]):  # type: ignore[type-var]
+    """Repository for HealthStatus operations with modern patterns."""
+
+    async def get_latest(self) -> HealthStatus | None:
+        """Get the most recent health status record."""
+        stmt = select(HealthStatus).order_by(HealthStatus.last_updated.desc()).limit(1)
+        result = await circuit_breaker.call(self.session.execute, stmt)
+        return result.scalar_one_or_none()  # type: ignore[no-any-return]
+
+
+class ModuleRepository(BaseRepository[Module]):  # type: ignore[type-var]
+    """Repository for Module operations with modern patterns."""
+
+    async def get_by_name(self, name: str) -> Module | None:
+        """Get module by name."""
+        stmt = select(Module).where(Module.name == name)
+        result = await circuit_breaker.call(self.session.execute, stmt)
+        return result.scalar_one_or_none()  # type: ignore[no-any-return]
+
+    async def get_active_modules(self) -> list[str]:
+        """Get list of active module names."""
+        stmt = select(Module.name).where(Module.active == True)  # noqa: E712
+        result = await circuit_breaker.call(self.session.execute, stmt)
+        return list(result.scalars().all())
+
+    async def create_with_defaults(self, name: str, version: str, config: str | None = None) -> Module:
+        """Create module with explicit defaults for test environment."""
+        from datetime import UTC, datetime
+
+        # Use the parent create method but with explicit defaults
+        return await self.create(
+            name=name,
+            version=version,
+            config=config,
+            active=True,
+            last_active=datetime.now(UTC),
+        )
+
+    async def get_by_uuid(self, module_id: UUID) -> Module | None:
+        """Get module by UUID string."""
+        stmt = select(Module).where(Module.id == str(module_id))
+        result = await circuit_breaker.call(self.session.execute, stmt)
+        return result.scalar_one_or_none()  # type: ignore[no-any-return]
+
+    async def update_by_uuid(self, module_id: UUID, data: dict[str, Any]) -> Module | None:
+        """Update module by UUID with filtered data."""
+        # Filter data to only include valid column names
+        valid_columns = {"name", "version", "active", "config", "last_active"}
+        filtered_data = {k: v for k, v in data.items() if k in valid_columns}
+
+        if not filtered_data:
+            # No valid fields to update, return the current module
+            return await self.get_by_uuid(module_id)
+
+        # Use UPDATE statement for better performance
+        stmt = update(Module).where(Module.id == str(module_id)).values(**filtered_data).returning(Module)
+
+        result = await circuit_breaker.call(self.session.execute, stmt)
+        updated_instance = result.scalar_one_or_none()
+
+        if updated_instance:
+            await circuit_breaker.call(self.session.flush)
+
+        return updated_instance  # type: ignore[no-any-return]
+
+    async def delete_by_uuid(self, module_id: UUID) -> bool:
+        """Delete module by UUID."""
+        stmt = select(Module).where(Module.id == str(module_id))
+        result = await circuit_breaker.call(self.session.execute, stmt)
+        module = result.scalar_one_or_none()
+
+        if module:
+            await circuit_breaker.call(self.session.delete, module)
+            return True
+        return False
+
+
+# === CONVENIENCE FUNCTIONS (BACKWARD COMPATIBILITY) ===
 
 
 async def get_system_health(db: AsyncSession) -> HealthStatus | None:
@@ -41,9 +134,9 @@ async def get_system_health(db: AsyncSession) -> HealthStatus | None:
         memo="Querying system health from database",
     )
 
-    stmt = select(HealthStatus).order_by(HealthStatus.last_updated.desc()).limit(1)
-    result = await db.execute(stmt)
-    return result.scalars().first()
+    # Use repository pattern for modern database operations
+    repo = HealthStatusRepository(db, HealthStatus)
+    return await repo.get_latest()
 
 
 async def update_module_status(db: AsyncSession, module_name: str, status: str) -> dict[str, Any]:
@@ -117,9 +210,9 @@ async def get_active_modules(db: AsyncSession) -> list[str]:
         memo="Querying active modules from database",
     )
 
-    stmt = select(Module.name).where(Module.active == True)  # noqa: E712
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+    # Use repository pattern for modern database operations
+    repo = ModuleRepository(db, Module)
+    return await repo.get_active_modules()
 
 
 # Module CRUD Operations
@@ -144,8 +237,6 @@ async def create_module(db: AsyncSession, name: str, version: str, config: str |
         ```
 
     """
-    from datetime import UTC, datetime
-
     log_event(
         source="cc",
         data={"name": name, "version": version},
@@ -153,18 +244,11 @@ async def create_module(db: AsyncSession, name: str, version: str, config: str |
         memo=f"Creating new module {name} version {version}",
     )
 
-    # Explicitly set default values to ensure they're present in test environment
-    module = Module(
-        name=name,
-        version=version,
-        config=config,
-        active=True,  # Explicit default
-        last_active=datetime.now(UTC),  # Explicit default
-    )
-    db.add(module)
-    await db.commit()
-    await db.refresh(module)
-    return module
+    # Use repository pattern with transaction context manager
+    repo = ModuleRepository(db, Module)
+    async with transactional(db) as tx_session:
+        repo.session = tx_session  # Update repository session to transaction session
+        return await repo.create_with_defaults(name, version, config)
 
 
 async def get_module(db: AsyncSession, module_id: str) -> Module | None:
@@ -193,9 +277,10 @@ async def get_module(db: AsyncSession, module_id: str) -> Module | None:
         memo=f"Retrieving module {module_id}",
     )
 
-    stmt = select(Module).where(Module.id == UUID(module_id))
-    result = await db.execute(stmt)
-    return result.scalars().first()
+    # Use repository pattern for modern database operations
+    repo = ModuleRepository(db, Module)
+    uuid_obj = UUID(module_id)
+    return await repo.get_by_uuid(uuid_obj)
 
 
 async def get_module_by_name(db: AsyncSession, name: str) -> Module | None:
@@ -224,9 +309,9 @@ async def get_module_by_name(db: AsyncSession, name: str) -> Module | None:
         memo=f"Retrieving module by name {name}",
     )
 
-    stmt = select(Module).where(Module.name == name)
-    result = await db.execute(stmt)
-    return result.scalars().first()
+    # Use repository pattern for modern database operations
+    repo = ModuleRepository(db, Module)
+    return await repo.get_by_name(name)
 
 
 async def get_modules(db: AsyncSession, skip: int = 0, limit: int = 100) -> list[Module]:
@@ -256,9 +341,9 @@ async def get_modules(db: AsyncSession, skip: int = 0, limit: int = 100) -> list
         memo=f"Retrieving modules with skip={skip}, limit={limit}",
     )
 
-    stmt = select(Module).offset(skip).limit(limit).order_by(Module.name)
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+    # Use repository pattern for modern database operations
+    repo = ModuleRepository(db, Module)
+    return await repo.list_all(offset=skip, limit=limit, order_by=Module.name)
 
 
 async def update_module(db: AsyncSession, module_id: str, data: dict[str, Any]) -> Module | None:
@@ -288,27 +373,13 @@ async def update_module(db: AsyncSession, module_id: str, data: dict[str, Any]) 
         memo=f"Updating module {module_id}",
     )
 
-    # Filter data to only include valid column names to avoid SQLAlchemy CompileError
-    valid_columns = {"name", "version", "active", "config", "last_active"}
-    filtered_data = {k: v for k, v in data.items() if k in valid_columns}
+    # Use repository pattern with transaction context manager
+    repo = ModuleRepository(db, Module)
+    uuid_obj = UUID(module_id)
 
-    # Only proceed if there's actually data to update
-    if not filtered_data:
-        # No valid fields to update, return the current module
-        stmt = select(Module).where(Module.id == UUID(module_id))
-        result = await db.execute(stmt)
-        return result.scalars().first()
-
-    # Try a direct UPDATE statement approach to avoid session issues
-    update_stmt = update(Module).where(Module.id == UUID(module_id)).values(**filtered_data).returning(Module)
-    result = await db.execute(update_stmt)
-    updated_module = result.scalars().first()
-
-    if updated_module:
-        await db.commit()
-        return updated_module
-    else:
-        return None
+    async with transactional(db) as tx_session:
+        repo.session = tx_session  # Update repository session to transaction session
+        return await repo.update_by_uuid(uuid_obj, data)
 
 
 async def delete_module(db: AsyncSession, module_id: str) -> Module | None:
@@ -337,12 +408,15 @@ async def delete_module(db: AsyncSession, module_id: str) -> Module | None:
         memo=f"Deleting module {module_id}",
     )
 
-    stmt = select(Module).where(Module.id == UUID(module_id))
-    result = await db.execute(stmt)
-    module = result.scalars().first()
+    # Use repository pattern with transaction context manager
+    repo = ModuleRepository(db, Module)
+    uuid_obj = UUID(module_id)
 
-    if module:
-        await db.delete(module)
-        await db.commit()
+    async with transactional(db) as tx_session:
+        repo.session = tx_session  # Update repository session to transaction session
 
-    return module
+        # Get the module before deletion
+        module = await repo.get_by_uuid(uuid_obj)
+        if module:
+            await repo.delete_by_uuid(uuid_obj)
+        return module

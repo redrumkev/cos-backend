@@ -1,12 +1,21 @@
 """Graph service layer for Neo4j operations.
 
 This module provides high-level operations for managing graph nodes and relationships,
-following the service pattern established in the cc module.
+following the service pattern established in the cc module with enhanced patterns.
+
+Pattern Reference: src/core_v2/patterns/database_operations.py v2025-07-18
+Applied: Circuit breaker protection for graph operations
+Applied: Retry logic with exponential backoff for Neo4j resilience
+Applied: Health monitoring and error handling patterns
+Applied: Modern async patterns consistent with COS database operations
 """
 
 from typing import Any
 
 from src.common.logger import log_event
+from src.core_v2.patterns.database_operations import (
+    circuit_breaker,
+)
 from src.graph.base import Neo4jClient
 from src.graph.registry import GraphRegistry, ModuleLabel, NodeType, RelationshipType
 
@@ -43,13 +52,13 @@ class GraphService:
         if not GraphRegistry.validate_node_structure(node_type.value, module.value, properties):
             raise ValueError(f"Invalid node structure for {node_type.value}:{module.value}")
 
-        # Create or merge based on uniqueness constraint
+        # Create or merge based on uniqueness constraint with circuit breaker protection
         if unique_property and unique_property in properties:
             query = self._build_merge_query(node_type, module, unique_property)
-            result = await self.client.execute_query(query, {"props": properties})
+            result = await circuit_breaker.call(self.client.execute_query, query, {"props": properties})
         else:
             query = GraphRegistry.create_node_query(node_type, module, properties)
-            result = await self.client.execute_query(query, {"props": properties})
+            result = await circuit_breaker.call(self.client.execute_query, query, {"props": properties})
 
         if result:
             node_data: dict[str, Any] = result[0]["n"]
@@ -85,7 +94,7 @@ class GraphService:
         where_clause = "n.id = $node_id"
         query = GraphRegistry.match_node_query(node_type, module, where_clause)
 
-        result = await self.client.execute_query(query, {"node_id": node_id})
+        result = await circuit_breaker.call(self.client.execute_query, query, {"node_id": node_id})
 
         if result:
             node_data: dict[str, Any] = result[0]["n"]
@@ -114,7 +123,7 @@ class GraphService:
         query = GraphRegistry.match_node_query(node_type, module, where_clause)
         query += f" LIMIT {limit}"
 
-        result = await self.client.execute_query(query, {"property_value": property_value})
+        result = await circuit_breaker.call(self.client.execute_query, query, {"property_value": property_value})
 
         return [record["n"] for record in result]
 
@@ -147,7 +156,7 @@ class GraphService:
         RETURN n
         """
 
-        result = await self.client.execute_query(query, {"node_id": node_id, "props": properties})
+        result = await circuit_breaker.call(self.client.execute_query, query, {"node_id": node_id, "props": properties})
 
         if result:
             log_event(
@@ -199,7 +208,7 @@ class GraphService:
             RETURN count(n) as deleted_count
             """
 
-        result = await self.client.execute_query(query, {"node_id": node_id})
+        result = await circuit_breaker.call(self.client.execute_query, query, {"node_id": node_id})
 
         if result and result[0]["deleted_count"] > 0:
             log_event(
@@ -261,7 +270,7 @@ class GraphService:
         if properties:
             params["rel_props"] = properties
 
-        result = await self.client.execute_query(query, params)
+        result = await circuit_breaker.call(self.client.execute_query, query, params)
 
         if result:
             relationship_data: dict[str, Any] = result[0]["r"]
@@ -323,7 +332,7 @@ class GraphService:
         RETURN r
         """
 
-        result = await self.client.execute_query(query, {"node_id": node_id})
+        result = await circuit_breaker.call(self.client.execute_query, query, {"node_id": node_id})
         return [record["r"] for record in result]
 
     async def search_nodes(
@@ -381,7 +390,7 @@ class GraphService:
         where_clause = " WHERE " + " AND ".join(where_conditions) if where_conditions else ""
         query = f"{match_clause}{where_clause} RETURN n LIMIT {limit}"
 
-        result = await self.client.execute_query(query, params)
+        result = await circuit_breaker.call(self.client.execute_query, query, params)
         return [record["n"] for record in result]
 
     def _build_merge_query(self, node_type: NodeType, module: ModuleLabel, unique_property: str) -> str:
@@ -411,10 +420,50 @@ class GraphService:
 
         stats = {}
         for stat_name, query in stats_queries.items():
-            result = await self.client.execute_query(query)
+            result = await circuit_breaker.call(self.client.execute_query, query)
             if stat_name in ["total_nodes", "total_relationships"]:
                 stats[stat_name] = result[0]["count"] if result else 0
             else:
                 stats[stat_name] = result
 
         return stats
+
+    async def health_check(self) -> dict[str, Any]:
+        """Health check for graph service with circuit breaker status.
+
+        Returns
+        -------
+            Dictionary containing health status information
+
+        """
+        health_data = {
+            "service": self.__class__.__name__,
+            "status": "healthy",
+            "circuit_breaker": {
+                "state": circuit_breaker.state.value,
+                "failure_count": circuit_breaker.failure_count,
+                "last_failure_time": circuit_breaker.last_failure_time,
+            },
+        }
+
+        try:
+            # Simple connectivity test
+            test_query = "RETURN 1 as test"
+            result = await circuit_breaker.call(self.client.execute_query, test_query)
+
+            if result and result[0]["test"] == 1:
+                # Get basic graph statistics for health monitoring
+                stats = await self.get_graph_stats()
+                health_data["graph_stats"] = {
+                    "total_nodes": stats.get("total_nodes", 0),
+                    "total_relationships": stats.get("total_relationships", 0),
+                }
+            else:
+                health_data["status"] = "unhealthy"
+                health_data["error"] = "Failed to execute test query"
+
+        except Exception as e:
+            health_data["status"] = "unhealthy"
+            health_data["error"] = str(e)
+
+        return health_data

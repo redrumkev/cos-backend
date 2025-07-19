@@ -1,4 +1,14 @@
 # src/db/connection.py
+"""Database connection management with enhanced patterns.
+
+Pattern Reference: src/core_v2/patterns/database_operations.py v2025-07-18
+Applied: Optimized connection pool configuration from DatabaseConfig
+Applied: Circuit breaker protection for database connections
+Applied: Modern SQLAlchemy 2.0+ async patterns
+Applied: Health monitoring and connection lifecycle management
+
+This module provides backward compatibility while leveraging enhanced patterns.
+"""
 
 import os
 from collections.abc import AsyncGenerator
@@ -10,11 +20,15 @@ from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
+    async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import Session, sessionmaker
 
 from src.common.logger import get_logger
+from src.core_v2.patterns.database_operations import (
+    DatabaseConfig,
+    circuit_breaker,
+)
 
 # Load environment from infrastructure/.env
 _infrastructure_env = Path(__file__).parent.parent.parent / "infrastructure" / ".env"
@@ -62,20 +76,16 @@ def _database_url_for_tests() -> str:
 
 
 def _create_engine_impl(db_url: str) -> AsyncEngine:
-    """Actual engine creation logic."""
-    engine_options: dict[str, Any] = {
-        # asyncpg JSON/JSONB codec expects *str* not *bytes*, so decode.
-        "json_serializer": lambda obj: orjson.dumps(obj).decode(),
-        "json_deserializer": orjson.loads,
-    }
+    """Actual engine creation logic with enhanced patterns."""
+    # Use optimized configuration from database operations patterns
+    engine_options = DatabaseConfig.get_engine_options()
 
-    # Use connection pooling for PostgreSQL
+    # Add orjson serialization for PostgreSQL JSONB compatibility
     engine_options.update(
         {
-            "pool_size": 10,
-            "max_overflow": 20,
-            "pool_recycle": 3600,
-            "pool_pre_ping": True,
+            "json_serializer": lambda obj: orjson.dumps(obj).decode(),
+            "json_deserializer": orjson.loads,
+            "future": True,
         }
     )
 
@@ -90,16 +100,20 @@ def get_async_engine() -> AsyncEngine:
     return _create_engine_impl(db_url)
 
 
-def get_async_session_maker() -> sessionmaker[Session]:
-    """Get session maker - removes @lru_cache during Phase 2 to prevent caching issues."""
+def get_async_session_maker() -> async_sessionmaker[AsyncSession]:
+    """Get session maker with enhanced patterns - removes @lru_cache during Phase 2 to prevent caching issues."""
     engine = get_async_engine()
-    maker: sessionmaker[Session] = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)  # type: ignore
+
+    # Use optimized session configuration from patterns
+    session_options = DatabaseConfig.get_session_options()
+
+    maker = async_sessionmaker(engine, **session_options)
     return maker
 
 
 async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
     async_session = get_async_session_maker()
-    async with async_session() as session:  # type: ignore
+    async with async_session() as session:
         try:
             yield session
         finally:
@@ -114,3 +128,36 @@ def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     This is an alias to get_async_db for compatibility.
     """
     return get_async_db()
+
+
+async def get_connection_health() -> dict[str, Any]:
+    """Get health status for database connections with circuit breaker information."""
+    health_data = {
+        "module": "db.connection",
+        "status": "healthy",
+        "circuit_breaker": {
+            "state": circuit_breaker.state.value,
+            "failure_count": circuit_breaker.failure_count,
+            "last_failure_time": circuit_breaker.last_failure_time,
+        },
+    }
+
+    try:
+        # Test database connectivity
+        session_maker = get_async_session_maker()
+        async with session_maker() as session:
+            # Simple connectivity test with circuit breaker protection
+            test_query = "SELECT 1 as test"
+            result = await circuit_breaker.call(session.execute, test_query)
+
+            if result.scalar() == 1:
+                health_data["database_connectivity"] = "ok"
+            else:
+                health_data["status"] = "unhealthy"
+                health_data["error"] = "Failed to execute test query"
+
+    except Exception as e:
+        health_data["status"] = "unhealthy"
+        health_data["error"] = str(e)
+
+    return health_data

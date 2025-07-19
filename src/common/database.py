@@ -1,18 +1,21 @@
 """Database connection and session management for the COS backend.
 
 This module provides:
-- Agent-based database connections
-- Async session factories
-- Connection pooling configuration
+- Agent-based database connections with optimized pooling
+- Async session factories with circuit breaker protection
+- Connection pooling configuration with health monitoring
 - Rich logging for database operations
+- Production-ready patterns from database_operations.py
 
 For onboarding:
 1. Ensure Agent is configured and running
 2. Set up .env with agent connection URLs
 3. Use get_async_session_maker() for async contexts
 
-Pattern Reference: service.py v2.1.0 (Living Patterns System)
-Pattern Reference: error_handling.py v2.1.0 (COSError integration)
+Pattern Reference: src/core_v2/patterns/database_operations.py v2025-07-18
+Applied: Modern SQLAlchemy 2.0+ patterns with transaction context managers
+Applied: Circuit breaker protection for database resilience
+Applied: Connection pool optimization with health monitoring
 Applied: ResourceFactory pattern for database connections
 Applied: ExecutionContext for request-scoped operations
 Applied: Multi-schema support (cc.*, pem.*, aic.*)
@@ -34,6 +37,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engin
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.common.config import get_settings
+from src.core_v2.patterns.database_operations import (
+    DatabaseConfig,
+    DatabaseHealthMonitor,
+    circuit_breaker,
+)
 
 # Pattern Reference: service.py v2.1.0 (Living Patterns System)
 # Applied: ResourceFactory pattern for database connections
@@ -92,13 +100,11 @@ def get_async_engine() -> AsyncEngine | AsyncMock:
         if db_url.startswith("postgresql://"):
             db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-        # Configure pool settings from agent environment variables
-        engine_options: dict[str, Any] = {
-            "future": True,
-            "pool_pre_ping": True,  # Always enable pre-ping for agent connections
-        }
+        # Use optimized database configuration from patterns
+        engine_options = DatabaseConfig.get_engine_options()
+        engine_options["future"] = True
 
-        # Add agent-specific pool configuration if available
+        # Add agent-specific pool configuration if available (override defaults)
         if pool_size := os.environ.get("AGENT_POOL_SIZE"):
             engine_options["pool_size"] = int(pool_size)
         if pool_timeout := os.environ.get("AGENT_POOL_TIMEOUT"):
@@ -124,16 +130,97 @@ def get_async_session_maker() -> Callable[..., AsyncSession | AsyncMock]:
                 """Return self when used as a context manager."""
                 return self
 
+            def begin(self) -> "MockTransactionContext":  # type: ignore[override]
+                """Return a mock transaction context manager."""
+                return MockTransactionContext(self)
+
+            def begin_nested(self) -> "MockTransactionContext":  # type: ignore[override]
+                """Return a mock nested transaction context manager."""
+                return MockTransactionContext(self)
+
+            async def flush(self, objects: Any = None) -> None:
+                """Mock flush operation."""
+                pass
+
+            async def commit(self) -> None:
+                """Mock commit operation."""
+                pass
+
+            async def rollback(self) -> None:
+                """Mock rollback operation."""
+                pass
+
+            async def execute(self, statement: Any, **kwargs: Any) -> Any:  # type: ignore[override]
+                """Mock execute operation."""
+                mock_result = AsyncMock()
+                mock_result.scalar_one_or_none.return_value = None
+                mock_result.scalars.return_value.all.return_value = []
+                mock_result.scalar.return_value = 0
+
+                # Check if this is a DELETE statement by examining the statement type or string
+                statement_str = str(statement).upper() if hasattr(statement, "__str__") else ""
+                statement_type = str(type(statement)).lower()
+                is_delete = (
+                    "DELETE" in statement_str
+                    or "delete" in statement_type
+                    or (hasattr(statement, "__class__") and "Delete" in statement.__class__.__name__)
+                )
+
+                # Handle DELETE statement detection
+                if hasattr(statement, "__class__") and "Delete" in statement.__class__.__name__:
+                    pass  # DELETE detected
+
+                if is_delete:
+                    # For DELETE operations, simulate successful deletion
+                    mock_result.rowcount = 1
+                else:
+                    # For other operations (SELECT, etc.)
+                    mock_result.rowcount = 0
+
+                return mock_result
+
+            async def delete(self, obj: Any) -> None:
+                """Mock delete operation."""
+                pass
+
+            def add(self, obj: Any, _warn: bool = True) -> None:
+                """Mock add operation."""
+                pass
+
+            async def refresh(self, obj: Any, **kwargs: Any) -> None:  # type: ignore[override]
+                """Mock refresh operation."""
+                pass
+
+        class MockTransactionContext:
+            """Mock transaction context manager for begin() calls."""
+
+            def __init__(self, session: MockAsyncSession):
+                self.session = session
+
+            async def __aenter__(self) -> MockAsyncSession:
+                """Return the session when entering transaction."""
+                return self.session
+
+            async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+                """Handle transaction exit."""
+                if exc_type is None:
+                    # Success - simulate commit
+                    await self.session.commit()
+                else:
+                    # Exception - simulate rollback
+                    await self.session.rollback()
+
         def mock_session_factory(*args: Any, **kwargs: Any) -> MockAsyncSession:
             return MockAsyncSession(spec=AsyncSession)
 
         return mock_session_factory
 
     try:
-        # Use async_sessionmaker for proper AsyncSession creation
+        # Use async_sessionmaker with optimized session configuration
         from sqlalchemy.ext.asyncio import async_sessionmaker
 
-        return async_sessionmaker(get_async_engine(), expire_on_commit=False, autoflush=False)
+        session_options = DatabaseConfig.get_session_options()
+        return async_sessionmaker(get_async_engine(), **session_options)
     except Exception as e:
         console.print(Text(f"❌ Async session maker initialization failed: {e}", style="red"))
         raise
@@ -223,7 +310,8 @@ class DatabaseResourceFactory:
             if async_mode:
                 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-                self._session_makers[cache_key] = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)  # type: ignore[arg-type]
+                session_options = DatabaseConfig.get_session_options()
+                self._session_makers[cache_key] = async_sessionmaker(engine, **session_options)  # type: ignore[arg-type]
             else:
                 self._session_makers[cache_key] = sessionmaker(bind=engine, autoflush=False, autocommit=False)  # type: ignore[arg-type]
 
@@ -244,13 +332,11 @@ class DatabaseResourceFactory:
 
         db_url = self._get_db_url(schema, async_mode=True)
 
-        # Configure pool settings from agent environment variables
-        engine_options: dict[str, Any] = {
-            "future": True,
-            "pool_pre_ping": True,
-        }
+        # Use optimized database configuration from patterns
+        engine_options = DatabaseConfig.get_engine_options()
+        engine_options["future"] = True
 
-        # Add agent-specific pool configuration if available
+        # Add agent-specific pool configuration if available (override defaults)
         if pool_size := os.environ.get("AGENT_POOL_SIZE"):
             engine_options["pool_size"] = int(pool_size)
         if pool_timeout := os.environ.get("AGENT_POOL_TIMEOUT"):
@@ -285,13 +371,39 @@ class DatabaseResourceFactory:
         return base_url
 
     async def health_check(self) -> dict[str, Any]:
-        """Health check for database factory."""
-        return {
+        """Enhanced health check for database factory with circuit breaker status."""
+        health_data = {
             "factory": self.__class__.__name__,
             "engines": len(self._engines),
             "session_makers": len(self._session_makers),
             "status": "healthy",
+            "circuit_breaker": {
+                "state": circuit_breaker.state.value,
+                "failure_count": circuit_breaker.failure_count,
+                "last_failure_time": circuit_breaker.last_failure_time,
+            },
         }
+
+        # Test database connectivity if we have any engines
+        if self._engines:
+            try:
+                # Get the default async engine for health check
+                if not _is_test_mode():
+                    session_maker = self.get_session_maker("default", async_mode=True)
+                    async with session_maker() as session:
+                        monitor = DatabaseHealthMonitor(session)
+                        db_health = await monitor.health_check()
+                        health_data["database"] = db_health
+
+                        # Get pool status if available
+                        pool_status = await monitor.get_pool_status()
+                        health_data["connection_pool"] = pool_status
+
+            except Exception as e:
+                health_data["status"] = "unhealthy"
+                health_data["error"] = str(e)
+
+        return health_data
 
 
 class DatabaseExecutionContext:
@@ -352,3 +464,32 @@ def get_database_factory() -> DatabaseResourceFactory:
 def get_execution_context(schema: str = "default") -> DatabaseExecutionContext:
     """Get execution context for schema."""
     return DatabaseExecutionContext(_database_factory, schema)
+
+
+# === ENHANCED DATABASE OPERATIONS CONVENIENCE FUNCTIONS ===
+
+
+async def get_database_health() -> dict[str, Any]:
+    """Get comprehensive database health status using enhanced patterns."""
+    return await _database_factory.health_check()
+
+
+def get_optimized_engine(schema: str = "default", async_mode: bool = True) -> Engine | AsyncEngine:
+    """Get optimized database engine with enhanced configuration."""
+    return _database_factory.get_engine(schema, async_mode)
+
+
+def get_optimized_session_maker(schema: str = "default", async_mode: bool = True) -> Any:
+    """Get optimized session maker with enhanced configuration."""
+    return _database_factory.get_session_maker(schema, async_mode)
+
+
+async def get_circuit_breaker_status() -> dict[str, Any]:
+    """Get current circuit breaker status for database operations."""
+    return {
+        "state": circuit_breaker.state.value,
+        "failure_count": circuit_breaker.failure_count,
+        "last_failure_time": circuit_breaker.last_failure_time,
+        "failure_threshold": circuit_breaker.failure_threshold,
+        "recovery_timeout": circuit_breaker.recovery_timeout,
+    }
