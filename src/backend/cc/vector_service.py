@@ -11,6 +11,8 @@ import logging
 from typing import Any
 from uuid import uuid4
 
+from qdrant_client.http.models import Distance, VectorParams
+
 from src.common.logger import log_event
 from src.common.qdrant_config import get_qdrant_config
 
@@ -53,10 +55,10 @@ class VectorService:
                 # TODO: Configure vector size and distance metric based on embedding model
                 await client.create_collection(
                     collection_name=self.collection_name,
-                    vectors_config={
-                        "size": 1536,  # OpenAI ada-002 dimension
-                        "distance": "Cosine",
-                    },
+                    vectors_config=VectorParams(
+                        size=1536,  # OpenAI ada-002 dimension
+                        distance=Distance.COSINE,
+                    ),
                 )
 
                 log_event(

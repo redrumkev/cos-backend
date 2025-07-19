@@ -25,7 +25,7 @@ __all__ = [
 
 # Import Neo4j driver (neo4j-rust-ext provides transparent performance boost when installed)
 try:
-    from neo4j import AsyncDriver, AsyncSession, GraphDatabase
+    from neo4j import Driver, GraphDatabase
 except ImportError as e:
     raise ImportError(
         "Neo4j package not available. Please install it: 'pip install neo4j' or 'pip install neo4j-rust-ext'"
@@ -86,7 +86,7 @@ class Neo4jClient:
     def __init__(self) -> None:
         """Initialize the Neo4j client with settings from configuration."""
         self.settings = get_settings()
-        self.driver: AsyncDriver | None = None
+        self.driver: Driver | None = None
         self._uri = self.settings.NEO4J_URI
         self._user = self.settings.NEO4J_USER
         self._password = self.settings.NEO4J_PASSWORD
@@ -146,10 +146,13 @@ class Neo4jClient:
             return False
 
         try:
-            async with self.driver.session() as session:
+            session = self.driver.session()
+            try:
                 result = await session.run("RETURN 1 as test")
-                record = await result.single()
+                record = result.single()
                 return record is not None and record["test"] == 1
+            finally:
+                await session.close()
         except Exception as e:
             log_event(
                 source="graph",
@@ -160,7 +163,7 @@ class Neo4jClient:
             return False
 
     @asynccontextmanager
-    async def session(self) -> AsyncGenerator[AsyncSession, None]:
+    async def session(self) -> AsyncGenerator[Any, None]:
         """Get an async session from the driver pool."""
         if not self.driver:
             await self.connect()
@@ -168,17 +171,19 @@ class Neo4jClient:
         if not self.driver:
             raise RuntimeError("Failed to establish Neo4j connection")
 
-        async with self.driver.session() as session:
-            try:
-                yield session
-            except Exception as e:
-                log_event(
-                    source="graph",
-                    data={"error": str(e)},
-                    tags=["session", "error"],
-                    memo="Error during Neo4j session operation",
-                )
-                raise
+        session = self.driver.session()
+        try:
+            yield session
+        except Exception as e:
+            log_event(
+                source="graph",
+                data={"error": str(e)},
+                tags=["session", "error"],
+                memo="Error during Neo4j session operation",
+            )
+            raise
+        finally:
+            await session.close()
 
     async def execute_query(self, query: str, parameters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """Execute a Cypher query and return results as a list of dictionaries."""

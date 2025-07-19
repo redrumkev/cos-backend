@@ -152,10 +152,7 @@ def _should_publish_events() -> bool:
         return False
 
     # Skip if explicitly disabled
-    if os.environ.get("DISABLE_REDIS_PUBLISHING", "").lower() in ("true", "1", "yes"):
-        return False
-
-    return True
+    return os.environ.get("DISABLE_REDIS_PUBLISHING", "").lower() not in ("true", "1", "yes")
 
 
 # Always define the function but conditionally register it

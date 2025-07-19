@@ -343,7 +343,7 @@ async def get_modules(db: AsyncSession, skip: int = 0, limit: int = 100) -> list
 
     # Use repository pattern for modern database operations
     repo = ModuleRepository(db, Module)
-    return await repo.list_all(offset=skip, limit=limit, order_by=Module.name)
+    return await repo.list_all(offset=skip, limit=limit, order_by="name")
 
 
 async def update_module(db: AsyncSession, module_id: str, data: dict[str, Any]) -> Module | None:

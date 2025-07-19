@@ -363,7 +363,7 @@ class RouterTestClient:
             self.app.dependency_overrides[dep] = override
 
         # Create test client
-        self.client = AsyncClient(app=self.app, base_url="http://test")
+        self.client = AsyncClient(base_url="http://test")
         await self.client.__aenter__()
         return self
 

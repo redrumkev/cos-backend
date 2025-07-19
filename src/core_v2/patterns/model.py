@@ -25,7 +25,7 @@ Constitutional Alignment:
 
 import re
 from datetime import UTC, datetime
-from typing import Annotated, Any, ClassVar, Generic, TypeVar
+from typing import Annotated, Any, ClassVar, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_serializer
@@ -234,7 +234,7 @@ class PaginationRequest(COSAPIModel):
         return slice(self.offset, self.offset + self.limit)
 
 
-class APIResponse(COSAPIModel, Generic[T]):
+class APIResponse[T: BaseModel](COSAPIModel):
     """Generic API response wrapper with consistent structure."""
 
     success: bool = Field(True, description="Operation success status")

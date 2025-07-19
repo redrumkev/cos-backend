@@ -215,8 +215,8 @@ class TestPublishL1EventFunction:
 
         # Mock Logfire span context manager
         mock_span = Mock()
-        mock_logfire.span.return_value.__aenter__ = AsyncMock(return_value=mock_span)
-        mock_logfire.span.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_logfire.span.return_value.__enter__ = Mock(return_value=mock_span)
+        mock_logfire.span.return_value.__exit__ = Mock(return_value=None)
 
         log_id = UUID("12345678-1234-5678-9012-123456789abc")
         event_data = {"event_type": "test_event"}

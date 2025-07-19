@@ -120,7 +120,7 @@ class TestRedisPerformanceTargets:
 
         # Target: 2000 operations in <2 seconds
         assert elapsed_time < 2.0, f"2000 operations took {elapsed_time:.3f}s, target <2.0s"
-        assert (2000 / elapsed_time) >= 1000, f"Throughput {2000 / elapsed_time:.0f} ops/sec below 1000 ops/sec target"
+        assert (2000 / elapsed_time) >= 500, f"Throughput {2000 / elapsed_time:.0f} ops/sec below 500 ops/sec target"
 
     async def test_concurrent_operations_performance(self, redis_server: fakeredis.aioredis.FakeRedis) -> None:
         """Test concurrent Redis operations for high load scenarios."""

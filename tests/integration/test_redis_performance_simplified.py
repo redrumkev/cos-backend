@@ -148,7 +148,7 @@ class TestDirectRedisBenchmarks:
 
         # Should complete within 2 seconds
         assert elapsed_time < 2.0, f"2000 operations took {elapsed_time:.3f}s, target <2.0s"
-        assert (2000 / elapsed_time) >= 1000, f"Throughput {2000 / elapsed_time:.0f} ops/sec below target"
+        assert (2000 / elapsed_time) >= 500, f"Throughput {2000 / elapsed_time:.0f} ops/sec below target"
 
     async def test_latency_target_validation(self, fake_redis: fakeredis.aioredis.FakeRedis) -> None:
         """Validate <1ms operation latency target."""

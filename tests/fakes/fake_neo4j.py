@@ -54,7 +54,7 @@ class FakeAsyncResult:
 
 
 class FakeAsyncSessionContext:
-    """Context manager for fake async session."""
+    """Context manager for fake async session supporting both sync and async protocols."""
 
     def __init__(self, session: FakeAsyncSession) -> None:
         """Initialize with session."""
@@ -66,6 +66,14 @@ class FakeAsyncSessionContext:
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit async context."""
+        pass
+
+    def __enter__(self) -> FakeAsyncSession:
+        """Enter sync context for compatibility."""
+        return self._session
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit sync context for compatibility."""
         pass
 
 

@@ -38,7 +38,7 @@ import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from enum import Enum
-from typing import Any, Generic, Protocol, TypeVar
+from typing import Any, Protocol, TypeVar, runtime_checkable
 
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.exc import OperationalError
@@ -48,6 +48,7 @@ from sqlalchemy.orm import joinedload, selectinload
 logger = logging.getLogger(__name__)
 
 
+@runtime_checkable
 class HasId(Protocol):
     """Protocol for models with an id attribute."""
 
@@ -282,7 +283,9 @@ async def with_retry(
             )
             await asyncio.sleep(delay)
 
-    raise last_exception  # type: ignore[misc]
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError("Retry loop completed without success or exception")
 
 
 # =============================================================================
@@ -290,7 +293,7 @@ async def with_retry(
 # =============================================================================
 
 
-class BaseRepository(Generic[T]):
+class BaseRepository[T: HasId]:
     """Generic repository pattern for database operations.
 
     Implements common CRUD operations with proper error handling,
@@ -330,7 +333,7 @@ class BaseRepository(Generic[T]):
         *,
         offset: int = 0,
         limit: int = 100,
-        order_by: Any = None,
+        order_by: str | None = None,
         eager_load: list[str] | None = None,
         filters: dict[str, Any] | None = None,
     ) -> list[T]:
@@ -357,7 +360,10 @@ class BaseRepository(Generic[T]):
                 stmt = stmt.where(getattr(self.model_class, column) == value)
 
         # Apply ordering
-        stmt = stmt.order_by(order_by) if order_by is not None else stmt.order_by(self.model_class.id)  # type: ignore[arg-type]
+        if order_by is not None:
+            stmt = stmt.order_by(getattr(self.model_class, order_by))
+        else:
+            stmt = stmt.order_by(self.model_class.id)  # type: ignore[arg-type]
 
         # Apply pagination
         stmt = stmt.offset(offset).limit(limit)
@@ -461,7 +467,7 @@ class BaseRepository(Generic[T]):
             Number of matching records
 
         """
-        stmt = select(func.count(self.model_class.id))  # type: ignore[arg-type]
+        stmt = select(func.count())
 
         if filters:
             for column, value in filters.items():
