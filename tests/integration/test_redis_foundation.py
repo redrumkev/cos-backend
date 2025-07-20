@@ -300,12 +300,19 @@ class TestBasicPubSub:
         # Use event-driven wait instead of sleep
         message_event = asyncio.Event()
 
-        async def wait_for_message() -> None:
-            while not received_messages:
-                await asyncio.sleep(0.001)
+        async def message_handler_with_event(channel: str, message: dict[str, Any]) -> None:
+            received_messages.append({"channel": channel, "message": message})
             message_event.set()
 
-        await asyncio.wait_for(wait_for_message(), timeout=0.1)
+        # Re-subscribe with event-based handler
+        await pubsub_client.unsubscribe("roundtrip_test")
+        await pubsub_client.subscribe("roundtrip_test", message_handler_with_event)
+
+        # Republish since we changed handlers
+        subscriber_count = await pubsub_client.publish("roundtrip_test", test_message)
+        assert subscriber_count == 1
+
+        await asyncio.wait_for(message_event.wait(), timeout=0.1)
 
         # Verify message received
         assert len(received_messages) == 1

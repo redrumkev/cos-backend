@@ -138,6 +138,10 @@ class TestNeo4jClientEdgeCases:
                 # Don't suppress the exception
                 return False
 
+            def close(self) -> None:
+                """Mock close method to match Neo4j session interface."""
+                pass
+
         # Mock driver
         mock_driver = MagicMock()
         mock_driver.session.return_value = MockSessionCM()

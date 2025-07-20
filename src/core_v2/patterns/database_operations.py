@@ -278,8 +278,7 @@ async def with_retry(
                 delay *= 0.5 + 0.5 * asyncio.get_event_loop().time() % 1
 
             logger.warning(
-                f"Database operation failed (attempt {attempt + 1}/{max_retries + 1}), "
-                f"retrying in {delay:.2f}s: {e}"
+                f"Database operation failed (attempt {attempt + 1}/{max_retries + 1}), retrying in {delay:.2f}s: {e}"
             )
             await asyncio.sleep(delay)
 

@@ -86,24 +86,18 @@ class TestNeo4jClient:
         client = Neo4jClient()
 
         # Mock the driver and session for connectivity check
-        mock_session = AsyncMock()
-        mock_result = AsyncMock()
+        mock_session = MagicMock()
+        mock_result = MagicMock()
         mock_record = {"test": 1}  # Use a dict instead of MagicMock
-        # Make single() async
-        mock_result.single = AsyncMock(return_value=mock_record)
+        # Make single() synchronous (matches real Neo4j interface)
+        mock_result.single.return_value = mock_record
         mock_session.run.return_value = mock_result
+        # Add close method to session (synchronous in real Neo4j)
+        mock_session.close = MagicMock()
 
         mock_driver = MagicMock()  # Use regular MagicMock for driver
-        # Create a proper async context manager for session
-
-        # Define the async context manager behavior
-        async def session_context() -> AsyncMock:
-            return mock_session
-
-        mock_session_cm = MagicMock()
-        mock_session_cm.__aenter__ = AsyncMock(side_effect=session_context)
-        mock_session_cm.__aexit__ = AsyncMock(return_value=None)
-        mock_driver.session.return_value = mock_session_cm
+        # The driver.session() should return the session object directly (which is its own context manager)
+        mock_driver.session.return_value = mock_session
 
         client.driver = mock_driver
 
@@ -164,17 +158,12 @@ class TestNeo4jClient:
 
         # Mock the driver and session properly
         mock_session = AsyncMock()
-        mock_driver = MagicMock()  # Use regular MagicMock for driver
+        # Add close method to session (synchronous in real Neo4j)
+        mock_session.close = MagicMock()
+        mock_driver = MagicMock()
 
-        # Define the async context manager behavior
-        async def session_context() -> AsyncMock:
-            return mock_session
-
-        # Create a proper async context manager mock
-        mock_session_cm = MagicMock()
-        mock_session_cm.__aenter__ = AsyncMock(side_effect=session_context)
-        mock_session_cm.__aexit__ = AsyncMock(return_value=None)
-        mock_driver.session.return_value = mock_session_cm
+        # The driver.session() should return the session object directly (which is its own context manager)
+        mock_driver.session.return_value = mock_session
 
         client.driver = mock_driver
         async with client.session() as session:
@@ -188,15 +177,12 @@ class TestNeo4jClient:
         # Mock auto-connection behavior
         with patch.object(client, "connect", new_callable=AsyncMock) as mock_connect:
             mock_session = AsyncMock()
-            mock_driver = AsyncMock()
+            # Add close method to session
+            mock_session.close = AsyncMock()
+            mock_driver = MagicMock()
 
-            # Create proper async context manager mock
-            mock_session_cm = AsyncMock()
-            mock_session_cm.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session_cm.__aexit__ = AsyncMock(return_value=None)
-
-            # Make session() return the context manager synchronously (not async)
-            mock_driver.session = MagicMock(return_value=mock_session_cm)
+            # The driver.session() should return the session object directly
+            mock_driver.session.return_value = mock_session
 
             # Set driver to None to force connection
             client.driver = None
@@ -220,15 +206,15 @@ class TestNeo4jClient:
 
         # Mock session and result
         mock_record = {"n": {"name": "test"}}
-        mock_result = AsyncMock()
 
-        # Mock async iteration over result
-        async def mock_async_iter(self: Any) -> AsyncGenerator[dict[str, Any], None]:
-            yield mock_record
+        # Create a proper async iterator mock
+        class MockAsyncIterator:
+            async def __aiter__(self) -> AsyncGenerator[dict[str, Any], None]:
+                yield mock_record
 
-        mock_result.__aiter__ = mock_async_iter
+        mock_result = MockAsyncIterator()
 
-        mock_session = AsyncMock()
+        mock_session = MagicMock()
         mock_session.run.return_value = mock_result
 
         with patch.object(client, "session") as mock_session_cm:
@@ -248,10 +234,15 @@ class TestNeo4jClient:
 
         # Mock session and result
         mock_record = {"n": {"name": "test"}}
-        mock_result = AsyncMock()
-        mock_result.data.return_value = [mock_record]
 
-        mock_session = AsyncMock()
+        # Create a proper async iterator mock
+        class MockAsyncIterator:
+            async def __aiter__(self) -> AsyncGenerator[dict[str, Any], None]:
+                yield mock_record
+
+        mock_result = MockAsyncIterator()
+
+        mock_session = MagicMock()
         mock_session.run.return_value = mock_result
 
         with patch.object(client, "session") as mock_session_cm:
@@ -484,8 +475,8 @@ class TestNeo4jIntegration:
 
                 # Test session context manager
                 async with client.session() as session:
-                    result = await session.run("RETURN 2 as test")
-                    record = await result.single()
+                    result = session.run("RETURN 2 as test")
+                    record = result.single()
                     assert record["test"] == 2
 
             finally:

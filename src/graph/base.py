@@ -130,7 +130,7 @@ class Neo4jClient:
     async def close(self) -> None:
         """Close the driver connection."""
         if self.driver:
-            await self.driver.close()
+            self.driver.close()
             self.driver = None
             self._is_connected = False
             log_event(
@@ -148,11 +148,11 @@ class Neo4jClient:
         try:
             session = self.driver.session()
             try:
-                result = await session.run("RETURN 1 as test")
+                result = session.run("RETURN 1 as test")
                 record = result.single()
                 return record is not None and record["test"] == 1
             finally:
-                await session.close()
+                session.close()
         except Exception as e:
             log_event(
                 source="graph",
@@ -183,13 +183,13 @@ class Neo4jClient:
             )
             raise
         finally:
-            await session.close()
+            session.close()
 
     async def execute_query(self, query: str, parameters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """Execute a Cypher query and return results as a list of dictionaries."""
         async with self.session() as session:
             try:
-                result = await session.run(query, parameters or {})
+                result = session.run(query, parameters or {})
                 records = [dict(record) async for record in result]
 
                 log_event(

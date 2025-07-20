@@ -491,10 +491,11 @@ def _create_test_subscriber(**kwargs: Any) -> BaseSubscriber:
     return TestSubscriber(**kwargs)
 
 
-async def _safe_task_completion(task: asyncio.Task[Any], timeout: float = 1.0) -> None:
+async def _safe_task_completion(task: asyncio.Task[Any]) -> None:
     """Safely wait for task completion with timeout."""
     try:
-        await asyncio.wait_for(task, timeout=timeout)
+        async with asyncio.timeout(1.0):
+            await task
     except TimeoutError:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):

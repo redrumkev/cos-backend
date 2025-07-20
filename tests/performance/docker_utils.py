@@ -120,15 +120,12 @@ class DockerHealthManager:
             logger.exception(f"Error checking container state for {self.container_name}: {e}")
             return ContainerState.UNKNOWN
 
-    async def wait_for_state(
-        self, desired_state: ContainerState, timeout: float = 10.0, poll_interval: float = 0.5
-    ) -> bool:
+    async def wait_for_state(self, desired_state: ContainerState, poll_interval: float = 0.5) -> bool:
         """Wait for container to reach desired state.
 
         Args:
         ----
             desired_state: Target container state
-            timeout: Maximum time to wait in seconds
             poll_interval: Time between state checks in seconds
 
         Returns:
@@ -136,25 +133,27 @@ class DockerHealthManager:
             True if desired state reached, False on timeout
 
         """
-        start_time = time.time()
+        try:
+            async with asyncio.timeout(10.0):
+                while True:
+                    current_state = await self.get_container_state()
+                    if current_state == desired_state:
+                        return True
 
-        while time.time() - start_time < timeout:
-            current_state = await self.get_container_state()
-            if current_state == desired_state:
-                return True
+                    # Handle special cases
+                    if current_state == ContainerState.NOT_FOUND:
+                        logger.error(
+                            f"Container {self.container_name} not found while waiting for {desired_state.value}"
+                        )
+                        return False
 
-            # Handle special cases
-            if current_state == ContainerState.NOT_FOUND:
-                logger.error(f"Container {self.container_name} not found while waiting for {desired_state.value}")
-                return False
-
-            await asyncio.sleep(poll_interval)
-
-        logger.warning(
-            f"Timeout waiting for {self.container_name} to reach {desired_state.value} state "
-            f"(current: {(await self.get_container_state()).value})"
-        )
-        return False
+                    await asyncio.sleep(poll_interval)
+        except TimeoutError:
+            logger.warning(
+                f"Timeout waiting for {self.container_name} to reach {desired_state.value} state "
+                f"(current: {(await self.get_container_state()).value})"
+            )
+            return False
 
     async def pause_container(self) -> bool:
         """Pause container with retry logic and state verification.
@@ -190,7 +189,7 @@ class DockerHealthManager:
                     await asyncio.sleep(1.0)
 
                     # Verify paused state
-                    if await self.wait_for_state(ContainerState.PAUSED, timeout=5.0):
+                    if await self.wait_for_state(ContainerState.PAUSED):
                         logger.info(f"Successfully paused container {self.container_name}")
                         return True
 
@@ -241,7 +240,7 @@ class DockerHealthManager:
                     await asyncio.sleep(1.0)
 
                     # Verify running state
-                    if await self.wait_for_state(ContainerState.RUNNING, timeout=5.0):
+                    if await self.wait_for_state(ContainerState.RUNNING):
                         logger.info(f"Successfully unpaused container {self.container_name}")
                         return True
 
@@ -276,7 +275,7 @@ class DockerHealthManager:
                     container = await asyncio.to_thread(client.containers.get, self.container_name)
                     await asyncio.to_thread(container.stop, timeout=10)
 
-                    if await self.wait_for_state(ContainerState.STOPPED, timeout=15.0):
+                    if await self.wait_for_state(ContainerState.STOPPED):
                         logger.info(f"Successfully stopped container {self.container_name}")
                         return True
 
@@ -309,7 +308,7 @@ class DockerHealthManager:
                     container = await asyncio.to_thread(client.containers.get, self.container_name)
                     await asyncio.to_thread(container.start)
 
-                    if await self.wait_for_state(ContainerState.RUNNING, timeout=15.0):
+                    if await self.wait_for_state(ContainerState.RUNNING):
                         logger.info(f"Successfully started container {self.container_name}")
                         return True
 

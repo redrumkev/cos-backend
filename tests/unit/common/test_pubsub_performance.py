@@ -200,8 +200,8 @@ class TestRedisPubSubPerformance:
 
         # End-to-end latency should be reasonable for in-memory fake Redis
         # CI environments have higher latency due to resource sharing
-        e2e_threshold_mean = 50.0 if os.getenv("CI") == "true" else 50.0  # Relaxed for varied hardware
-        e2e_threshold_p95 = 100.0 if os.getenv("CI") == "true" else 100.0  # Relaxed for varied hardware
+        e2e_threshold_mean = 50.0  # Relaxed for varied hardware
+        e2e_threshold_p95 = 100.0  # Relaxed for varied hardware
 
         assert (
             mean_latency < e2e_threshold_mean
@@ -223,7 +223,6 @@ class TestRedisPubSubPerformance:
 
         # Force garbage collection and measure baseline
         gc.collect()
-        import os
 
         import psutil
 

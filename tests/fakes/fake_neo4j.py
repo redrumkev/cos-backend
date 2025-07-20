@@ -30,7 +30,7 @@ class FakeAsyncResult:
         self._records = [FakeRecord(r) for r in records]
         self._index = 0
 
-    async def single(self) -> FakeRecord | None:
+    def single(self) -> FakeRecord | None:
         """Return the first record if exactly one exists."""
         if len(self._records) == 1:
             return self._records[0]
@@ -76,6 +76,10 @@ class FakeAsyncSessionContext:
         """Exit sync context for compatibility."""
         pass
 
+    def close(self) -> None:
+        """Close method to match Neo4j session interface."""
+        pass
+
 
 class FakeAsyncSession:
     """Mock implementation of Neo4j async session."""
@@ -84,7 +88,7 @@ class FakeAsyncSession:
         """Initialize with reference to graph store."""
         self._store = graph_store
 
-    async def run(self, query: str, parameters: dict[str, Any] | None = None) -> FakeAsyncResult:
+    def run(self, query: str, parameters: dict[str, Any] | None = None) -> FakeAsyncResult:
         """Execute a Cypher query and return results."""
         _ = parameters  # Currently unused but kept for API compatibility
 
@@ -128,8 +132,7 @@ class FakeAsyncSession:
                     if props_str and props_str != "{}":
                         # Extract key-value pairs
                         prop_matches = re.findall(r"(\w+):\s*['\"]([^'\"]+)['\"]", props_str)
-                        for key, value in prop_matches:
-                            props[key] = value
+                        props = dict(prop_matches)
 
                     # Create node in store
                     node_id = self._store.create_node(label, props)
@@ -146,6 +149,10 @@ class FakeAsyncSession:
         """Exit async context."""
         pass
 
+    def close(self) -> None:
+        """Close method to match Neo4j session interface."""
+        pass
+
 
 class FakeAsyncDriver:
     """Mock implementation of Neo4j async driver."""
@@ -157,13 +164,13 @@ class FakeAsyncDriver:
         self._store = InMemoryGraphStore()
         self._closed = False
 
-    def session(self) -> FakeAsyncSessionContext:
-        """Create a new session context manager."""
+    def session(self) -> FakeAsyncSession:
+        """Create a new session (which itself is an async context manager)."""
         if self._closed:
             raise RuntimeError("Driver is closed")
-        return FakeAsyncSessionContext(FakeAsyncSession(self._store))
+        return FakeAsyncSession(self._store)
 
-    async def close(self) -> None:
+    def close(self) -> None:
         """Close the driver."""
         self._closed = True
 

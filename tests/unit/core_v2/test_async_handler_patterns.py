@@ -574,9 +574,9 @@ class TestAsyncHandlerPatternCompliance:
         assert "owner_id" in model_fields
 
         # Verify field types
-        assert model_fields["id"].annotation == int
-        assert model_fields["name"].annotation == str
-        assert model_fields["owner_id"].annotation == int
+        assert model_fields["id"].annotation is int
+        assert model_fields["name"].annotation is str
+        assert model_fields["owner_id"].annotation is int
 
     def test_pattern_docstring_compliance(self) -> None:
         """Test that pattern has proper docstring."""

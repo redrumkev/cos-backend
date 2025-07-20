@@ -94,9 +94,10 @@ class EventSynchronizer:
         self.message_count = 0
         self.target_count = 0
 
-    async def wait_for_processing(self, timeout: float = 1.0) -> None:
+    async def wait_for_processing(self) -> None:
         """Wait for processing to complete with timeout."""
-        await asyncio.wait_for(self.processing_complete.wait(), timeout=timeout)
+        async with asyncio.timeout(1.0):
+            await self.processing_complete.wait()
 
     async def signal_processing_started(self) -> None:
         """Signal that processing has started."""
@@ -315,7 +316,7 @@ class TestLifecycleManagement:
         assert len(subscriber._consuming_tasks) == 1
 
         # Wait for processing to complete using event
-        await sync.wait_for_processing(timeout=1.0)
+        await sync.wait_for_processing()
 
         # Stop consuming
         await subscriber.stop_consuming()
@@ -411,7 +412,7 @@ class TestMessageProcessing:
         await subscriber.start_consuming("test_channel")
 
         # Wait for messages to be processed
-        await sync.wait_for_processing(timeout=1.0)
+        await sync.wait_for_processing()
 
         # Stop consuming
         await subscriber.stop_consuming()
@@ -517,7 +518,7 @@ class TestBatchProcessing:
         await asyncio.sleep(0.15)
 
         # Wait for processing
-        await sync.wait_for_processing(timeout=1.0)
+        await sync.wait_for_processing()
 
         # Stop batch processing
         subscriber._stop_event.set()
@@ -992,7 +993,7 @@ class TestIntegrationScenarios:
         await subscriber._handle_single_message(single_message)
 
         # Wait for all messages to be processed
-        await sync.wait_for_processing(timeout=1.0)
+        await sync.wait_for_processing()
 
         # Verify results
         assert len(subscriber.processed_messages) == INTEGRATION_TOTAL_MESSAGES
