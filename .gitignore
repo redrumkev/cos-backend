@@ -239,3 +239,4 @@ dev-debug.log
 tasks.json
 tasks/
 pytest.out
+.claude/
